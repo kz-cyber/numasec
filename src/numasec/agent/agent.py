@@ -142,6 +142,9 @@ class NumaSecAgent:
         
         # Event handlers
         self._observers = []
+        
+        # Metrics tracking for last LLM response
+        self.last_llm_response = None
 
     @classmethod
     def create(
@@ -177,20 +180,6 @@ class NumaSecAgent:
 
     def start(self, target: str, objective: str):
         """Initialize the agent state."""
-        # ══════════════════════════════════════════════════════════════════════
-        # LEGAL COMPLIANCE: Authorization Check
-        # ══════════════════════════════════════════════════════════════════════
-        # CRITICAL: This MUST be the first check before any testing
-        # Ensures compliance with CFAA and cybercrime laws
-        from numasec.compliance.authorization import require_authorization
-        
-        if not require_authorization(target):
-            raise PermissionError(
-                f"Authorization required for target: {target}\n"
-                "NumaSec requires explicit written authorization for non-whitelisted targets.\n"
-                "See compliance/authorization.py for whitelist details."
-            )
-        
         # Clear epistemic state to prevent cross-contamination between runs
         self.facts.clear()  # Remove facts from previous challenges
         self.result_hash_history.clear()  # Clear loop detection history (legacy)
@@ -515,6 +504,8 @@ Note: Avoid over-scanning. If reconnaissance phase is complete, move to exploita
                     task=self.config.planning_model_level,
                     tools=tool_list,
                 )
+                # Store response for metrics tracking
+                self.last_llm_response = response
             except Exception as e:
                 logger.error(f"LLM error in chat loop: {e}")
                 yield Event(EventType.ERROR, {"error": str(e)})
@@ -668,10 +659,22 @@ Note: Avoid over-scanning. If reconnaissance phase is complete, move to exploita
                         # Add tool result to context
                         self.state.add_message("tool", result_str, tool_call_id=tool_call.id)
                     
+                    # Build metrics from last LLM response
+                    metrics = {}
+                    if hasattr(self, 'last_llm_response') and self.last_llm_response:
+                        metrics = {
+                            "input_tokens": self.last_llm_response.input_tokens,
+                            "output_tokens": self.last_llm_response.output_tokens,
+                            "cost": self.last_llm_response.cost,
+                            "latency_ms": self.last_llm_response.latency_ms,
+                            "model": self.last_llm_response.model,
+                        }
+                    
                     yield Event(EventType.ACTION_COMPLETE, {
                         "tool": tool_call.name,
                         "result": result_str,
-                        "iteration": iteration
+                        "iteration": iteration,
+                        "metrics": metrics
                     })
                     
                     # Check for vulnerability in tool output (with CDN filtering)

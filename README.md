@@ -229,6 +229,15 @@ NumaSec is for **authorized testing only**.
 
 ---
 
+## 👤 Author
+
+**Francesco Stabile**
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/francesco-stabile-dev)
+[![X](https://img.shields.io/badge/X-000000?style=flat&logo=x&logoColor=white)](https://x.com/FrancescoS35989)
+
+---
+
 ## 📜 License
 
 MIT License — use it, modify it, ship it. See [LICENSE](LICENSE).
@@ -278,7 +287,7 @@ src/numasec/
 
 ### Full Documentation
 
-- [Architecture Deep Dive](ARCHITECTURE.md)
+- [Architecture Deep Dive](docs/ARCHITECTURE.md)
 - [CLI Guide](docs/CYBERPUNK_CLI.md)
 - [Changelog](CHANGELOG.md)
 - [Contributing](.github/CONTRIBUTING.md)

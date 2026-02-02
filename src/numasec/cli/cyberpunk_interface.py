@@ -290,8 +290,8 @@ class NumaSecCLI:
         """Epic matrix-style boot animation."""
         import random
         
-        # Matrix rain effect (brief)
-        matrix_chars = "01アイウエオカキクケコサシスセソタチツテト"
+        # Matrix rain effect (brief) - ASCII hacker style
+        matrix_chars = "01ABCDEFGHIJKLMNOPQRSTUVWXYZ#@+-/%\\|*<>[]{}()"
         cols = 20
         
         for frame in range(8):
@@ -330,29 +330,54 @@ class NumaSecCLI:
     # ══════════════════════════════════════════════════════════════════════
     
     def _display_welcome_banner(self):
-        """Display epic matrix ASCII art banner."""
+        """Display epic matrix ASCII art banner with side panel."""
+        from rich.table import Table
+        from rich.text import Text
         
-        # Main logo - NUMASEC in bold ASCII
-        logo = f"""[{CYBER_PURPLE}]███╗   ██╗██╗   ██╗███╗   ███╗ █████╗ ███████╗███████╗ ██████╗[/]
-[{CYBER_PURPLE}]████╗  ██║██║   ██║████╗ ████║██╔══██╗██╔════╝██╔════╝██╔════╝[/]
-[{ELECTRIC_CYAN}]██╔██╗ ██║██║   ██║██╔████╔██║███████║███████╗█████╗  ██║     [/]
-[{ELECTRIC_CYAN}]██║╚██╗██║██║   ██║██║╚██╔╝██║██╔══██║╚════██║██╔══╝  ██║     [/]
-[{MATRIX_GREEN}]██║ ╚████║╚██████╔╝██║ ╚═╝ ██║██║  ██║███████║███████╗╚██████╗[/]
-[{MATRIX_GREEN}]╚═╝  ╚═══╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝ ╚═════╝[/]
-
-[{DIM_GRAY}]Elite Penetration Testing Framework · v2.5 · AI-Powered[/]"""
+        # Left: ASCII Art Logo
+        logo_text = Text()
+        logo_text.append("███╗   ██╗██╗   ██╗███╗   ███╗ █████╗ ███████╗███████╗ ██████╗\n", style=CYBER_PURPLE)
+        logo_text.append("████╗  ██║██║   ██║████╗ ████║██╔══██╗██╔════╝██╔════╝██╔════╝\n", style=CYBER_PURPLE)
+        logo_text.append("██╔██╗ ██║██║   ██║██╔████╔██║███████║███████╗█████╗  ██║     \n", style=ELECTRIC_CYAN)
+        logo_text.append("██║╚██╗██║██║   ██║██║╚██╔╝██║██╔══██║╚════██║██╔══╝  ██║     \n", style=ELECTRIC_CYAN)
+        logo_text.append("██║ ╚████║╚██████╔╝██║ ╚═╝ ██║██║  ██║███████║███████╗╚██████╗\n", style=MATRIX_GREEN)
+        logo_text.append("╚═╝  ╚═══╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝ ╚═════╝\n\n", style=MATRIX_GREEN)
+        logo_text.append("AI-Powered Pentesting Framework", style="bold white")
+        logo_text.no_wrap = True
         
-        # Print in a panel like Claude Code
+        # Right: Quick Start Guide
+        guide_text = Text()
+        guide_text.append("QUICK START\n\n", style="bold white")
+        guide_text.append(">>> ", style=DIM_GRAY)
+        guide_text.append("Type your objective to begin breach\n", style="white")
+        guide_text.append(">>> ", style=DIM_GRAY)
+        guide_text.append("/help", style=f"bold {MATRIX_GREEN}")
+        guide_text.append(" - Show all commands\n", style="white")
+        guide_text.append(">>> ", style=DIM_GRAY)
+        guide_text.append("/metrics", style=f"bold {MATRIX_GREEN}")
+        guide_text.append(" - Session statistics\n", style="white")
+        guide_text.append(">>> ", style=DIM_GRAY)
+        guide_text.append("Ctrl-C", style=f"bold {CYBER_PURPLE}")
+        guide_text.append(" - Tactical pause", style="white")
+        
+        # Create table layout with fixed columns
+        layout = Table.grid(padding=(0, 4))
+        layout.add_column(width=68, no_wrap=True)  # Logo column - fits full NUMASEC
+        layout.add_column(width=1, justify="center")  # Separator
+        layout.add_column()  # Guide column - flexible
+        
+        separator = Text("│\n" * 10, style=DIM_GRAY)
+        layout.add_row(logo_text, separator, guide_text)
+        
+        # Print in panel
         self.console.print()
         self.console.print(Panel(
-            logo,
+            layout,
             border_style=MATRIX_GREEN,
             box=box.DOUBLE,
             padding=(1, 2)
         ))
-        
-        # Tagline
-        self.console.print(f"[{DIM_GRAY}]Type [/][{MATRIX_GREEN}]/help[/][{DIM_GRAY}] for commands  ·  [/][{MATRIX_GREEN}]/engage <target>[/][{DIM_GRAY}] to breach  ·  [/][{CYBER_PURPLE}]Ctrl-C[/][{DIM_GRAY}] to pause[/]\n")
+        self.console.print()
 
     # ══════════════════════════════════════════════════════════════════════
     # MAIN LOOP
@@ -482,17 +507,24 @@ class NumaSecCLI:
         spinner_frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
         spinner_idx = 0
         
-        # Helper: render thinking with streaming reasoning (FULL, NO TRUNCATION)
-        def render_thinking(reasoning: str, elapsed: float) -> Group:
+        # Helper: render thinking with REAL-TIME streaming (character-by-character)
+        def render_thinking(reasoning: str, elapsed: float, is_streaming: bool = True) -> Group:
             nonlocal spinner_idx
             spinner = spinner_frames[spinner_idx % len(spinner_frames)]
             spinner_idx += 1
             
             content = Text()
+            # Animated header
             content.append(f"{spinner} ", style=CYBER_PURPLE)
-            content.append("BREACHING SYSTEM...\n", style=f"bold {MATRIX_GREEN}")
+            content.append("BREACHING SYSTEM...", style=f"bold {MATRIX_GREEN}")
             
-            # Show ALL reasoning lines (no truncation for viral effect)
+            # Show reasoning with live cursor if still streaming
+            if is_streaming:
+                content.append(" ▊", style=f"blink {ELECTRIC_CYAN}")  # Blinking cursor
+            
+            content.append("\n")
+            
+            # Show ALL reasoning lines (streaming)
             lines = reasoning.strip().split("\n")
             for line in lines:
                 if line.strip():
@@ -512,8 +544,8 @@ class NumaSecCLI:
             
             return content
 
-        # THE LIVE CONTEXT (Single Column)
-        live = Live(console=self.console, refresh_per_second=12, transient=True)
+        # THE LIVE CONTEXT (Single Column) - High refresh for streaming
+        live = Live(console=self.console, refresh_per_second=20, transient=True)
         live.start()
         
         try:
@@ -562,17 +594,29 @@ class NumaSecCLI:
                         start_time = time.perf_counter()
                     
                     reasoning = event.data.get("reasoning", "")
-                    current_step_content += reasoning
                     
-                    # Stream thinking with transparent reasoning
-                    live.update(render_thinking(current_step_content, elapsed))
+                    # SIMULATE STREAMING: Display character-by-character
+                    # Even if event arrives as full block, we stream it visually
+                    old_len = len(current_step_content)
+                    target_content = reasoning
+                    
+                    # Stream new characters one by one
+                    for i in range(old_len, len(target_content)):
+                        current_step_content = target_content[:i+1]
+                        live.update(render_thinking(current_step_content, elapsed, is_streaming=True))
+                        await asyncio.sleep(0.005)  # 5ms per char = ultra fast but visible
+                    
+                    current_step_content = target_content
+                    live.update(render_thinking(current_step_content, elapsed, is_streaming=True))
                 
                 elif event.event_type == EventType.ACTION_PROPOSED:
                     # FLUSH THINKING - Show FULL reasoning (viral X potential)
                     if current_step_type == 'think':
                         elapsed_think = time.perf_counter() - start_time
                         
-                        # Stop spinner
+                        # Stop spinner and show final state (no cursor)
+                        live.update(render_thinking(current_step_content, elapsed_think, is_streaming=False))
+                        await asyncio.sleep(0.3)  # Brief pause to show final state
                         live.update(Text(""))
                         
                         lines = [l.strip() for l in current_step_content.strip().splitlines() if l.strip()]

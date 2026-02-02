@@ -26,19 +26,19 @@ NumaSec is built on a **layered architecture** with clear separation of concerns
 ```
 ┌───────────────────────────────────────────────────────────────┐
 │                     CLI Layer (Rich TUI)                      │
-│                  cyberpunk_interface.py (1039 lines)          │
+│                      cyberpunk_interface.py                   │
 └───────────────────────────────────────────────────────────────┘
                               ↓
 ┌───────────────────────────────────────────────────────────────┐
 │                  Agent Layer (ReAct Loop)                     │
-│         agent.py (3021 lines) + 13 supporting modules        │
+│                  agent.py + cognitive modules                 │
 │  • UCB1 Explorer  • Epistemic State  • Adaptive Reasoner     │
 │  • Meta-Learning  • Executive Validator  • Unified Strategy  │
 └───────────────────────────────────────────────────────────────┘
                               ↓
 ┌───────────────────────────────────────────────────────────────┐
 │              MCP Protocol Layer (28 Tools)                    │
-│              tools.py (2785 lines) + server.py                │
+│                     tools.py + server.py                      │
 │  • Tool Grounding  • Session Manager  • Risk Classification  │
 └───────────────────────────────────────────────────────────────┘
                               ↓
@@ -66,7 +66,7 @@ NumaSec is built on a **layered architecture** with clear separation of concerns
 The MCP layer implements 28 security tools as async handlers with strict validation:
 
 ```python
-# Tool Grounding (mcp/tools.py:73-88)
+# Tool Grounding
 VALID_TOOLS = frozenset({
     # Engagement (3)
     "engagement_create", "engagement_status", "engagement_close",
@@ -473,7 +473,6 @@ def validate_tool_call(tool: str, args: dict) -> tuple[bool, str]:
 Cookie persistence across requests enables complex authentication flows:
 
 ```python
-# mcp/tools.py:22-64
 class HTTPSessionManager:
     """Manages HTTP sessions with cookie persistence per engagement/task."""
     _sessions: dict[str, httpx.AsyncClient] = {}
@@ -559,7 +558,6 @@ The agent implements a 6-step cognitive cycle:
 ### Code Flow
 
 ```python
-# agent/agent.py:456-680 (simplified)
 async def chat(self, user_input: str) -> AsyncGenerator[Event, None]:
     """Main ReAct loop."""
     
@@ -641,7 +639,6 @@ Where:
 **Implementation:**
 
 ```python
-# agent/exploration.py:51-107
 class UCBExplorer:
     def __init__(self, exploration_constant: float = 1.41):
         self.c = exploration_constant  # √2
@@ -685,7 +682,6 @@ class UCBExplorer:
 **Reward Calculation:**
 
 ```python
-# agent/agent.py:760-830
 def _calculate_reward(self, result: str, tool: str) -> float:
     """
     Reward scale:
@@ -726,7 +722,6 @@ def _calculate_reward(self, result: str, tool: str) -> float:
 **Concept**: Separate "what happened" (logs) from "what we know" (knowledge graph).
 
 ```python
-# agent/fact_store.py:40-95
 @dataclass
 class Fact:
     """A confirmed truth discovered during engagement."""
@@ -801,7 +796,6 @@ if facts.get("sqli_login_form"):
 **Adaptive Reasoning Intensity:**
 
 ```python
-# agent/cognitive_reasoner.py:45-180
 class CognitiveReasoner:
     def select_mode(self, context: dict, iteration: int) -> str:
         """
@@ -864,7 +858,6 @@ class CognitiveReasoner:
 **Zero-Hallucination Guarantee:**
 
 ```python
-# mcp/tools.py:73-88
 VALID_TOOLS = frozenset({...})  # Immutable set of 28 tools
 
 # LLM generates tool call
@@ -891,7 +884,6 @@ is_valid, error = validate_tool_call(proposed_tool, {})
 **Solution**: Hash action + result together.
 
 ```python
-# agent/agent.py:129-134
 self.loop_history: deque = deque(maxlen=10)  # (action:result) keys
 
 # After each action
@@ -921,7 +913,6 @@ web_request("/admin", cookies=X) → "403 Forbidden"  # LOOP! Break it.
 **Concept**: Learn optimal tool sequences from historical engagements.
 
 ```python
-# agent/meta_learning_orchestrator.py:45-150
 class MetaLearningOrchestrator:
     def __init__(self):
         self.successful_engagements: list[EngagementMemory] = []
@@ -986,7 +977,6 @@ if recommended_tools:
 3. **Contextual Multi-Armed Bandits** (Google 2025)
 
 ```python
-# agent/unified_adaptive_strategy.py:48-300
 class UnifiedAdaptiveStrategy:
     def __init__(self):
         self.goal_state: StrategyState = StrategyState()
@@ -1037,7 +1027,6 @@ class UnifiedAdaptiveStrategy:
 ### LanceDB Vector Store
 
 ```python
-# knowledge/store.py:1-100
 class KnowledgeStore:
     """Vector store for payloads, techniques, writeups."""
     
@@ -1092,7 +1081,6 @@ class KnowledgeStore:
 **When to retrieve knowledge?**
 
 ```python
-# agent/agent.py:1850-1920
 def should_trigger_rag(self, context: dict) -> bool:
     """
     5 trigger signals:
@@ -1157,7 +1145,6 @@ def should_trigger_rag(self, context: dict) -> bool:
 ### CFAA Authorization System
 
 ```python
-# compliance/authorization.py:15-80
 AUTHORIZED_TARGETS = {
     # Training platforms (always authorized)
     "localhost", "127.0.0.1", "::1",
@@ -1203,7 +1190,6 @@ def require_authorization(target: str) -> bool:
 400+ CWE entries with descriptions and remediation:
 
 ```python
-# compliance/cwe.py:15-400
 CWE_DATABASE = {
     79: CWE(
         id=79,
@@ -1228,7 +1214,6 @@ CWE_DATABASE = {
 ### CVSS Scoring
 
 ```python
-# compliance/cvss.py:20-180
 def calculate_cvss_v3(
     attack_vector: str,      # NETWORK | ADJACENT | LOCAL | PHYSICAL
     attack_complexity: str,  # LOW | HIGH
@@ -1265,35 +1250,35 @@ def calculate_cvss_v3(
 User Input: "test localhost:3000 for SQL injection"
     ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 1. CLI Layer (cyberpunk_interface.py)                      │
+│ 1. CLI Layer                                                │
 │    • Parse command                                          │
 │    • Initialize Live rendering                              │
 │    • Stream agent events                                    │
 └─────────────────────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 2. Agent.chat() (agent.py:456)                             │
+│ 2. Agent.chat()                                             │
 │    • Start ReAct loop                                       │
 │    • Iteration 1: PERCEIVE                                  │
 │      - Context: {"target": "localhost:3000", "objective": "sql injection"}
 └─────────────────────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 3. REASON (cognitive_reasoner.py)                          │
+│ 3. REASON                                                   │
 │    • Mode: SINGLE (early iteration)                         │
 │    • LLM prompt: "What's the first step to test for SQLi?" │
 │    • Response: "Probe with error-based payloads"            │
 └─────────────────────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 4. VALIDATE (mcp/tools.py:100)                             │
+│ 4. VALIDATE                                                 │
 │    • Tool: web_request                                      │
 │    • validate_tool_call() → True (in VALID_TOOLS)          │
 │    • Risk: MEDIUM (approved)                                │
 └─────────────────────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 5. ACT (mcp/tools.py:handle_web_request)                   │
+│ 5. ACT                                                      │
 │    • HTTPSessionManager.get_session("default")              │
 │    • httpx.post("http://localhost:3000/login",             │
 │                 data={"user": "admin'", "pass": "test"})   │
@@ -1301,7 +1286,7 @@ User Input: "test localhost:3000 for SQL injection"
 └─────────────────────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 6. LEARN (exploration.py:82)                               │
+│ 6. LEARN                                                    │
 │    • Reward: 0.7 (vulnerability indicator detected)         │
 │    • explorer.record_action("web_request", args, 0.7)       │
 │    • Store fact: SQLi confirmed (confidence: 0.95)          │
@@ -1331,7 +1316,6 @@ User Input: "test localhost:3000 for SQL injection"
 - Iterations: 2
 - Cost: $0.08
 - Time: 45 seconds
-- Tools used: web_request (2x), finding_create (1x)
 
 ---
 
@@ -1378,21 +1362,21 @@ With optimizations:
 
 ### Core Files
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| agent/agent.py | 3021 | Main ReAct loop |
-| mcp/tools.py | 2785 | 28 MCP tool handlers |
-| knowledge/store.py | 1326 | LanceDB vector store |
-| cli/cyberpunk_interface.py | 1039 | Rich TUI |
-| compliance/cwe.py | 800+ | CWE database |
+| File | Purpose |
+|------|---------|
+| agent/agent.py | Main ReAct loop |
+| mcp/tools.py | 28 MCP tool handlers |
+| knowledge/store.py | LanceDB vector store |
+| cli/cyberpunk_interface.py | Rich TUI |
+| compliance/cwe.py | CWE database |
 
 ### Total Codebase
 
-- **Lines of Code**: ~15,000
-- **Agent Logic**: 5,000 lines
-- **MCP Layer**: 3,000 lines
-- **Tools**: 2,500 lines
-- **Other**: 4,500 lines
+- **Production-grade**: ~15K lines
+- **Agent Logic**: Cognitive reasoning engine
+- **MCP Layer**: 28 security tools
+- **Knowledge**: Vector store + RAG
+- **Compliance**: CFAA + CWE + CVSS
 
 ---
 
