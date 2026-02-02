@@ -1,0 +1,71 @@
+# Virtual environments
+.venv/
+venv/
+
+# Node
+node_modules/
+package-lock.json
+
+# Python
+__pycache__/
+
+# Data files (local databases, sessions)
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# CTF artifacts (output files)
+*_context.txt
+*_extracted/
+*_carved/
+*_foremost/
+*_http_objects/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test/temp files
+test.*
+*.tmp
+*.bak
+*_results.txt
+*_debug.txt
+debug_*.txt
+reproduction_*.txt
+
+# Knowledge base cache
+.numasec_kb_cache/
+.numasec_vector_db/
+
+# Workspace sessions (generated)
+workspace/sessions/
+
+# Binaries downloaded during CTF
+*.elf
+*.exe
+*.dll
+*.so
+
+# Large files
+*.raw
+*.dd
+*.img
+*.vmemwordlists/rockyou.txt
+.env
+wordlists/rockyou.txt
+.trash__pycache__/
+docs/notes/
