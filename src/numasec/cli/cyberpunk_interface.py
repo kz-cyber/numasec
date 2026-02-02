@@ -41,10 +41,14 @@ from rich import box
 from numasec.cli.cyberpunk_theme import (
     CYBERPUNK_THEME,
     CyberpunkAssets,
+    MATRIX_GREEN,
     NEON_GREEN,
     CYBER_PURPLE,
+    HACK_RED,
     WARNING_RED,
+    ELECTRIC_CYAN,
     ELECTRIC_BLUE,
+    GHOST_GRAY,
     DIM_GRAY,
     MUTED_TEXT,
     GOLD,
@@ -142,38 +146,52 @@ class NumaSecCLI:
         self.session: Optional[PromptSession] = None
         
     async def connect(self) -> bool:
-        """Initialize connection with SOTA spinner."""
+        """Initialize connection with MATRIX boot sequence."""
         self._load_env()
         
-        with self.console.status(f"[{CYBER_PURPLE}]INIT[_] System Boot...", spinner=CyberpunkAssets.SPINNER_DOTS, spinner_style=CYBER_PURPLE):
-            try:
-                # 1. MCP
-                transport = DirectTransport()
-                self.mcp_client = AsyncMCPClient(transport)
-                await self.mcp_client.connect()
-                
-                # 2. Router
-                self.router = LLMRouter(primary=LLMProvider.DEEPSEEK)
-                
-                # 3. Agent
-                self.agent = NumaSecAgent.create(
-                    router=self.router,
-                    mcp_client=self.mcp_client,
-                    target="interactive",
-                    approval_mode=ApprovalMode.SUPERVISED
-                )
-                
-                # Success Banner
-                self.console.print(f"[{NEON_GREEN}]✓ SYSTEM ONLINE[/] [{DIM_GRAY}]({len(self.mcp_client.tools)} tools loaded)[/]")
-                
-                # Check for active engagement (session contamination prevention)
-                await self._check_and_display_active_engagement()
-                
-                return True
-                
-            except Exception as e:
-                self.console.print(f"[{WARNING_RED}]✗ BOOT FAILED:[/] {e}")
-                return False
+        # MATRIX BOOT ANIMATION
+        await self._matrix_boot_sequence()
+        
+        try:
+            # 1. MCP
+            self._boot_step("LOADING MCP CLIENT")
+            transport = DirectTransport()
+            self.mcp_client = AsyncMCPClient(transport)
+            await self.mcp_client.connect()
+            self._boot_complete("MCP CLIENT READY")
+            
+            # 2. Router
+            self._boot_step("INITIALIZING AI ROUTER")
+            self.router = LLMRouter(primary=LLMProvider.DEEPSEEK)
+            self._boot_complete("AI ROUTER ONLINE")
+            
+            # 3. Agent
+            self._boot_step("SPAWNING AGENT PROCESS")
+            self.agent = NumaSecAgent.create(
+                router=self.router,
+                mcp_client=self.mcp_client,
+                target="interactive",
+                approval_mode=ApprovalMode.SUPERVISED
+            )
+            self._boot_complete("AGENT ARMED")
+            
+            # Success Banner with pulse effect
+            self.console.print()
+            for _ in range(3):
+                self.console.print(f"[{MATRIX_GREEN} bold]>> SYSTEM ONLINE <<[/] [{DIM_GRAY}]({len(self.mcp_client.tools)} tools armed)[/]", end="\r")
+                await asyncio.sleep(0.15)
+                self.console.print(f"[{MATRIX_GREEN}]>> SYSTEM ONLINE <<[/] [{DIM_GRAY}]({len(self.mcp_client.tools)} tools armed)[/]", end="\r")
+                await asyncio.sleep(0.15)
+            self.console.print(f"[{MATRIX_GREEN} bold]>> SYSTEM ONLINE <<[/] [{DIM_GRAY}]({len(self.mcp_client.tools)} tools armed)[/]")
+            
+            # Check for active engagement (session contamination prevention)
+            await self._check_and_display_active_engagement()
+            
+            return True
+            
+        except Exception as e:
+            self.console.print(f"[{HACK_RED} blink][X] BOOT FAILED:[/] {e}")
+            return False
 
     async def disconnect(self):
         # Pause active engagement to prevent session contamination
@@ -265,6 +283,78 @@ class NumaSecCLI:
             pass  # Silent fail - don't block startup
 
     # ══════════════════════════════════════════════════════════════════════
+    # MATRIX BOOT ANIMATIONS
+    # ══════════════════════════════════════════════════════════════════════
+    
+    async def _matrix_boot_sequence(self):
+        """Epic matrix-style boot animation."""
+        import random
+        
+        # Matrix rain effect (brief)
+        matrix_chars = "01アイウエオカキクケコサシスセソタチツテト"
+        cols = 20
+        
+        for frame in range(8):
+            line = "".join(random.choice(matrix_chars) for _ in range(cols))
+            self.console.print(f"[{MATRIX_GREEN} dim]{line}[/]", end="\r")
+            await asyncio.sleep(0.05)
+        
+        self.console.print(" " * cols)  # Clear
+        
+        # Boot messages with typing effect
+        boot_msgs = [
+            ">> INITIALIZING NEURAL CORE",
+            ">> LOADING ATTACK VECTORS",
+            ">> ESTABLISHING ENCRYPTED TUNNEL",
+        ]
+        
+        for msg in boot_msgs:
+            for i in range(len(msg) + 1):
+                self.console.print(f"[{ELECTRIC_CYAN}]{msg[:i]}[/]", end="\r")
+                await asyncio.sleep(0.02)
+            self.console.print(f"[{MATRIX_GREEN}]{msg} [✓][/]")
+            await asyncio.sleep(0.1)
+        
+        self.console.print()
+    
+    def _boot_step(self, msg: str):
+        """Show boot step."""
+        self.console.print(f"[{DIM_GRAY}]>> {msg}...[/]")
+    
+    def _boot_complete(self, msg: str):
+        """Mark boot step complete."""
+        self.console.print(f"[{MATRIX_GREEN}]   [✓] {msg}[/]")
+    
+    # ══════════════════════════════════════════════════════════════════════
+    # WELCOME BANNER (ASCII ART)
+    # ══════════════════════════════════════════════════════════════════════
+    
+    def _display_welcome_banner(self):
+        """Display epic matrix ASCII art banner."""
+        
+        # Main logo - NUMASEC in bold ASCII
+        logo = f"""[{CYBER_PURPLE}]███╗   ██╗██╗   ██╗███╗   ███╗ █████╗ ███████╗███████╗ ██████╗[/]
+[{CYBER_PURPLE}]████╗  ██║██║   ██║████╗ ████║██╔══██╗██╔════╝██╔════╝██╔════╝[/]
+[{ELECTRIC_CYAN}]██╔██╗ ██║██║   ██║██╔████╔██║███████║███████╗█████╗  ██║     [/]
+[{ELECTRIC_CYAN}]██║╚██╗██║██║   ██║██║╚██╔╝██║██╔══██║╚════██║██╔══╝  ██║     [/]
+[{MATRIX_GREEN}]██║ ╚████║╚██████╔╝██║ ╚═╝ ██║██║  ██║███████║███████╗╚██████╗[/]
+[{MATRIX_GREEN}]╚═╝  ╚═══╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝ ╚═════╝[/]
+
+[{DIM_GRAY}]Elite Penetration Testing Framework · v2.5 · AI-Powered[/]"""
+        
+        # Print in a panel like Claude Code
+        self.console.print()
+        self.console.print(Panel(
+            logo,
+            border_style=MATRIX_GREEN,
+            box=box.DOUBLE,
+            padding=(1, 2)
+        ))
+        
+        # Tagline
+        self.console.print(f"[{DIM_GRAY}]Type [/][{MATRIX_GREEN}]/help[/][{DIM_GRAY}] for commands  ·  [/][{MATRIX_GREEN}]/engage <target>[/][{DIM_GRAY}] to breach  ·  [/][{CYBER_PURPLE}]Ctrl-C[/][{DIM_GRAY}] to pause[/]\n")
+
+    # ══════════════════════════════════════════════════════════════════════
     # MAIN LOOP
     # ══════════════════════════════════════════════════════════════════════
 
@@ -283,12 +373,8 @@ class NumaSecCLI:
 
         self.session = PromptSession(key_bindings=kb)
         
-        # Welcome message
-        self.console.print(Panel(
-            f"[{CYBER_PURPLE}]NumaSec[/] [{DIM_GRAY}]v2.5[/]\n"
-            f"[{DIM_GRAY}]SOTA Pentesting Agent · Type /help for commands[/]",
-            border_style=DIM_GRAY, box=box.ROUNDED
-        ))
+        # Epic ASCII Art Welcome
+        self._display_welcome_banner()
         
         while True:
             try:
@@ -297,8 +383,8 @@ class NumaSecCLI:
                 
                 # SOTA Prompt styling
                 user_input = await self.session.prompt_async(
-                    HTML(f'<style fg="{NEON_GREEN}">❯</style> '),
-                    style=PromptStyle.from_dict({'': NEON_GREEN})
+                    HTML(f'<style fg="{MATRIX_GREEN}">❯</style> '),
+                    style=PromptStyle.from_dict({'': MATRIX_GREEN})
                 )
                 
                 if not user_input.strip(): continue
@@ -334,18 +420,18 @@ class NumaSecCLI:
         """
         self.console.print()
         self.console.print(Panel(
-            "[bold white]TACTICAL PAUSE INITIATED[/]\n"
-            f"[{NEON_GREEN}][R]esume[/]  [{ELECTRIC_BLUE}][I]nject Hint[/]  [{WARNING_RED}][S]top[/]",
-            title="[bold yellow]⚠ SUPERVISOR INTERVENTION[/]",
+            "[bold white]>> OPERATION PAUSED <<[/]\n"
+            f"[{MATRIX_GREEN}][R]esume[/]  [{ELECTRIC_CYAN}][I]nject Command[/]  [{HACK_RED}][S]top[/]",
+            title="[bold yellow][!] SUPERVISOR OVERRIDE[/]",
             border_style="yellow",
-            box=box.HEAVY
+            box=box.DOUBLE
         ))
         
         while True:
             try:
                 # Use a specific session for the menu to avoid main loop bindings issues
                 choice = await self.session.prompt_async(
-                    HTML(f'<style fg="yellow">SUPERVISOR ❯</style> '),
+                    HTML(f'<style fg="yellow">OVERRIDE ❯</style> '),
                     style=PromptStyle.from_dict({'': 'yellow'})
                 )
                 choice = choice.strip().lower()
@@ -357,22 +443,22 @@ class NumaSecCLI:
                     return False
                     
                 elif choice in ('i', 'inject', 'hint'):
-                    self.console.print(f"[{DIM_GRAY}]Enter strategic guidance for the agent:[/]")
+                    self.console.print(f"[{DIM_GRAY}]Enter tactical command:[/]")
                     hint = await self.session.prompt_async(
-                        HTML(f'<style fg="{ELECTRIC_BLUE}">HINT ❯</style> '),
-                        style=PromptStyle.from_dict({'': ELECTRIC_BLUE})
+                        HTML(f'<style fg="{ELECTRIC_CYAN}">CMD ❯</style> '),
+                        style=PromptStyle.from_dict({'': ELECTRIC_CYAN})
                     )
                     if hint.strip():
                         # Inject into agent state as high-priority user message
-                        self.agent.state.add_message("user", f"[SUPERVISOR INTERVENTION]: {hint}")
-                        self.console.print(f"[{NEON_GREEN}]✓ Strategic hint injected into agent context.[/]")
+                        self.agent.state.add_message("user", f"[SUPERVISOR OVERRIDE]: {hint}")
+                        self.console.print(f"[{MATRIX_GREEN}][✓] Command injected.[/]")
                         return True
                     else:
-                        self.console.print(f"[{DIM_GRAY}]No hint provided. Resuming without changes...[/]")
+                        self.console.print(f"[{DIM_GRAY}]No command. Resuming...[/]")
                         return True
                 
                 else:
-                    self.console.print(f"[{WARNING_RED}]Invalid choice. Use R/I/S.[/]")
+                    self.console.print(f"[{HACK_RED}]Invalid. Use R/I/S.[/]")
                         
             except KeyboardInterrupt:
                 # Ctrl-C in menu -> Resume
@@ -404,13 +490,13 @@ class NumaSecCLI:
             
             content = Text()
             content.append(f"{spinner} ", style=CYBER_PURPLE)
-            content.append("Thinking...\n", style=f"bold {CYBER_PURPLE}")
+            content.append("BREACHING SYSTEM...\n", style=f"bold {MATRIX_GREEN}")
             
             # Show ALL reasoning lines (no truncation for viral effect)
             lines = reasoning.strip().split("\n")
             for line in lines:
                 if line.strip():
-                    content.append(f"   {line.strip()}\n", style=f"italic {DIM_GRAY}")
+                    content.append(f"   >> {line.strip()}\n", style=f"{DIM_GRAY}")
             
             return content
         
@@ -421,8 +507,8 @@ class NumaSecCLI:
             spinner_idx += 1
             
             content = Text()
-            content.append(f"├─ {tool_name}\n", style=f"bold {ELECTRIC_BLUE}")
-            content.append(f"│  {spinner} Executing...\n", style=ELECTRIC_BLUE)
+            content.append(f"├─ {tool_name}\n", style=f"bold {ELECTRIC_CYAN}")
+            content.append(f"│  {spinner} INFILTRATING...\n", style=ELECTRIC_CYAN)
             
             return content
 
@@ -492,15 +578,23 @@ class NumaSecCLI:
                         lines = [l.strip() for l in current_step_content.strip().splitlines() if l.strip()]
                         if lines:
                             # Print ALL reasoning lines (not just last one)
-                            self.console.print(f"[{CYBER_PURPLE}]🧠 Reasoning:[/]")
+                            self.console.print(f"[{CYBER_PURPLE}]>> ANALYSIS:[/]")
                             for line in lines:
-                                self.console.print(f"[dim italic {DIM_GRAY}]   {line}[/]")
+                                self.console.print(f"[{DIM_GRAY}]   {line}[/]")
                             self.console.print("")  # Spacing
                     
-                    # Start Tool Mode
+                    # Start Tool Mode with glitch effect
                     tool = event.data.get("tool", "unknown")
                     params = event.data.get("params", {})
                     param_str = " ".join(f"{k}={v}" for k,v in params.items())[:60]
+                    
+                    # Glitch effect on tool name
+                    glitch_chars = "█▓▒░"
+                    import random
+                    for _ in range(3):
+                        glitched = "".join(random.choice([c, random.choice(glitch_chars)]) for c in tool)
+                        self.console.print(f"[{HACK_RED}]├─ {glitched}[/]", end="\r")
+                        await asyncio.sleep(0.05)
                     
                     current_step_type = 'tool'
                     current_step_content = f"{tool} {param_str}"
@@ -521,11 +615,22 @@ class NumaSecCLI:
                     clean_result = result.replace("\n", " ").strip()
                     summary = clean_result[:80] + "..." if len(clean_result) > 80 else clean_result
                     if not summary:
-                        summary = "Done"
+                        summary = "BREACH COMPLETE"
                     
-                    self.console.print(f"[{ELECTRIC_BLUE}]├─ {tool}[/]")
+                    # Animated progress bar
+                    self.console.print(f"[{ELECTRIC_CYAN}]├─ {tool}[/]")
                     self.console.print(f"[{DIM_GRAY}]│[/]  [dim]#{rec_id}[/dim]")
-                    self.console.print(f"[{NEON_GREEN}]│  ✓[/] {summary}")
+                    
+                    # Progress animation
+                    bar_len = 30
+                    for i in range(bar_len + 1):
+                        filled = "█" * i
+                        empty = "░" * (bar_len - i)
+                        percent = int((i / bar_len) * 100)
+                        self.console.print(f"[{DIM_GRAY}]│[/]  [{MATRIX_GREEN}]{filled}[{DIM_GRAY}]{empty}[/] {percent}%", end="\r")
+                        await asyncio.sleep(0.01)
+                    
+                    self.console.print(f"[{MATRIX_GREEN}]│  [✓][/] {summary}                                ")
                     
                     # METRICS (Footer style - compact)
                     metrics = event.data.get("metrics", {})
@@ -544,16 +649,16 @@ class NumaSecCLI:
                         # Compact footer
                         footer_parts = []
                         if latency > 0:
-                            footer_parts.append(f"⏱ {latency:.0f}ms")
+                            footer_parts.append(f"LAT: {latency:.0f}ms")
                         if tokens_in > 0 or tokens_out > 0:
-                            footer_parts.append(f"📊 {tokens_in}+{tokens_out}")
+                            footer_parts.append(f"TOK: {tokens_in}>{tokens_out}")
                         if cost > 0:
-                            footer_parts.append(f"💰 ${cost:.4f}")
+                            footer_parts.append(f"COST: ${cost:.4f}")
                         if model:
-                            footer_parts.append(f"🧠 {model.split('-')[0]}")
+                            footer_parts.append(f"MDL: {model.split('-')[0].upper()}")
                         
                         if footer_parts:
-                            footer = " │ ".join(footer_parts)
+                            footer = " | ".join(footer_parts)
                             self.console.print(f"[{DIM_GRAY}]└─ {footer}[/]")
                         
                         await self._check_cost_threshold()
@@ -571,12 +676,29 @@ class NumaSecCLI:
                     live.update(Text(""))
                     
                     self.console.print()
-                    self.console.print(Panel(
-                        content,
-                        border_style=NEON_GREEN,
-                        box=box.ROUNDED,
-                        title=f"[{CYBER_PURPLE}]Agent Response[/]"
-                    ))
+                    
+                    # Typing animation for responses (hacker movie style)
+                    if len(content) < 500 and not self.verbose_mode:
+                        # Show typing effect for short responses
+                        self.console.print(f"[{MATRIX_GREEN}]>> AGENT OUTPUT[/]")
+                        self.console.print()
+                        
+                        displayed = ""
+                        for char in content:
+                            displayed += char
+                            self.console.print(displayed, end="\r")
+                            await asyncio.sleep(0.01)  # Fast typing
+                        
+                        self.console.print(displayed)  # Final print
+                    else:
+                        # Long content: show in panel without animation
+                        self.console.print(Panel(
+                            content,
+                            border_style=MATRIX_GREEN,
+                            box=box.HEAVY,
+                            title=f"[{MATRIX_GREEN}]>> AGENT OUTPUT[/]"
+                        ))
+                    
                     self.console.print()
                 
                 elif event.event_type == EventType.FINDING:
@@ -585,7 +707,7 @@ class NumaSecCLI:
                     live.update(Text(""))
                     
                     self.console.print()
-                    self.console.print(f"[{GOLD}]🎯 FINDING #{self.findings_count}[/]")
+                    self.console.print(f"[{GOLD}]>> TARGET ACQUIRED #{self.findings_count}[/]")
                     self.console.print(f"[{GOLD}]   {finding}[/]")
                     self.console.print()
                 
@@ -596,9 +718,9 @@ class NumaSecCLI:
                     
                     self.console.print()
                     self.console.print(Panel(
-                        f"[{GOLD}]🏁 FLAG CAPTURED[/]\n\n{flag}",
+                        f"[{GOLD}]>> FLAG CAPTURED <<[/]\n\n{flag}",
                         border_style=GOLD,
-                        box=box.HEAVY
+                        box=box.DOUBLE
                     ))
                     self.console.print()
                 
@@ -613,18 +735,18 @@ class NumaSecCLI:
                     live.update(Text(""))
                     
                     self.console.print()
-                    self.console.print(f"[{WARNING_RED}]✗ ERROR: {msg}[/]")
+                    self.console.print(f"[{HACK_RED}][X] BREACH FAILED: {msg}[/]")
                     
                     if error_detail:
                         self.console.print(f"[{DIM_GRAY}]   {error_detail}[/]")
                     
                     if traceback_snippet:
                         tb_lines = traceback_snippet.strip().split("\n")[-3:]
-                        self.console.print(f"[{DIM_GRAY}]   Traceback:[/]")
+                        self.console.print(f"[{DIM_GRAY}]   Trace:[/]")
                         for line in tb_lines:
                             self.console.print(f"[{DIM_GRAY}]     {line}[/]")
                     
-                    self.console.print(f"[{DIM_GRAY}]   💡 Use /status or Ctrl+P to pause[/]")
+                    self.console.print(f"[{DIM_GRAY}]   [!] Use /status or Ctrl+C to pause[/]")
                     self.console.print()
                     
                     # Log to file
@@ -666,7 +788,7 @@ class NumaSecCLI:
                 "/purge         : Delete ALL engagements from database\n"
                 "/clear         : Clear context\n"
                 "/quit          : Exit",
-                title="Commands", border_style=DIM_GRAY
+                title=">> COMMANDS", border_style=MATRIX_GREEN
             ))
         
         elif command == "/new":
@@ -687,7 +809,7 @@ class NumaSecCLI:
             
         elif command == "/show":
             if not args or not args[0].isdigit():
-                self.console.print(f"[{WARNING_RED}]Usage: /show <id>[/]")
+                self.console.print(f"[{HACK_RED}]Usage: /show <id>[/]")
                 return True
                 
             rec_id = int(args[0])
@@ -695,24 +817,24 @@ class NumaSecCLI:
             if record:
                 self.console.print(Panel(
                     record.content,
-                    title=f"[{ELECTRIC_BLUE}]Action #{rec_id} Output[/]",
-                    border_style=ELECTRIC_BLUE,
-                    box=box.ROUNDED
+                    title=f"[{ELECTRIC_CYAN}]>> Action #{rec_id} Output[/]",
+                    border_style=ELECTRIC_CYAN,
+                    box=box.DOUBLE
                 ))
             else:
-                self.console.print(f"[{WARNING_RED}]ID #{rec_id} not found.[/]")
+                self.console.print(f"[{HACK_RED}]ID #{rec_id} not found.[/]")
                 
         elif command == "/tools":
             if self.mcp_client and self.mcp_client.tools:
-                table = Table(box=box.SIMPLE, show_header=True, header_style=NEON_GREEN)
-                table.add_column("Tool", style=ELECTRIC_BLUE)
-                table.add_column("Description", style=DIM_GRAY)
+                table = Table(box=box.SIMPLE, show_header=True, header_style=MATRIX_GREEN)
+                table.add_column("Tool", style=ELECTRIC_CYAN)
+                table.add_column("Description", style=GHOST_GRAY)
                 for tool in self.mcp_client.tools:
                     desc = tool.description[:60] + "..." if len(tool.description) > 60 else tool.description
                     table.add_row(tool.name, desc)
                 self.console.print(table)
             else:
-                self.console.print(f"[{WARNING_RED}]No tools loaded.[/]")
+                self.console.print(f"[{HACK_RED}]No tools loaded.[/]")
             
         elif command == "/clear":
             # Clear agent state and output history
@@ -721,15 +843,15 @@ class NumaSecCLI:
                 if hasattr(self.agent.state, 'messages'):
                     system_msgs = [m for m in self.agent.state.messages if m.role == "system"]
                     self.agent.state.messages = system_msgs
-                    self.console.print(f"[{NEON_GREEN}]✓ Agent context cleared.[/]")
+                    self.console.print(f"[{MATRIX_GREEN}][✓] Agent context cleared.[/]")
             
             # Clear output manager
             self.output_manager.clear()
-            self.console.print(f"[{NEON_GREEN}]✓ Output history cleared.[/]")
+            self.console.print(f"[{MATRIX_GREEN}][✓] Output history cleared.[/]")
         
         elif command == "/purge":
             # Dangerous: delete ALL engagements from database
-            self.console.print(f"[{WARNING_RED}]⚠ WARNING: This will delete ALL engagements from the database.[/]")
+            self.console.print(f"[{HACK_RED}][!] WARNING: This will delete ALL engagements from the database.[/]")
             self.console.print(f"[{DIM_GRAY}]Type 'yes' to confirm, anything else to cancel.[/]")
             
             try:
@@ -740,11 +862,11 @@ class NumaSecCLI:
                 
                 if confirm == "yes":
                     await self._purge_all_engagements()
-                    self.console.print(f"[{NEON_GREEN}]✓ All engagements deleted.[/]")
+                    self.console.print(f"[{MATRIX_GREEN}][✓] All engagements deleted.[/]")
                 else:
                     self.console.print(f"[{DIM_GRAY}]Purge cancelled.[/]")
             except Exception as e:
-                self.console.print(f"[{WARNING_RED}]Error: {e}[/]")
+                self.console.print(f"[{HACK_RED}]Error: {e}[/]")
             
         return True
     
@@ -771,8 +893,8 @@ class NumaSecCLI:
         # Clear output history
         self.output_manager.clear()
         
-        self.console.print(f"[{NEON_GREEN}]✓ Previous engagement paused.[/]")
-        self.console.print(f"[{NEON_GREEN}]✓ Session state reset.[/]")
+        self.console.print(f"[{MATRIX_GREEN}][✓] Previous engagement paused.[/]")
+        self.console.print(f"[{MATRIX_GREEN}][✓] Session state reset.[/]")
         self.console.print(f"[{CYBER_PURPLE}]Ready for new engagement.[/]")
     
     async def _handle_resume_engagement(self):
@@ -884,12 +1006,12 @@ class NumaSecCLI:
                 self.cost_warned_at.add(threshold)
                 self.console.print()
                 self.console.print(Panel(
-                    f"[{WARNING_RED}]⚠ Cost Alert[/]\n\n"
+                    f"[{HACK_RED}][!] COST ALERT[/]\n\n"
                     f"Session has exceeded ${threshold:.2f}\n"
                     f"Current total: ${self.total_cost:.4f}\n\n"
                     f"Use /metrics to view detailed stats.",
-                    border_style=WARNING_RED,
-                    box=box.HEAVY
+                    border_style=HACK_RED,
+                    box=box.DOUBLE
                 ))
                 self.console.print()
     
@@ -912,28 +1034,28 @@ class NumaSecCLI:
         elapsed = self._format_elapsed()
         
         # Create metrics table
-        table = Table(title="Session Metrics", box=box.ROUNDED, border_style=CYBER_PURPLE)
-        table.add_column("Metric", style=ELECTRIC_BLUE)
-        table.add_column("Value", justify="right", style=NEON_GREEN)
+        table = Table(title=">> SESSION METRICS", box=box.DOUBLE, border_style=MATRIX_GREEN)
+        table.add_column("Metric", style=ELECTRIC_CYAN)
+        table.add_column("Value", justify="right", style=MATRIX_GREEN)
         
-        table.add_row("Session Duration", elapsed)
-        table.add_row("Iterations", str(self.iteration_count))
-        table.add_row("Findings", str(self.findings_count))
-        table.add_row("Total Tokens (in)", f"{self.total_tokens_in:,}")
-        table.add_row("Total Tokens (out)", f"{self.total_tokens_out:,}")
-        table.add_row("Total Tokens", f"{self.total_tokens_in + self.total_tokens_out:,}")
-        table.add_row("Total Cost", f"${self.total_cost:.4f}", style=GOLD)
+        table.add_row("SESSION TIME", elapsed)
+        table.add_row("OPERATIONS", str(self.iteration_count))
+        table.add_row("TARGETS FOUND", str(self.findings_count))
+        table.add_row("TOKENS IN", f"{self.total_tokens_in:,}")
+        table.add_row("TOKENS OUT", f"{self.total_tokens_out:,}")
+        table.add_row("TOKENS TOTAL", f"{self.total_tokens_in + self.total_tokens_out:,}")
+        table.add_row("COST TOTAL", f"${self.total_cost:.4f}", style=GOLD)
         
         # Cost efficiency
         if self.iteration_count > 0:
             cost_per_iteration = self.total_cost / self.iteration_count
-            table.add_row("Cost/Iteration", f"${cost_per_iteration:.4f}")
+            table.add_row("COST/OP", f"${cost_per_iteration:.4f}")
         
         # Token efficiency
         total_tokens = self.total_tokens_in + self.total_tokens_out
         if total_tokens > 0:
             cost_per_1k = (self.total_cost / total_tokens) * 1000
-            table.add_row("Cost/1K Tokens", f"${cost_per_1k:.4f}")
+            table.add_row("COST/1K TOK", f"${cost_per_1k:.4f}")
         
         self.console.print()
         self.console.print(table)
@@ -1008,19 +1130,19 @@ class NumaSecCLI:
             size_kb = file_size / 1024
             
             self.console.print(Panel(
-                f"[{NEON_GREEN}]✓ Session Exported Successfully[/]\n\n"
-                f"File: [{ELECTRIC_BLUE}]{output_path}[/]\n"
-                f"Size: [{MUTED_TEXT}]{size_kb:.1f} KB[/]\n\n"
+                f"[{MATRIX_GREEN}][✓] SESSION EXPORTED[/]\n\n"
+                f"File: [{ELECTRIC_CYAN}]{output_path}[/]\n"
+                f"Size: [{DIM_GRAY}]{size_kb:.1f} KB[/]\n\n"
                 f"Actions: {len(export_data['actions'])}\n"
                 f"Total Cost: [{GOLD}]${self.total_cost:.4f}[/]\n\n"
-                f"[{DIM_GRAY}]Share this file for collaboration or bug reports[/]",
-                title=f"[{NEON_GREEN}]📦 Export Complete[/]",
-                border_style=NEON_GREEN,
-                box=box.ROUNDED
+                f"[{DIM_GRAY}]Share for collaboration or bug reports[/]",
+                title=f"[{MATRIX_GREEN}]>> EXPORT COMPLETE[/]",
+                border_style=MATRIX_GREEN,
+                box=box.DOUBLE
             ))
             
         except Exception as e:
-            self.console.print(f"[{WARNING_RED}]Export failed: {e}[/]")
+            self.console.print(f"[{HACK_RED}][X] Export failed: {e}[/]")
 
 async def main():
     cli = NumaSecCLI()
