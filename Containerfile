@@ -178,7 +178,12 @@ if [ "$1" = "mcp" ]; then
 fi
 
 # If first arg is "bash", "sh", or "python"/"python3", run directly
-if [ "$1" = "bash" ] || [ "$1" = "sh" ] || [ "$1" = "python" ] || [ "$1" = "python3" ]; then
+if [ "$1" = "bash" ] || [ "$1" = "sh" ]; then
+    exec "$@"
+elif [ "$1" = "python" ]; then
+    shift
+    exec python3 "$@"
+elif [ "$1" = "python3" ]; then
     exec "$@"
 fi
 
