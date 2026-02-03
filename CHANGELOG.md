@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **MCP-Native Architecture** - First security tool built on Model Context Protocol
 - **28 Integrated Security Tools** - nmap, sqlmap, nuclei, ffuf, hydra, and more
-- **Adaptive Reasoning** - SINGLE → LIGHT → DEEP mode escalation based on task complexity
+- **Cognitive Reasoning** - Structured XML template for consistent reasoning quality
 - **UCB1 Exploration** - Mathematical loop-breaking prevents getting stuck
 - **Reflexion Memory** - Learns from past actions via LanceDB vector storage
 

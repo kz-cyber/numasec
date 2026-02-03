@@ -147,7 +147,13 @@ class NmapTool(BaseTool[NmapResult]):
 
         # Add scan preset
         if scan_type in self.SCAN_PRESETS:
-            cmd.extend(self.SCAN_PRESETS[scan_type])
+            preset_args = list(self.SCAN_PRESETS[scan_type])
+            
+            # Remove -F (fast scan) if custom ports specified (conflict)
+            if ports and "-F" in preset_args:
+                preset_args.remove("-F")
+            
+            cmd.extend(preset_args)
 
         # Add port specification
         if ports:

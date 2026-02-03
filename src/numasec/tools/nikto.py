@@ -62,7 +62,7 @@ class NiktoResult(BaseModel):
 
     target: str = ""
     ip: str = ""
-    port: int = 80
+    port: int | None = None  # Allow None for dynamic port detection
     banner: str = ""
     findings: list[NiktoFinding] = Field(default_factory=list)
     duration_seconds: float = 0
@@ -97,7 +97,7 @@ class NiktoTool(BaseTool[NiktoResult]):
     async def execute(
         self,
         target: str,
-        port: int = 80,
+        port: int | None = None,
         ssl: bool = False,
         tuning: str | None = None,
         plugins: str | None = None,
@@ -124,9 +124,10 @@ class NiktoTool(BaseTool[NiktoResult]):
         # Build command
         cmd = ["nikto", "-h", target]
         
-        # Only add port if valid
-        if port and str(port).lower() != "none":
+        # Add port only if explicitly provided
+        if port is not None:
             cmd.extend(["-p", str(port)])
+        # Otherwise nikto will auto-detect from URL
 
         if ssl:
             cmd.append("-ssl")
@@ -181,7 +182,7 @@ class NiktoTool(BaseTool[NiktoResult]):
             duration_ms=duration_ms,
         )
 
-    def parse_output(self, raw_output: str, target: str, port: int) -> NiktoResult:
+    def parse_output(self, raw_output: str, target: str, port: int | None) -> NiktoResult:
         """Parse Nikto text output."""
         result = NiktoResult(target=target, port=port)
 

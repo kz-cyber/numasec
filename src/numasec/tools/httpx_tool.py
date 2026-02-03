@@ -165,10 +165,6 @@ class HttpxTool(BaseTool[HttpxResult]):
         # Build command
         cmd = ["httpx", "-json", "-silent"]
 
-        # Add targets
-        for target in targets:
-            cmd.extend(["-u", target])
-
         # Options
         if follow_redirects:
             cmd.append("-follow-redirects")
@@ -202,9 +198,24 @@ class HttpxTool(BaseTool[HttpxResult]):
         if extra_args:
             cmd.extend(extra_args)
 
-        # Execute
+        # Validate targets
+        if not targets:
+            return ToolResult[HttpxResult](
+                tool_name=self.name,
+                status=ToolStatus.FAILED,
+                data=None,
+                error="No targets provided",
+                command=" ".join(cmd),
+                exit_code=-1,
+                started_at=start_time,
+                completed_at=datetime.now(timezone.utc),
+                duration_ms=0,
+            )
+
+        # Execute with targets as stdin (httpx expects one target per line)
         executor = get_executor()
-        result = await executor.execute(cmd, timeout=timeout)
+        stdin_input = "\n".join(targets)
+        result = await executor.execute(cmd, timeout=timeout, input_data=stdin_input)
 
         completed_at = datetime.now(timezone.utc)
         duration_ms = (completed_at - start_time).total_seconds() * 1000

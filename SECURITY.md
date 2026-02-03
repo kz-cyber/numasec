@@ -15,15 +15,13 @@ If you discover a security vulnerability, please follow responsible disclosure p
 
 **DO NOT** open a public GitHub issue for security vulnerabilities.
 
-Instead, please email: **security@numasec.dev** (or create private GitHub Security Advisory)
+Instead, create a private GitHub Security Advisory.
 
 Include:
 - Description of the vulnerability
 - Steps to reproduce
 - Potential impact
 - Suggested fix (if any)
-
-We will respond within **48 hours** and aim to patch within **7 days** for critical issues.
 
 ---
 
@@ -76,9 +74,7 @@ export NUMASEC_SKIP_AUTH=1  # Bypasses authorization check
 
 ## 🔄 Security Updates
 
-- **Critical patches**: Released within 7 days
-- **Security advisories**: Posted as GitHub Security Advisories
-- **Notification**: Star the repo to receive security update notifications
+Security patches and advisories are posted as GitHub Security Advisories.
 
 ---
 
@@ -90,14 +86,6 @@ NumaSec is designed to comply with:
 - **NIST SP 800-115**
 
 Always follow your organization's security testing policies.
-
----
-
-## 🙏 Acknowledgments
-
-We appreciate responsible security researchers who help keep NumaSec safe.
-
-**Hall of Fame**: (Will list researchers who report valid vulnerabilities)
 
 ---
 

@@ -587,27 +587,47 @@ class NumaSecCLI:
                 # 3. PROCESS EVENT
                 elapsed = time.perf_counter() - start_time
                 
-                if event.event_type == EventType.THINK:
-                    if current_step_type != 'think':
-                        current_step_type = 'think'
-                        current_step_content = ""
-                        start_time = time.perf_counter()
+                # ═══════════════════════════════════════════════════════════
+                # SOTA 2026: TRUE STREAMING - THINK_CHUNK events
+                # Real-time token display as they arrive from LLM
+                # ═══════════════════════════════════════════════════════════
+                if event.event_type == EventType.THINK_CHUNK:
+                    phase = event.data.get("phase", "")
+                    delta = event.data.get("delta", "")
                     
-                    reasoning = event.data.get("reasoning", "")
+                    if phase == "stream_start":
+                        # Initialize streaming display
+                        if current_step_type != 'think':
+                            current_step_type = 'think'
+                            current_step_content = ""
+                            start_time = time.perf_counter()
                     
-                    # SIMULATE STREAMING: Display character-by-character
-                    # Even if event arrives as full block, we stream it visually
-                    old_len = len(current_step_content)
-                    target_content = reasoning
-                    
-                    # Stream new characters one by one
-                    for i in range(old_len, len(target_content)):
-                        current_step_content = target_content[:i+1]
+                    elif phase in ("content", "reasoning"):
+                        # TRUE STREAMING: Display delta immediately (no fake sleep!)
+                        current_step_content += delta
+                        elapsed = time.perf_counter() - start_time
                         live.update(render_thinking(current_step_content, elapsed, is_streaming=True))
-                        await asyncio.sleep(0.005)  # 5ms per char = ultra fast but visible
                     
-                    current_step_content = target_content
-                    live.update(render_thinking(current_step_content, elapsed, is_streaming=True))
+                    elif phase == "stream_end":
+                        # Stream complete - keep display active until next event
+                        pass
+                
+                elif event.event_type == EventType.THINK:
+                    # Legacy THINK event (full block) - for compatibility
+                    # Skip if we already have content from streaming
+                    if current_step_type == 'think' and current_step_content:
+                        # Already streamed, skip this legacy event
+                        pass
+                    else:
+                        # Fallback: non-streaming path (e.g., errors, system messages)
+                        if current_step_type != 'think':
+                            current_step_type = 'think'
+                            current_step_content = ""
+                            start_time = time.perf_counter()
+                        
+                        reasoning = event.data.get("reasoning", "")
+                        current_step_content = reasoning
+                        live.update(render_thinking(current_step_content, elapsed, is_streaming=True))
                 
                 elif event.event_type == EventType.ACTION_PROPOSED:
                     # FLUSH THINKING - Show FULL reasoning (viral X potential)
@@ -911,6 +931,15 @@ class NumaSecCLI:
                     self.console.print(f"[{DIM_GRAY}]Purge cancelled.[/]")
             except Exception as e:
                 self.console.print(f"[{HACK_RED}]Error: {e}[/]")
+        
+        else:
+            # FALLBACK: Try to execute as MCP tool (e.g., /report_preview, /finding_list)
+            tool_name = command[1:]  # Remove leading /
+            if self.mcp_client and any(t.name == tool_name for t in self.mcp_client.tools):
+                await self._execute_direct_tool(tool_name, args)
+            else:
+                self.console.print(f"[{HACK_RED}]Unknown command: {command}[/]")
+                self.console.print(f"[{DIM_GRAY}]Type /help for available commands.[/]")
             
         return True
     
@@ -1104,6 +1133,40 @@ class NumaSecCLI:
         self.console.print()
         self.console.print(table)
         self.console.print()
+    
+    async def _execute_direct_tool(self, tool_name: str, args: list[str]):
+        """
+        Execute MCP tool directly from slash command.
+        
+        Example: /report_preview → report_preview()
+                 /finding_list → finding_list()
+        """
+        try:
+            self.console.print(f"[{DIM_GRAY}]Executing tool: {tool_name}...[/]")
+            
+            # Parse arguments if provided
+            # Simple parser: assumes key=value pairs
+            tool_args = {}
+            for arg in args:
+                if "=" in arg:
+                    key, value = arg.split("=", 1)
+                    tool_args[key] = value
+            
+            # Execute tool via MCP client
+            result = await self.mcp_client.call_tool(tool_name, tool_args)
+            
+            # Display result
+            self.console.print(Panel(
+                result.content,
+                title=f"[{ELECTRIC_CYAN}]>> {tool_name}[/]",
+                border_style=MATRIX_GREEN,
+                box=box.ROUNDED
+            ))
+            
+        except Exception as e:
+            self.console.print(f"[{HACK_RED}]Error executing {tool_name}: {e}[/]")
+            import traceback
+            self.console.print(f"[{DIM_GRAY}]{traceback.format_exc()}[/]")
     
     async def _handle_export(self, filename: str):
         """Export full session to JSON."""

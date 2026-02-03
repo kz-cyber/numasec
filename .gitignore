@@ -69,3 +69,4 @@ workspace/sessions/
 wordlists/rockyou.txt
 .trash__pycache__/
 docs/notes/
+.agent/

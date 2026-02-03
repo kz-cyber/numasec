@@ -60,7 +60,6 @@ check_runtime() {
         echo "Install podman: sudo apt install podman"
         exit 1
     fi
-    echo -e "${GREEN}Using: $CONTAINER_CMD${NC}"
 }
 
 build_image() {
@@ -83,10 +82,6 @@ build_image() {
 run_interactive() {
     check_image
     
-    print_header
-    echo -e "${YELLOW}Starting NumaSec interactive session...${NC}"
-    echo
-    
     # Prepare volume mounts
     MOUNTS=(
         -v "$HOME/.numasec:/root/.numasec"
@@ -101,12 +96,8 @@ run_interactive() {
     ENV_FILE=""
     if [ -f "$HOME/.env" ]; then
         ENV_FILE="$HOME/.env"
-        echo -e "${GREEN}✓${NC} Loading ~/.env (API keys)"
     elif [ -f "$PROJECT_ROOT/.env" ]; then
         ENV_FILE="$PROJECT_ROOT/.env"
-        echo -e "${GREEN}✓${NC} Loading project .env"
-    else
-        echo -e "${YELLOW}⚠${NC} No .env found (add DEEPSEEK_API_KEY or ANTHROPIC_API_KEY)"
     fi
     
     # Parse .env and export as container environment variables
@@ -124,10 +115,7 @@ run_interactive() {
     if [ "${DEV_MODE:-}" = "1" ]; then
         MOUNTS+=(-v "$PROJECT_ROOT/src/numasec:/app/src/numasec")
         MOUNTS+=(-v "$PROJECT_ROOT/knowledge:/app/knowledge")
-        echo -e "${BLUE}ℹ${NC} Dev mode: code changes are live (no rebuild needed)"
     fi
-    
-    echo
     
     $CONTAINER_CMD run -it --rm \
         --network host \

@@ -17,8 +17,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/MCP-Native-purple" alt="MCP Native">
-  <img src="https://img.shields.io/badge/vulnerabilities_found-2,847-red" alt="Vulns Found">
-  <img src="https://img.shields.io/badge/cost_per_pentest-$0.12-green" alt="Cost">
+  <img src="https://img.shields.io/badge/Vibe-Security-ff00ff" alt="Vibe Security">
+  <img src="https://img.shields.io/badge/cost_per_pentest-$0.16-green" alt="Cost">
   <img src="https://img.shields.io/badge/python-3.11+-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-yellow" alt="License">
 </p>
@@ -153,7 +153,7 @@ You: full security assessment of target.com
 - **ReAct Loop**: Thinks before acting, observes results
 - **UCB1 Exploration**: Mathematically prevents infinite loops
 - **Tool Grounding**: Can only use real tools, zero hallucination
-- **Adaptive Reasoning**: Simple tasks = fast, complex = deep analysis
+- **Structured Reasoning**: Forced XML template for consistent quality
 
 </details>
 
@@ -269,7 +269,7 @@ NumaSec is built on 7 peer-reviewed AI techniques:
 2. **UCB1 Exploration** (Kocsis & Szepesvári, 2006) — Optimal action selection
 3. **Epistemic State** (Huang et al., 2022) — Persistent fact storage
 4. **Tool Grounding** (Schick et al., 2024) — Zero hallucination enforcement
-5. **Tree of Thoughts** (Yao et al., 2023) — Adaptive reasoning depth
+5. **Structured Reasoning** (SOTA 2026) — Forced reasoning templates
 6. **Meta-Learning** (MIT, 2026) — Learns from past engagements
 7. **Evidence-First Loop Detection** — Prevents infinite loops
 

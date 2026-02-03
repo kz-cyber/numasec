@@ -106,7 +106,6 @@ WORKDIR /app
 # Copy Python project files
 COPY pyproject.toml README.md ./
 COPY src/ ./src/
-COPY knowledge/ ./knowledge/
 COPY wordlists/ ./wordlists/
 
 # Install Python dependencies from pyproject.toml

@@ -27,9 +27,9 @@ NumaSec follows strict engineering principles:
 
 ## 🚀 Quick Start
 
-### 1. Fork & Clone
+### 1. Clone
 ```bash
-git clone https://github.com/FrancescoStabile/numasec.git
+git clone <repository_url>
 cd numasec
 ```
 
@@ -295,12 +295,4 @@ By contributing, you agree that your contributions will be licensed under the MI
 
 ---
 
-## 🙏 Acknowledgments
-
-Thank you for helping make NumaSec better! Every contribution counts.
-
-**Top Contributors**: (Will list top contributors here)
-
----
-
-**Questions?** Open a discussion on GitHub or reach out to the maintainers.
+**Questions?** Open an issue on the repository for technical discussions.

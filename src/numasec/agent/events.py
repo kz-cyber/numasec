@@ -13,7 +13,8 @@ class EventType(str, Enum):
     """Types of events emitted by the agent."""
     
     START = "start"
-    THINK = "think"  # Reasoning process
+    THINK = "think"  # Reasoning process (full block)
+    THINK_CHUNK = "think_chunk"  # Streaming reasoning (single token/chunk)
     ACTION_PROPOSED = "action_proposed"  # Tool selected
     ACTION_COMPLETE = "action_complete"  # Tool executed
     RESPONSE = "response"  # Agent's textual response to user

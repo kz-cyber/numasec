@@ -8,6 +8,7 @@ from numasec.ai.router import (
     LLMProvider,
     TaskComplexity,
     LLMResponse,
+    StreamChunk,
     LLMRouterError,
     LLMMetrics,
     PROVIDER_CONFIGS,
