@@ -109,7 +109,7 @@ class TestCLIStateMachine:
         cli.agent.state.add_message.assert_called_once()
         call_args = cli.agent.state.add_message.call_args
         assert call_args[0][0] == "user"
-        assert "SUPERVISOR INTERVENTION" in call_args[0][1]
+        assert "SUPERVISOR OVERRIDE" in call_args[0][1]
         assert "SQL injection" in call_args[0][1]
         
         assert result is True  # Should resume after injection

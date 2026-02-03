@@ -214,10 +214,10 @@ NumaSec is for **authorized testing only**.
 - [x] Core AI agent with 28 tools
 - [x] Professional report generation
 - [x] Knowledge base with 500+ payloads
-- [ ] Web UI (coming Q2 2026)
-- [ ] Team collaboration features
-- [ ] CI/CD integration
-- [ ] API access
+- [ ] **MCP Marketplace** — community-contributed security tools as MCP servers
+- [ ] **Agent Swarm/Specialization** — parallel specialized agents for complex targets
+- [ ] **Dynamic MCP Generation** — AI creates custom tools on-the-fly
+- [ ] **CI/CD Integration** — GitHub Actions
 
 ---
 

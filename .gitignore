@@ -33,6 +33,7 @@ build/
 .idea/
 *.swp
 *.swo
+.github/copilot-instructions.md
 
 # OS
 .DS_Store

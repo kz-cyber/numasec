@@ -1,50 +1,74 @@
-# NUMASEC - CTF Solving Agent
-# Minimal dependencies
+# ══════════════════════════════════════════════════════════════════════════════
+# NumaSec - Production Dependencies
+# ══════════════════════════════════════════════════════════════════════════════
+# NOTE: This file is DEPRECATED. Use pyproject.toml as source of truth.
+# Kept for backward compatibility and container builds only.
+#
+# Install from pyproject.toml:
+#   pip install -e .
+# ══════════════════════════════════════════════════════════════════════════════
 
-# Core - LLM API (DeepSeek uses OpenAI-compatible API)
-openai>=1.0.0
+# Core - LLM APIs
+openai>=1.30.0
+anthropic>=0.25.0
 
-# Environment
-python-dotenv>=1.0.0
+# CLI Framework
+rich>=13.7.0
+prompt_toolkit>=3.0.43
+typer>=0.12.0
 
-# HTTP requests
-requests>=2.28.0
+# MCP Protocol
+mcp>=1.0.0
 
-# HTML parsing (for numasec_lite)
+# HTTP Client
+httpx>=0.27.0
+
+# HTML Parsing
 beautifulsoup4>=4.12.0
 
-# Image/QR processing (optional, for numasec_lite)
-Pillow>=10.0.0
-pyzbar>=0.1.9
-
-# UI (v25: Rich + Prompt Toolkit + Typer for Conversational style CLI)
-rich>=13.0.0
-prompt_toolkit>=3.0.0
-typer>=0.9.0
-psutil
-
-# Deprecated: Textual TUI (keeping for compatibility, will be removed in v26)
-# textual>=0.40.0
-
 # Vector DB for Knowledge Base
-lancedb>=0.4.0
+lancedb>=0.6.0
+pyarrow>=14.0.0
 
-# Hybrid Search (BM25 + Vector)
+# Embeddings & Search
+sentence-transformers>=2.7.0
 rank-bm25>=0.2.2
-
-# Optional: useful for CTF work
-pycryptodome>=3.15.0    # Crypto operations
-beautifulsoup4>=4.11.0  # HTML parsing in scripts
-
-# File watching for workspace
-watchdog>=3.0.0
-
-# Browser automation (Playwright - CPU only, no GPU required)
-playwright>=1.40.0
-
-# Embeddings for RAG knowledge search
-sentence-transformers
 
 # ML for Meta-Learning Strategy
 scikit-learn>=1.4.0
 numpy>=1.26.0
+
+# Database
+sqlalchemy[asyncio]>=2.0.29
+aiosqlite>=0.20.0
+
+# Data Validation
+pydantic>=2.7.0
+pydantic-settings>=2.2.0
+
+# Utilities
+pyyaml>=6.0.0
+aiofiles>=23.2.0
+
+# Report Generation
+python-docx>=1.1.0
+
+# XML Parsing (for nmap output)
+defusedxml>=0.7.1
+
+# DNS queries (for recon_dns)
+dnspython>=2.6.0
+
+# ══════════════════════════════════════════════════════════════════════════════
+# REMOVED: Unused dependencies (cleaned 2026-02-03)
+# ══════════════════════════════════════════════════════════════════════════════
+# python-dotenv - Not used (env vars loaded via os.environ)
+# requests - Not used (replaced by httpx)
+# Pillow - Not used (no image processing in current version)
+# pyzbar - Not used (no QR code scanning)
+# psutil - Not used (no process monitoring)
+# pycryptodome - Not used (no crypto operations)
+# watchdog - Not used (no file watching)
+# playwright - Not used (HTTP-only, no browser automation)
+# structlog - Not used (using standard logging)
+# ══════════════════════════════════════════════════════════════════════════════

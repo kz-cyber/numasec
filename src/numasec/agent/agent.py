@@ -1343,10 +1343,8 @@ Note: Avoid over-scanning. If reconnaissance phase is complete, move to exploita
             "has_welcome_message": bool(re.search(r'(welcome|hello|logged in)', html_lower)),
             "is_authenticated": bool(re.search(r'(logout|sign.?out|welcome|dashboard)', html_lower)),
             
-            # Training environment patterns (legacy challenge format support)
+            # Credential/secret discovery indicators (professional pentesting)
             "has_credential_pattern": bool(re.search(r'(password|token|api[_-]?key|secret|credential)', html_lower)),
-            "has_legacy_pattern": bool(re.search(r'(picoctf\{|ctf\{|flag\{|htb\{)', html_lower)),  # Legacy training format support
-            "has_flag_placeholder": bool(re.search(r'flag|capture.*flag', html_lower)),
             
             # Form states
             "has_input_fields": html_lower.count('<input') if html_lower else 0,
@@ -1457,10 +1455,10 @@ Note: Avoid over-scanning. If reconnaissance phase is complete, move to exploita
                 "file inclusion", "unrestricted upload", "malicious file"
             ]),
             
-            # Training environment patterns - ONLY if flag endpoint or hidden content
-            "training_environment_patterns": any(term in result_text for term in [
-                "flag{", "picoctf{", "ctf{", "here is your flag", "flag is",
-                "flag located at", "hidden flag", "secret flag"
+            # Credential/Secret discovery patterns (professional pentesting)
+            "credential_exposure": any(term in result_text for term in [
+                "password:", "api_key:", "secret:", "token:", "credential",
+                "jwt:", "bearer", "authorization:", "aws_access_key"
             ]),
         }
         
@@ -2224,13 +2222,7 @@ Note: Avoid over-scanning. If reconnaissance phase is complete, move to exploita
                     logger.info(f"VULNERABILITY IDENTIFIED: {vuln_type} ({severity})")
                     # Continue assessment (don't return - find all vulns)
                 
-                # Legacy pattern detection (for backward compatibility with training environments)
-                flag = self._detect_flag_in_response(reasoning_result.reasoning, source="assistant")
-                if flag:
-                    self.state.update_variable("flag", flag)
-                    yield Event(EventType.FLAG, {"flag": flag, "finding_type": "credential_pattern"})
-                    logger.info(f"CREDENTIAL PATTERN FOUND: {flag}")
-                    return  # Mission complete
+                # Credential/secret discovery is handled via vulnerability patterns and findings
 
                 # --- 4. ACT / TOOL USE ---
                 if tool_calls:
@@ -2689,9 +2681,6 @@ This is attempt {no_tool_count} of 15. TAKE ACTION NOW.""")
         ],
     }
     
-    # Legacy flag detection (kept for training environment compatibility)
-    LEGACY_FLAG_PREFIXES = ['picoCTF', 'DUCTF', 'FLAG', 'flag', 'HTB', 'CTF']
-    
     def _detect_vulnerability_in_response(self, content: str, source: str = "tool") -> dict | None:
         """
         Detect security vulnerabilities using pattern matching.
@@ -2770,23 +2759,13 @@ This is attempt {no_tool_count} of 15. TAKE ACTION NOW.""")
             return "LOW"
     
     def _detect_flag_in_response(self, content: str, source: str = "tool") -> str | None:
-        """Legacy training environment flag detection (kept for backward compatibility)."""
-        if source not in ["tool"]:
-            return None
+        """DEPRECATED: CTF flag detection disabled for professional pentesting focus.
         
-        objective_lower = self.state.objective.lower() if self.state and self.state.objective else ""
-        is_training_env = any(term in objective_lower for term in ["flag", "ctf", "challenge", "picoctf"])
-        
-        if not is_training_env:
-            return None
-        
-        for prefix in self.LEGACY_FLAG_PREFIXES:
-            pattern = rf'{re.escape(prefix)}\{{[a-zA-Z0-9_]{{8,50}}\}}'
-            match = re.search(pattern, content, re.IGNORECASE)
-            if match:
-                flag = match.group(0)
-                logger.info(f"🏆 CREDENTIAL PATTERN DETECTED: {flag}")
-                return flag
+        NumaSec is designed for enterprise security assessments, not CTF competitions.
+        Credential/secret detection is handled via vulnerability patterns and finding_create.
+        """
+        # Completely disabled - return None always
+        # If you need CTF-style flag detection, use vulnerability patterns instead
         return None
 
     def _calculate_reward(self, result: str) -> float:
@@ -2855,12 +2834,6 @@ This is attempt {no_tool_count} of 15. TAKE ACTION NOW.""")
             else:
                 logger.info(f"ℹ️ LOW VULNERABILITY: {vulnerability['type']} - Reward: 0.8")
                 return 0.8
-        
-        # Legacy: credential pattern detection (backward compatibility)
-        flag = self._detect_flag_in_response(result, source="tool")
-        if flag:
-            logger.info("🏆 CREDENTIAL PATTERN DETECTED - Reward: 1.0")
-            return 1.0
         
         # Security assessment progress indicators
         progress_indicators = [
@@ -3191,35 +3164,6 @@ This is attempt {no_tool_count} of 15. TAKE ACTION NOW.""")
                         logger.warning(f"⚠️ Failed to store password fact: {e}")
                 
                 break  # Only process first match
-        
-        # ─────────────────────────────────────────────────────────────────
-        # 5. FLAG FRAGMENT DETECTION (Multi-part flags)
-        # ─────────────────────────────────────────────────────────────────
-        
-        # Check if result contains partial training pattern
-        training_pattern_prefixes = ['picoCTF', 'DUCTF', 'FLAG', 'HTB', 'CTF']
-        for prefix in training_pattern_prefixes:
-            # Look for incomplete patterns like "PREFIX{part1_" without closing brace
-            import re
-            partial_pattern = rf'{re.escape(prefix)}\{{[a-zA-Z0-9_]+(?!\}})'
-            match = re.search(partial_pattern, result)
-            if match:
-                fragment = match.group(0)
-                
-                try:
-                    self.facts.add_fact(
-                        type=FactType.FLAG_FRAGMENT,
-                        key=f"flag_fragment_{prefix}",
-                        value=fragment,
-                        confidence=0.8,  # Partial, so slightly lower
-                        evidence=result[:300],
-                        iteration=iteration,
-                        tags=["flag_fragment", prefix],
-                        metadata={"prefix": prefix}
-                    )
-                    logger.info(f"✅ FACT STORED: Flag fragment {fragment}")
-                except ValueError:
-                    pass
     
     def _build_causal_context(self) -> str:
         """

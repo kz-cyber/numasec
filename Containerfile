@@ -177,12 +177,17 @@ if [ "$1" = "mcp" ]; then
     exec python3 -m numasec.mcp "$@"
 fi
 
-# If first arg is "bash" or "sh", run shell
-if [ "$1" = "bash" ] || [ "$1" = "sh" ]; then
+# If first arg is "bash", "sh", or "python"/"python3", run directly
+if [ "$1" = "bash" ] || [ "$1" = "sh" ] || [ "$1" = "python" ] || [ "$1" = "python3" ]; then
     exec "$@"
 fi
 
-# Otherwise, run numasec
+# If no args, run interactive numasec
+if [ $# -eq 0 ]; then
+    exec python3 -m numasec
+fi
+
+# Otherwise, run as numasec subcommand
 exec python3 -m numasec "$@"
 EOF
 

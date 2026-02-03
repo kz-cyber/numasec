@@ -776,17 +776,19 @@ class NumaSecCLI:
                     self.console.print()
                 
                 elif event.event_type == EventType.FLAG:
-                    self.findings_count += 1
-                    flag = event.data.get("flag", "")
-                    live.update(Text(""))
+                    # Professional finding notification (discrete)
+                    finding_type = event.data.get("finding_type", "vulnerability")
+                    vuln_type = event.data.get("vulnerability", "security_issue")
+                    severity = event.data.get("severity", "MEDIUM")
                     
-                    self.console.print()
-                    self.console.print(Panel(
-                        f"[{GOLD}]>> FLAG CAPTURED <<[/]\n\n{flag}",
-                        border_style=GOLD,
-                        box=box.DOUBLE
-                    ))
-                    self.console.print()
+                    if finding_type == "vulnerability":
+                        self.findings_count += 1
+                        live.update(Text(""))
+                        
+                        self.console.print()
+                        self.console.print(f"[{GOLD}]>> FINDING #{self.findings_count}: {vuln_type.upper()} ({severity})[/]")
+                        self.console.print(f"[{DIM_GRAY}]   Use finding_list to view details[/]")
+                        self.console.print()
                 
                 elif event.event_type == EventType.START:
                     start_time = time.perf_counter()
