@@ -1,4 +1,4 @@
-"""Tests for security_mcp.scanners.vuln_scanner — Python-native vuln scanner."""
+"""Tests for numasec.scanners.vuln_scanner — Python-native vuln scanner."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 
 import httpx
 
-from security_mcp.scanners.vuln_scanner import (
+from numasec.scanners.vuln_scanner import (
     SECURITY_HEADERS,
     PythonVulnScanner,
     ScanResult,

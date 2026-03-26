@@ -1,4 +1,4 @@
-"""Smoke tests for the security-mcp pipeline.
+"""Smoke tests for the numasec pipeline.
 
 These tests validate that shared components can be instantiated and wired
 together correctly WITHOUT requiring external resources (API keys, network,
@@ -13,11 +13,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from security_mcp.core.planner import DeterministicPlanner, ReplanSignal
-from security_mcp.models.enums import PhaseStatus, PTESPhase
-from security_mcp.models.finding import Finding
-from security_mcp.models.plan import AttackPlan, AttackPhase, AttackStep
-from security_mcp.models.target import TargetProfile
+from numasec.core.planner import DeterministicPlanner, ReplanSignal
+from numasec.models.enums import PhaseStatus, PTESPhase
+from numasec.models.finding import Finding
+from numasec.models.plan import AttackPlan, AttackPhase, AttackStep
+from numasec.models.target import TargetProfile
 
 
 # ---------------------------------------------------------------------------
@@ -32,7 +32,7 @@ class TestComponentInstantiation:
         assert planner is not None
 
     def test_tool_registry_creates(self):
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
         registry = create_default_tool_registry()
         assert len(registry.available_tools) >= 14
 
@@ -72,7 +72,7 @@ class TestPlanGeneration:
         assert deep_steps >= quick_steps
 
     def test_plan_with_web_technologies(self):
-        from security_mcp.models.target import Port, Technology
+        from numasec.models.target import Port, Technology
         planner = DeterministicPlanner()
         profile = TargetProfile(
             target="http://example.com",
@@ -112,7 +112,7 @@ class TestSARIFSmoke:
     """Verify SARIF report generation from findings."""
 
     def test_empty_report(self):
-        from security_mcp.reporting.sarif import generate_sarif_report
+        from numasec.reporting.sarif import generate_sarif_report
 
         report = generate_sarif_report([])
         assert report["version"] == "2.1.0"
@@ -120,7 +120,7 @@ class TestSARIFSmoke:
         assert report["runs"][0]["results"] == []
 
     def test_report_with_findings(self):
-        from security_mcp.reporting.sarif import generate_sarif_report
+        from numasec.reporting.sarif import generate_sarif_report
 
         findings = [
             Finding(title="SQL Injection", severity="critical", url="/api", cwe_id="CWE-89"),
@@ -129,11 +129,11 @@ class TestSARIFSmoke:
         report = generate_sarif_report(findings, target="http://example.com")
 
         assert len(report["runs"][0]["results"]) == 2
-        assert report["runs"][0]["tool"]["driver"]["name"] == "security_mcp"
+        assert report["runs"][0]["tool"]["driver"]["name"] == "numasec"
         assert len(report["runs"][0]["tool"]["driver"]["rules"]) == 2
 
     def test_sarif_json_serializable(self):
-        from security_mcp.reporting.sarif import sarif_to_json
+        from numasec.reporting.sarif import sarif_to_json
 
         findings = [Finding(title="Test Finding", severity="high", url="/test")]
         json_str = sarif_to_json(findings)
@@ -141,7 +141,7 @@ class TestSARIFSmoke:
         assert parsed["version"] == "2.1.0"
 
     def test_sarif_dast_extensions(self):
-        from security_mcp.reporting.sarif import generate_sarif_report
+        from numasec.reporting.sarif import generate_sarif_report
 
         findings = [
             Finding(title="SQLi in login", severity="critical", url="/login", method="POST", parameter="email"),
@@ -150,8 +150,8 @@ class TestSARIFSmoke:
         result = report["runs"][0]["results"][0]
 
         # Check DAST-specific properties
-        assert result["properties"]["security_mcp:http_method"] == "POST"
-        assert result["properties"]["security_mcp:parameter"] == "email"
+        assert result["properties"]["numasec:http_method"] == "POST"
+        assert result["properties"]["numasec:parameter"] == "email"
 
 
 # ---------------------------------------------------------------------------
@@ -162,14 +162,14 @@ class TestKnowledgeBaseSmoke:
     """Verify KB loading and retrieval."""
 
     def test_kb_loads_templates(self):
-        from security_mcp.knowledge import KnowledgeLoader
+        from numasec.knowledge import KnowledgeLoader
 
         loader = KnowledgeLoader()
         templates = loader.load_all()
         assert len(templates) > 0
 
     def test_kb_chunks_templates(self):
-        from security_mcp.knowledge import KnowledgeChunker, KnowledgeLoader
+        from numasec.knowledge import KnowledgeChunker, KnowledgeLoader
 
         loader = KnowledgeLoader()
         templates = loader.load_all()
@@ -183,7 +183,7 @@ class TestKnowledgeBaseSmoke:
         assert total_chunks > 0
 
     def test_kb_retriever_queries(self):
-        from security_mcp.knowledge import KnowledgeChunker, KnowledgeLoader, KnowledgeRetriever
+        from numasec.knowledge import KnowledgeChunker, KnowledgeLoader, KnowledgeRetriever
 
         loader = KnowledgeLoader()
         templates = loader.load_all()

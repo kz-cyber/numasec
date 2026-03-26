@@ -1,5 +1,5 @@
 """Tests for MCP singleton module."""
-from security_mcp.mcp._singletons import (
+from numasec.mcp._singletons import (
     get_kb,
     get_mcp_session_store,
     get_tool_registry,

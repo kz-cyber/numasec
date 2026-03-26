@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from security_mcp.tools import create_default_tool_registry
+from numasec.tools import create_default_tool_registry
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +115,7 @@ class TestToolBridge:
     """Test bridge_tools_to_mcp correctly registers tools."""
 
     def test_bridge_registers_tools(self):
-        from security_mcp.mcp.tool_bridge import bridge_tools_to_mcp
+        from numasec.mcp.tool_bridge import bridge_tools_to_mcp
 
         mcp = MockFastMCP()
         registry = create_default_tool_registry()
@@ -126,17 +126,17 @@ class TestToolBridge:
         assert "http_request" in mcp._tools
         assert "recon" in mcp._tools
 
-    def test_bridge_excludes_run_command(self):
-        from security_mcp.mcp.tool_bridge import bridge_tools_to_mcp
+    def test_bridge_includes_run_command(self):
+        from numasec.mcp.tool_bridge import bridge_tools_to_mcp
 
         mcp = MockFastMCP()
         registry = create_default_tool_registry()
         bridge_tools_to_mcp(mcp, registry)
 
-        assert "run_command" not in mcp._tools
+        assert "run_command" in mcp._tools
 
     def test_bridged_count_matches_registry_minus_excluded(self):
-        from security_mcp.mcp.tool_bridge import bridge_tools_to_mcp
+        from numasec.mcp.tool_bridge import bridge_tools_to_mcp
 
         mcp = MockFastMCP()
         registry = create_default_tool_registry()
@@ -146,7 +146,7 @@ class TestToolBridge:
         assert count == expected
 
     def test_all_bridged_tools_have_descriptions(self):
-        from security_mcp.mcp.tool_bridge import bridge_tools_to_mcp
+        from numasec.mcp.tool_bridge import bridge_tools_to_mcp
 
         mcp = MockFastMCP()
         registry = create_default_tool_registry()
@@ -165,7 +165,7 @@ class TestIntelTools:
     """Test intelligence tools register correctly (consolidated: kb_search + plan)."""
 
     def test_register_adds_two_tools(self):
-        from security_mcp.mcp.intel_tools import register
+        from numasec.mcp.intel_tools import register
 
         mcp = MockFastMCP()
         register(mcp)
@@ -174,7 +174,7 @@ class TestIntelTools:
         assert set(mcp._tools.keys()) == expected
 
     def test_kb_search_registered(self):
-        from security_mcp.mcp.intel_tools import register
+        from numasec.mcp.intel_tools import register
 
         mcp = MockFastMCP()
         register(mcp)
@@ -182,14 +182,14 @@ class TestIntelTools:
         assert "knowledge base" in mcp._tools["kb_search"]["description"].lower()
 
     def test_kb_search_covers_cwe(self):
-        from security_mcp.mcp.intel_tools import register
+        from numasec.mcp.intel_tools import register
 
         mcp = MockFastMCP()
         register(mcp)
         assert "cwe" in mcp._tools["kb_search"]["description"].lower()
 
     def test_plan_registered(self):
-        from security_mcp.mcp.intel_tools import register
+        from numasec.mcp.intel_tools import register
 
         mcp = MockFastMCP()
         register(mcp)
@@ -206,7 +206,7 @@ class TestCWELookup:
     """Test CWE lookup table directly."""
 
     def test_lookup_cwe_89(self):
-        from security_mcp.mcp.intel_tools import _lookup_cwe
+        from numasec.mcp.intel_tools import _lookup_cwe
 
         result = _lookup_cwe("CWE-89")
         assert result is not None
@@ -214,14 +214,14 @@ class TestCWELookup:
         assert result["severity"] == "critical"
 
     def test_lookup_bare_id(self):
-        from security_mcp.mcp.intel_tools import _lookup_cwe
+        from numasec.mcp.intel_tools import _lookup_cwe
 
         result = _lookup_cwe("79")
         assert result is not None
         assert "Scripting" in result["name"] or "XSS" in result["name"]
 
     def test_lookup_nonexistent(self):
-        from security_mcp.mcp.intel_tools import _lookup_cwe
+        from numasec.mcp.intel_tools import _lookup_cwe
 
         result = _lookup_cwe("CWE-99999")
         assert result is None
@@ -236,7 +236,7 @@ class TestStateTools:
     """Test state management tools register correctly."""
 
     def test_register_adds_four_tools(self):
-        from security_mcp.mcp.state_tools import register
+        from numasec.mcp.state_tools import register
 
         mcp = MockFastMCP()
         register(mcp)
@@ -245,14 +245,14 @@ class TestStateTools:
         assert expected.issubset(set(mcp._tools.keys()))
 
     def test_save_finding_registered(self):
-        from security_mcp.mcp.state_tools import register
+        from numasec.mcp.state_tools import register
 
         mcp = MockFastMCP()
         register(mcp)
         assert "save_finding" in mcp._tools
 
     def test_generate_report_registered(self):
-        from security_mcp.mcp.state_tools import register
+        from numasec.mcp.state_tools import register
 
         mcp = MockFastMCP()
         register(mcp)
@@ -273,11 +273,11 @@ class TestStateToolsFunctional:
     async def test_create_session(self, tmp_path):
         from unittest.mock import patch
 
-        from security_mcp.mcp.mcp_session_store import McpSessionStore
+        from numasec.mcp.mcp_session_store import McpSessionStore
 
         store = McpSessionStore(db_path=str(tmp_path / "st_integ.db"))
-        with patch("security_mcp.mcp._singletons.get_mcp_session_store", return_value=store):
-            from security_mcp.mcp import state_tools
+        with patch("numasec.mcp._singletons.get_mcp_session_store", return_value=store):
+            from numasec.mcp import state_tools
 
             fake = MockFastMCP()
             state_tools.register(fake)
@@ -291,11 +291,11 @@ class TestStateToolsFunctional:
     async def test_save_and_get_findings(self, tmp_path):
         from unittest.mock import patch
 
-        from security_mcp.mcp.mcp_session_store import McpSessionStore
+        from numasec.mcp.mcp_session_store import McpSessionStore
 
         store = McpSessionStore(db_path=str(tmp_path / "st_findings.db"))
-        with patch("security_mcp.mcp._singletons.get_mcp_session_store", return_value=store):
-            from security_mcp.mcp import state_tools
+        with patch("numasec.mcp._singletons.get_mcp_session_store", return_value=store):
+            from numasec.mcp import state_tools
 
             fake = MockFastMCP()
             state_tools.register(fake)
@@ -331,7 +331,7 @@ class TestResourcesRegistration:
     """Test MCP resources register correctly."""
 
     def test_resources_registered(self):
-        from security_mcp.mcp.resources import register_resources
+        from numasec.mcp.resources import register_resources
 
         mcp = MockFastMCP()
         register_resources(mcp)
@@ -349,7 +349,7 @@ class TestPromptsRegistration:
     """Test MCP prompts register correctly."""
 
     def test_prompts_registered(self):
-        from security_mcp.mcp.prompts import register_prompts
+        from numasec.mcp.prompts import register_prompts
 
         mcp = MockFastMCP()
         register_prompts(mcp)
@@ -358,7 +358,7 @@ class TestPromptsRegistration:
         assert "code_review" in mcp._prompts
 
     def test_threat_model_prompt_callable(self):
-        from security_mcp.mcp.prompts import register_prompts
+        from numasec.mcp.prompts import register_prompts
 
         mcp = MockFastMCP()
         register_prompts(mcp)
@@ -368,7 +368,7 @@ class TestPromptsRegistration:
         assert "http://example.com" in result
 
     def test_code_review_prompt_callable(self):
-        from security_mcp.mcp.prompts import register_prompts
+        from numasec.mcp.prompts import register_prompts
 
         mcp = MockFastMCP()
         register_prompts(mcp)
@@ -378,7 +378,7 @@ class TestPromptsRegistration:
         assert "CWE" in result
 
     def test_security_assessment_contains_spa_workflow(self):
-        from security_mcp.mcp.prompts import register_prompts
+        from numasec.mcp.prompts import register_prompts
 
         mcp = MockFastMCP()
         register_prompts(mcp)
@@ -387,7 +387,7 @@ class TestPromptsRegistration:
         assert "browser" in result
 
     def test_security_assessment_contains_auth_flow(self):
-        from security_mcp.mcp.prompts import register_prompts
+        from numasec.mcp.prompts import register_prompts
 
         mcp = MockFastMCP()
         register_prompts(mcp)
@@ -396,7 +396,7 @@ class TestPromptsRegistration:
         assert "auth_test" in result or "auth" in result.lower()
 
     def test_security_assessment_contains_idor(self):
-        from security_mcp.mcp.prompts import register_prompts
+        from numasec.mcp.prompts import register_prompts
 
         mcp = MockFastMCP()
         register_prompts(mcp)
@@ -405,7 +405,7 @@ class TestPromptsRegistration:
         assert "IDOR" in result or "BOLA" in result
 
     def test_security_assessment_reporting_no_html(self):
-        from security_mcp.mcp.prompts import register_prompts
+        from numasec.mcp.prompts import register_prompts
 
         mcp = MockFastMCP()
         register_prompts(mcp)
@@ -418,7 +418,7 @@ class TestPromptsRegistration:
                 break
 
     def test_security_assessment_contains_coverage_gate(self):
-        from security_mcp.mcp.prompts import register_prompts
+        from numasec.mcp.prompts import register_prompts
 
         mcp = MockFastMCP()
         register_prompts(mcp)
@@ -429,7 +429,7 @@ class TestPromptsRegistration:
         assert "mandatory" in result.lower()
 
     def test_security_assessment_coverage_gate_lists_all_mandatory_tools(self):
-        from security_mcp.mcp.prompts import register_prompts
+        from numasec.mcp.prompts import register_prompts
 
         mcp = MockFastMCP()
         register_prompts(mcp)
@@ -448,7 +448,7 @@ class TestPromptsRegistration:
             assert tool in result, f"Coverage gate missing mandatory tool: {tool}"
 
     def test_security_assessment_pre_report_gate(self):
-        from security_mcp.mcp.prompts import register_prompts
+        from numasec.mcp.prompts import register_prompts
 
         mcp = MockFastMCP()
         register_prompts(mcp)
@@ -458,7 +458,7 @@ class TestPromptsRegistration:
         assert "plan" in result
 
     def test_security_assessment_owasp_reference(self):
-        from security_mcp.mcp.prompts import register_prompts
+        from numasec.mcp.prompts import register_prompts
 
         mcp = MockFastMCP()
         register_prompts(mcp)
@@ -468,7 +468,7 @@ class TestPromptsRegistration:
         assert "OWASP" in result
 
     def test_security_assessment_reporting_phase_references_coverage_gaps(self):
-        from security_mcp.mcp.prompts import register_prompts
+        from numasec.mcp.prompts import register_prompts
 
         mcp = MockFastMCP()
         register_prompts(mcp)
@@ -489,38 +489,38 @@ class TestPromptsRegistration:
 class TestSSRFProtection:
     """Test SSRF protection in MCP server module."""
 
-    def test_validate_target_rejects_localhost(self):
-        from security_mcp.mcp.server import InvalidTarget, validate_target
+    def test_validate_target_accepts_localhost(self):
+        from numasec.mcp.server import validate_target
 
-        with pytest.raises(InvalidTarget):
-            validate_target("http://localhost/admin")
+        result = validate_target("http://localhost/admin")
+        assert result == "http://localhost/admin"
 
-    def test_validate_target_rejects_127(self):
-        from security_mcp.mcp.server import InvalidTarget, validate_target
+    def test_validate_target_accepts_127(self):
+        from numasec.mcp.server import validate_target
 
-        with pytest.raises(InvalidTarget):
-            validate_target("http://127.0.0.1/secret")
+        result = validate_target("http://127.0.0.1/secret")
+        assert result == "http://127.0.0.1/secret"
 
-    def test_validate_target_rejects_10_network(self):
-        from security_mcp.mcp.server import InvalidTarget, validate_target
+    def test_validate_target_accepts_10_network(self):
+        from numasec.mcp.server import validate_target
 
-        with pytest.raises(InvalidTarget):
-            validate_target("http://10.0.0.1/internal")
+        result = validate_target("http://10.0.0.1/internal")
+        assert result == "http://10.0.0.1/internal"
 
     def test_validate_target_accepts_public(self):
-        from security_mcp.mcp.server import validate_target
+        from numasec.mcp.server import validate_target
 
         result = validate_target("http://example.com")
         assert result == "http://example.com"
 
     def test_validate_target_rejects_long_url(self):
-        from security_mcp.mcp.server import InvalidTarget, validate_target
+        from numasec.mcp.server import InvalidTarget, validate_target
 
         with pytest.raises(InvalidTarget, match="too long"):
             validate_target("http://" + "a" * 300)
 
     def test_validate_target_rejects_ftp(self):
-        from security_mcp.mcp.server import InvalidTarget, validate_target
+        from numasec.mcp.server import InvalidTarget, validate_target
 
         with pytest.raises(InvalidTarget, match="Scheme"):
             validate_target("ftp://example.com")
@@ -541,7 +541,7 @@ class TestServerCreation:
 
         # Only test if mcp is not actually installed
         if "mcp" not in sys.modules and importlib.util.find_spec("mcp") is None:
-            from security_mcp.mcp.server import create_mcp_server
+            from numasec.mcp.server import create_mcp_server
 
             with pytest.raises(ImportError, match="mcp"):
                 create_mcp_server()

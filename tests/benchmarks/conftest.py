@@ -17,5 +17,5 @@ def benchmark_config():
 
 @pytest.fixture
 def allow_internal(monkeypatch):
-    """Set SECMCP_ALLOW_INTERNAL for localhost testing."""
-    monkeypatch.setenv("SECMCP_ALLOW_INTERNAL", "1")
+    """Set NUMASEC_ALLOW_INTERNAL for localhost testing."""
+    monkeypatch.setenv("NUMASEC_ALLOW_INTERNAL", "1")

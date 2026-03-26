@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-from security_mcp.scanners.js_analyzer import (
+from numasec.scanners.js_analyzer import (
     JSAnalysisResult,
     JSAnalyzer,
     JSFinding,
@@ -113,7 +113,7 @@ class TestDiscoverJsFiles:
         analyzer = JSAnalyzer()
         resp = _mock_response(200, text=html)
 
-        with patch("security_mcp.scanners.js_analyzer.httpx.AsyncClient") as mock_client_cls:
+        with patch("numasec.scanners.js_analyzer.httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.get = AsyncMock(return_value=resp)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -130,7 +130,7 @@ class TestDiscoverJsFiles:
         analyzer = JSAnalyzer()
         resp = _mock_response(404)
 
-        with patch("security_mcp.scanners.js_analyzer.httpx.AsyncClient") as mock_client_cls:
+        with patch("numasec.scanners.js_analyzer.httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.get = AsyncMock(return_value=resp)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -144,7 +144,7 @@ class TestDiscoverJsFiles:
     async def test_handles_http_error(self):
         analyzer = JSAnalyzer()
 
-        with patch("security_mcp.scanners.js_analyzer.httpx.AsyncClient") as mock_client_cls:
+        with patch("numasec.scanners.js_analyzer.httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.get = AsyncMock(side_effect=httpx.ConnectError("timeout"))
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -460,7 +460,7 @@ class TestFullAnalysis:
         async def mock_get(url, **kwargs):
             return _mock_response(200, text=js_content, content_type="application/javascript")
 
-        with patch("security_mcp.scanners.js_analyzer.httpx.AsyncClient") as mock_client_cls:
+        with patch("numasec.scanners.js_analyzer.httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.get = AsyncMock(side_effect=mock_get)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -491,7 +491,7 @@ class TestFullAnalysis:
                 return _mock_response(200, text=html)
             return _mock_response(200, text=js_content, content_type="application/javascript")
 
-        with patch("security_mcp.scanners.js_analyzer.httpx.AsyncClient") as mock_client_cls:
+        with patch("numasec.scanners.js_analyzer.httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.get = AsyncMock(side_effect=mock_get)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -513,7 +513,7 @@ class TestFullAnalysis:
 class TestToolWrapper:
     async def test_returns_json_string(self):
         with patch(
-            "security_mcp.scanners.js_analyzer.JSAnalyzer.analyze",
+            "numasec.scanners.js_analyzer.JSAnalyzer.analyze",
             new_callable=AsyncMock,
             return_value=JSAnalysisResult(target="http://test", js_files_analyzed=2, duration_ms=100.0),
         ):
@@ -524,7 +524,7 @@ class TestToolWrapper:
 
     async def test_parses_js_files_csv(self):
         with patch(
-            "security_mcp.scanners.js_analyzer.JSAnalyzer.analyze",
+            "numasec.scanners.js_analyzer.JSAnalyzer.analyze",
             new_callable=AsyncMock,
             return_value=JSAnalysisResult(target="http://test"),
         ) as mock_analyze:
@@ -537,7 +537,7 @@ class TestToolWrapper:
 
     async def test_parses_headers_json(self):
         with patch(
-            "security_mcp.scanners.js_analyzer.JSAnalyzer.analyze",
+            "numasec.scanners.js_analyzer.JSAnalyzer.analyze",
             new_callable=AsyncMock,
             return_value=JSAnalysisResult(target="http://test"),
         ) as mock_analyze:
@@ -550,7 +550,7 @@ class TestToolWrapper:
 
     async def test_handles_invalid_headers_json(self):
         with patch(
-            "security_mcp.scanners.js_analyzer.JSAnalyzer.analyze",
+            "numasec.scanners.js_analyzer.JSAnalyzer.analyze",
             new_callable=AsyncMock,
             return_value=JSAnalysisResult(target="http://test"),
         ) as mock_analyze:
@@ -566,7 +566,7 @@ class TestToolWrapper:
 
 class TestToolRegistration:
     def test_registry_has_js_analyze(self):
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         names = [

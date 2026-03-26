@@ -14,7 +14,7 @@ from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
-from security_mcp.tools.oob_tool import (
+from numasec.tools.oob_tool import (
     CID_LENGTH,
     CID_NONCE_LENGTH,
     DEFAULT_SERVER,
@@ -217,7 +217,7 @@ class TestRegister:
         client = OOBClient(server="oast.live")
         resp = _mock_response(200, json_body={"message": "registration successful"})
 
-        with patch("security_mcp.tools.oob_tool.httpx.AsyncClient") as mock_cls:
+        with patch("numasec.tools.oob_tool.httpx.AsyncClient") as mock_cls:
             mock_http = AsyncMock()
             mock_http.post = AsyncMock(return_value=resp)
             mock_http.__aenter__ = AsyncMock(return_value=mock_http)
@@ -235,7 +235,7 @@ class TestRegister:
         client = OOBClient(server="oast.live")
         resp = _mock_response(200)
 
-        with patch("security_mcp.tools.oob_tool.httpx.AsyncClient") as mock_cls:
+        with patch("numasec.tools.oob_tool.httpx.AsyncClient") as mock_cls:
             mock_http = AsyncMock()
             mock_http.post = AsyncMock(return_value=resp)
             mock_http.__aenter__ = AsyncMock(return_value=mock_http)
@@ -265,7 +265,7 @@ class TestRegister:
                 return fail_resp
             return ok_resp
 
-        with patch("security_mcp.tools.oob_tool.httpx.AsyncClient") as mock_cls:
+        with patch("numasec.tools.oob_tool.httpx.AsyncClient") as mock_cls:
             mock_http = AsyncMock()
             mock_http.post = AsyncMock(side_effect=mock_post)
             mock_http.__aenter__ = AsyncMock(return_value=mock_http)
@@ -281,7 +281,7 @@ class TestRegister:
         client = OOBClient(server="oast.live")
         fail_resp = _mock_response(500)
 
-        with patch("security_mcp.tools.oob_tool.httpx.AsyncClient") as mock_cls:
+        with patch("numasec.tools.oob_tool.httpx.AsyncClient") as mock_cls:
             mock_http = AsyncMock()
             mock_http.post = AsyncMock(return_value=fail_resp)
             mock_http.__aenter__ = AsyncMock(return_value=mock_http)
@@ -304,7 +304,7 @@ class TestRegister:
                 raise httpx.ConnectError("timeout")
             return ok_resp
 
-        with patch("security_mcp.tools.oob_tool.httpx.AsyncClient") as mock_cls:
+        with patch("numasec.tools.oob_tool.httpx.AsyncClient") as mock_cls:
             mock_http = AsyncMock()
             mock_http.post = AsyncMock(side_effect=mock_post)
             mock_http.__aenter__ = AsyncMock(return_value=mock_http)
@@ -343,7 +343,7 @@ class TestPoll:
         client = OOBClient()
         resp = _mock_response(200, json_body={"aes_key": "", "data": []})
 
-        with patch("security_mcp.tools.oob_tool.httpx.AsyncClient") as mock_cls:
+        with patch("numasec.tools.oob_tool.httpx.AsyncClient") as mock_cls:
             mock_http = AsyncMock()
             mock_http.get = AsyncMock(return_value=resp)
             mock_http.__aenter__ = AsyncMock(return_value=mock_http)
@@ -372,7 +372,7 @@ class TestPoll:
         resp = _mock_response(200, json_body={"aes_key": aes_key_b64, "data": [data_b64]})
 
         client = OOBClient()
-        with patch("security_mcp.tools.oob_tool.httpx.AsyncClient") as mock_cls:
+        with patch("numasec.tools.oob_tool.httpx.AsyncClient") as mock_cls:
             mock_http = AsyncMock()
             mock_http.get = AsyncMock(return_value=resp)
             mock_http.__aenter__ = AsyncMock(return_value=mock_http)
@@ -440,7 +440,7 @@ class TestPoll:
         resp = _mock_response(200, json_body={"aes_key": aes_key_b64, "data": [d1, d2]})
 
         client = OOBClient()
-        with patch("security_mcp.tools.oob_tool.httpx.AsyncClient") as mock_cls:
+        with patch("numasec.tools.oob_tool.httpx.AsyncClient") as mock_cls:
             mock_http = AsyncMock()
             mock_http.get = AsyncMock(return_value=resp)
             mock_http.__aenter__ = AsyncMock(return_value=mock_http)
@@ -458,7 +458,7 @@ class TestPoll:
         session, _ = self._make_session()
         client = OOBClient()
 
-        with patch("security_mcp.tools.oob_tool.httpx.AsyncClient") as mock_cls:
+        with patch("numasec.tools.oob_tool.httpx.AsyncClient") as mock_cls:
             mock_http = AsyncMock()
             mock_http.get = AsyncMock(side_effect=httpx.ConnectError("timeout"))
             mock_http.__aenter__ = AsyncMock(return_value=mock_http)
@@ -474,7 +474,7 @@ class TestPoll:
         client = OOBClient()
         resp = _mock_response(401)
 
-        with patch("security_mcp.tools.oob_tool.httpx.AsyncClient") as mock_cls:
+        with patch("numasec.tools.oob_tool.httpx.AsyncClient") as mock_cls:
             mock_http = AsyncMock()
             mock_http.get = AsyncMock(return_value=resp)
             mock_http.__aenter__ = AsyncMock(return_value=mock_http)
@@ -550,7 +550,7 @@ class TestDeregister:
         client = OOBClient()
         resp = _mock_response(200)
 
-        with patch("security_mcp.tools.oob_tool.httpx.AsyncClient") as mock_cls:
+        with patch("numasec.tools.oob_tool.httpx.AsyncClient") as mock_cls:
             mock_http = AsyncMock()
             mock_http.post = AsyncMock(return_value=resp)
             mock_http.__aenter__ = AsyncMock(return_value=mock_http)
@@ -571,7 +571,7 @@ class TestDeregister:
         )
         client = OOBClient()
 
-        with patch("security_mcp.tools.oob_tool.httpx.AsyncClient") as mock_cls:
+        with patch("numasec.tools.oob_tool.httpx.AsyncClient") as mock_cls:
             mock_http = AsyncMock()
             mock_http.post = AsyncMock(side_effect=httpx.ConnectError("fail"))
             mock_http.__aenter__ = AsyncMock(return_value=mock_http)
@@ -657,7 +657,7 @@ class TestOobSetupTool:
         )
 
         with patch(
-            "security_mcp.tools.oob_tool.OOBClient.register",
+            "numasec.tools.oob_tool.OOBClient.register",
             new_callable=AsyncMock,
             return_value=mock_session,
         ):
@@ -675,7 +675,7 @@ class TestOobSetupTool:
         _active_sessions.clear()
 
         with patch(
-            "security_mcp.tools.oob_tool.OOBClient.register",
+            "numasec.tools.oob_tool.OOBClient.register",
             new_callable=AsyncMock,
             side_effect=RuntimeError("All servers failed"),
         ):
@@ -697,7 +697,7 @@ class TestOobSetupTool:
         )
 
         with patch(
-            "security_mcp.tools.oob_tool.OOBClient.register",
+            "numasec.tools.oob_tool.OOBClient.register",
             new_callable=AsyncMock,
             return_value=mock_session,
         ) as mock_register:
@@ -736,7 +736,7 @@ class TestOobPollTool:
         ]
 
         with patch(
-            "security_mcp.tools.oob_tool.OOBClient.poll",
+            "numasec.tools.oob_tool.OOBClient.poll",
             new_callable=AsyncMock,
             return_value=mock_interactions,
         ):
@@ -759,7 +759,7 @@ class TestOobPollTool:
         _active_sessions["testcid"] = session
 
         with patch(
-            "security_mcp.tools.oob_tool.OOBClient.poll",
+            "numasec.tools.oob_tool.OOBClient.poll",
             new_callable=AsyncMock,
             return_value=[],
         ):
@@ -792,7 +792,7 @@ class TestOobPollTool:
         _active_sessions["new"] = new_session
 
         with patch(
-            "security_mcp.tools.oob_tool.OOBClient.poll",
+            "numasec.tools.oob_tool.OOBClient.poll",
             new_callable=AsyncMock,
             return_value=[],
         ):
@@ -810,7 +810,7 @@ class TestOobPollTool:
 class TestToolRegistration:
     def test_registry_has_oob_tool(self):
         """oob (replaces oob_setup + oob_poll) should be registered."""
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         names = [

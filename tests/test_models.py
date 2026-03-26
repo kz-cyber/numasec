@@ -1,13 +1,13 @@
-"""Tests for security_mcp core models — Finding, TargetProfile, AttackPlan, enums."""
+"""Tests for numasec core models — Finding, TargetProfile, AttackPlan, enums."""
 
 from datetime import datetime, timezone
 
 import pytest
 
-from security_mcp.models.enums import PhaseStatus, PTESPhase, Severity
-from security_mcp.models.finding import Finding
-from security_mcp.models.plan import AttackPhase, AttackPlan, AttackStep
-from security_mcp.models.target import Endpoint, Port, TargetProfile, Technology
+from numasec.models.enums import PhaseStatus, PTESPhase, Severity
+from numasec.models.finding import Finding
+from numasec.models.plan import AttackPhase, AttackPlan, AttackStep
+from numasec.models.target import Endpoint, Port, TargetProfile, Technology
 
 # ---------------------------------------------------------------------------
 # Finding

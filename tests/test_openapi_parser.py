@@ -1,4 +1,4 @@
-"""Tests for security_mcp.scanners.openapi_parser — OpenAPI/Swagger spec parsing."""
+"""Tests for numasec.scanners.openapi_parser — OpenAPI/Swagger spec parsing."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import httpx
 import pytest
 import yaml
 
-from security_mcp.scanners.openapi_parser import (
+from numasec.scanners.openapi_parser import (
     OpenAPIEndpoint,
     OpenAPIParameter,
     OpenAPIParser,

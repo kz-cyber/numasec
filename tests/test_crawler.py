@@ -1,4 +1,4 @@
-"""Tests for security_mcp.scanners.crawler."""
+"""Tests for numasec.scanners.crawler."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import json
 import httpx
 import pytest
 
-from security_mcp.scanners.crawler import (
+from numasec.scanners.crawler import (
     TECH_RULES,
     CrawlResult,
     FingerprintResult,
@@ -296,14 +296,14 @@ class TestPythonTechFingerprinter:
 class TestCrawlerToolRegistration:
     def test_registry_has_crawl(self):
         """crawl should be registered in the default tool registry."""
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         assert "crawl" in registry.available_tools
 
     def test_registry_has_recon(self):
         """recon (replaces tech_fingerprint) should be registered in the default tool registry."""
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         assert "recon" in registry.available_tools

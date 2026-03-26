@@ -42,7 +42,7 @@ class TestSSTIFalsePositives:
     @pytest.mark.asyncio
     async def test_price_page_not_ssti(self):
         """Product page with $49.99 price must not trigger SSTI."""
-        from security_mcp.scanners.ssti_tester import SstiTester
+        from numasec.scanners.ssti_tester import SstiTester
 
         body = '<div class="price">$49.99</div><p>Item #49 — Special offer</p>'
 
@@ -61,7 +61,7 @@ class TestSSTIFalsePositives:
     @pytest.mark.asyncio
     async def test_pagination_not_ssti(self):
         """Page showing '49 results' must not trigger SSTI."""
-        from security_mcp.scanners.ssti_tester import SstiTester
+        from numasec.scanners.ssti_tester import SstiTester
 
         body = '<span>Showing 49 results of 120</span><p>Page 49</p>'
 
@@ -80,7 +80,7 @@ class TestSSTIFalsePositives:
     @pytest.mark.asyncio
     async def test_year_in_footer_not_ssti(self):
         """Copyright year containing '49' must not trigger SSTI."""
-        from security_mcp.scanners.ssti_tester import SstiTester
+        from numasec.scanners.ssti_tester import SstiTester
 
         body = '<footer>Copyright 1949-2024 Acme Corp</footer>'
 
@@ -108,7 +108,7 @@ class TestNoSQLFalsePositives:
     @pytest.mark.asyncio
     async def test_admin_nav_link_not_nosql(self):
         """Page with 'admin' navigation link is not NoSQL bypass."""
-        from security_mcp.scanners.nosql_tester import NoSqlTester
+        from numasec.scanners.nosql_tester import NoSqlTester
 
         body = '<nav><a href="/admin">Admin Panel</a></nav><p>Welcome, user</p>'
 
@@ -127,7 +127,7 @@ class TestNoSQLFalsePositives:
     @pytest.mark.asyncio
     async def test_static_success_not_nosql(self):
         """Static 'success' message must not trigger NoSQL finding."""
-        from security_mcp.scanners.nosql_tester import NoSqlTester
+        from numasec.scanners.nosql_tester import NoSqlTester
 
         body = '<div class="alert-success">Operation completed successfully</div>'
 
@@ -155,7 +155,7 @@ class TestHostHeaderFalsePositives:
     @pytest.mark.asyncio
     async def test_debug_mirror_not_host_header(self):
         """Debug page showing request headers is not a host header vuln."""
-        from security_mcp.scanners.host_header_tester import HostHeaderTester
+        from numasec.scanners.host_header_tester import HostHeaderTester
 
         # The page always reflects whatever headers it receives
         body = (
@@ -190,7 +190,7 @@ class TestSSRFFalsePositives:
     @pytest.mark.asyncio
     async def test_docs_localhost_not_ssrf(self):
         """Setup instructions mentioning localhost must not trigger SSRF."""
-        from security_mcp.scanners.ssrf_tester import SsrfTester
+        from numasec.scanners.ssrf_tester import SsrfTester
 
         body = (
             '<h2>Setup Guide</h2>'
@@ -223,7 +223,7 @@ class TestLFIFalsePositives:
     @pytest.mark.asyncio
     async def test_base64_image_not_lfi(self):
         """Base64-encoded inline image must not trigger PHP filter detection."""
-        from security_mcp.scanners.lfi_tester import LfiTester
+        from numasec.scanners.lfi_tester import LfiTester
 
         body = (
             '<img src="data:image/png;base64,'

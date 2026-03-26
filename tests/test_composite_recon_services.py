@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from security_mcp.scanners._base import PortInfo
-from security_mcp.scanners.service_prober import ServiceProbeResult
+from numasec.scanners._base import PortInfo
+from numasec.scanners.service_prober import ServiceProbeResult
 
 
 # ---------------------------------------------------------------------------
@@ -37,7 +37,7 @@ class TestReconServicesCheckDispatchesToProber:
     @pytest.mark.asyncio
     async def test_services_check_invokes_prober(self):
         """checks='services' creates a ServiceProber and calls probe_all."""
-        from security_mcp.tools.composite_recon import recon
+        from numasec.tools.composite_recon import recon
 
         probe_results = [
             ServiceProbeResult(port=22, protocol="tcp", service="ssh", version="OpenSSH_8.2p1"),
@@ -53,9 +53,9 @@ class TestReconServicesCheckDispatchesToProber:
         mock_enricher = MagicMock()
         mock_enricher.lookup = AsyncMock(return_value=[])
 
-        with patch("security_mcp.scanners.python_connect.PythonConnectScanner", return_value=mock_scanner):
-            with patch("security_mcp.scanners.service_prober.ServiceProber", return_value=mock_prober):
-                with patch("security_mcp.scanners.cve_enricher.CVEEnricher", return_value=mock_enricher):
+        with patch("numasec.scanners.python_connect.PythonConnectScanner", return_value=mock_scanner):
+            with patch("numasec.scanners.service_prober.ServiceProber", return_value=mock_prober):
+                with patch("numasec.scanners.cve_enricher.CVEEnricher", return_value=mock_enricher):
                     result = await recon("10.0.0.1", checks="services", timeout=2.0)
 
         assert "services" in result
@@ -72,7 +72,7 @@ class TestReconCveEnrichmentRunsAutomatically:
     @pytest.mark.asyncio
     async def test_cve_enrichment_after_port_scan(self):
         """CVE enrichment runs automatically after port scanning discovers services."""
-        from security_mcp.tools.composite_recon import recon
+        from numasec.tools.composite_recon import recon
 
         mock_scanner = AsyncMock()
         mock_scanner.scan_with_banners = AsyncMock(return_value=_mock_port_scan_data())
@@ -81,8 +81,8 @@ class TestReconCveEnrichmentRunsAutomatically:
         # The recon function calls enricher.enrich_ports(port_list)
         mock_enricher.enrich_ports = AsyncMock(return_value=[])
 
-        with patch("security_mcp.scanners.python_connect.PythonConnectScanner", return_value=mock_scanner):
-            with patch("security_mcp.scanners.cve_enricher.CVEEnricher", return_value=mock_enricher):
+        with patch("numasec.scanners.python_connect.PythonConnectScanner", return_value=mock_scanner):
+            with patch("numasec.scanners.cve_enricher.CVEEnricher", return_value=mock_enricher):
                 result = await recon("10.0.0.1", checks="ports", timeout=2.0)
 
         # enrich_ports should have been called with the port list
@@ -98,7 +98,7 @@ class TestReconServicesWithoutPortsTriggersScan:
     @pytest.mark.asyncio
     async def test_services_check_triggers_port_scan(self):
         """Requesting 'services' check also triggers port scanning as a prerequisite."""
-        from security_mcp.tools.composite_recon import recon
+        from numasec.tools.composite_recon import recon
 
         mock_scanner = AsyncMock()
         mock_scanner.scan_with_banners = AsyncMock(return_value=_mock_port_scan_data())
@@ -109,9 +109,9 @@ class TestReconServicesWithoutPortsTriggersScan:
         mock_enricher = MagicMock()
         mock_enricher.lookup = AsyncMock(return_value=[])
 
-        with patch("security_mcp.scanners.python_connect.PythonConnectScanner", return_value=mock_scanner):
-            with patch("security_mcp.scanners.service_prober.ServiceProber", return_value=mock_prober):
-                with patch("security_mcp.scanners.cve_enricher.CVEEnricher", return_value=mock_enricher):
+        with patch("numasec.scanners.python_connect.PythonConnectScanner", return_value=mock_scanner):
+            with patch("numasec.scanners.service_prober.ServiceProber", return_value=mock_prober):
+                with patch("numasec.scanners.cve_enricher.CVEEnricher", return_value=mock_enricher):
                     # Only request 'services', not 'ports' explicitly
                     result = await recon("10.0.0.1", checks="services", timeout=2.0)
 
@@ -129,7 +129,7 @@ class TestReconBackwardCompatible:
     @pytest.mark.asyncio
     async def test_existing_checks_still_work(self):
         """Legacy checks (ports, tech) continue to work unchanged."""
-        from security_mcp.tools.composite_recon import recon
+        from numasec.tools.composite_recon import recon
 
         mock_scanner = AsyncMock()
         mock_scanner.scan_with_banners = AsyncMock(return_value={"open_ports": {}, "host": "10.0.0.1"})
@@ -139,9 +139,9 @@ class TestReconBackwardCompatible:
         mock_fp = AsyncMock()
         mock_fp.fingerprint = AsyncMock(return_value=mock_fp_result)
 
-        with patch("security_mcp.scanners.python_connect.PythonConnectScanner", return_value=mock_scanner):
-            with patch("security_mcp.scanners.crawler.PythonTechFingerprinter", return_value=mock_fp):
-                with patch("security_mcp.scanners.cve_enricher.CVEEnricher") as mock_enricher_cls:
+        with patch("numasec.scanners.python_connect.PythonConnectScanner", return_value=mock_scanner):
+            with patch("numasec.scanners.crawler.PythonTechFingerprinter", return_value=mock_fp):
+                with patch("numasec.scanners.cve_enricher.CVEEnricher") as mock_enricher_cls:
                     mock_enricher = MagicMock()
                     mock_enricher.lookup = AsyncMock(return_value=[])
                     mock_enricher_cls.return_value = mock_enricher
@@ -154,7 +154,7 @@ class TestReconBackwardCompatible:
     @pytest.mark.asyncio
     async def test_default_checks(self):
         """Default checks parameter ('ports,tech') works."""
-        from security_mcp.tools.composite_recon import recon
+        from numasec.tools.composite_recon import recon
 
         mock_scanner = AsyncMock()
         mock_scanner.scan_with_banners = AsyncMock(return_value={"open_ports": {}, "host": "10.0.0.1"})
@@ -164,9 +164,9 @@ class TestReconBackwardCompatible:
         mock_fp = AsyncMock()
         mock_fp.fingerprint = AsyncMock(return_value=mock_fp_result)
 
-        with patch("security_mcp.scanners.python_connect.PythonConnectScanner", return_value=mock_scanner):
-            with patch("security_mcp.scanners.crawler.PythonTechFingerprinter", return_value=mock_fp):
-                with patch("security_mcp.scanners.cve_enricher.CVEEnricher") as mock_enricher_cls:
+        with patch("numasec.scanners.python_connect.PythonConnectScanner", return_value=mock_scanner):
+            with patch("numasec.scanners.crawler.PythonTechFingerprinter", return_value=mock_fp):
+                with patch("numasec.scanners.cve_enricher.CVEEnricher") as mock_enricher_cls:
                     mock_enricher = MagicMock()
                     mock_enricher.lookup = AsyncMock(return_value=[])
                     mock_enricher_cls.return_value = mock_enricher

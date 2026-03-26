@@ -1,10 +1,10 @@
-"""Tests for security_mcp.tools — ToolRegistry."""
+"""Tests for numasec.tools — ToolRegistry."""
 
 from __future__ import annotations
 
 import pytest
 
-from security_mcp.tools._base import ToolRegistry
+from numasec.tools._base import ToolRegistry
 
 
 async def _dummy_tool(**kwargs):

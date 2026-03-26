@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "numasec": {
+      "command": "/usr/bin/python",
+      "args": ["-m", "numasec", "--mcp"]
+    }
+  }
+}

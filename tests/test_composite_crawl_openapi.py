@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from security_mcp.scanners.openapi_parser import OpenAPIEndpoint, OpenAPISpec
+from numasec.scanners.openapi_parser import OpenAPIEndpoint, OpenAPISpec
 
 
 # ---------------------------------------------------------------------------
@@ -54,14 +54,14 @@ class TestCrawlOpenapiUrlReturnsEndpoints:
     @pytest.mark.asyncio
     async def test_openapi_url_produces_endpoints(self):
         """When openapi_url is provided, crawl returns OpenAPI-sourced endpoints."""
-        from security_mcp.tools.composite_crawl import crawl
+        from numasec.tools.composite_crawl import crawl
 
         mock_spec = _mock_openapi_spec()
 
         mock_parser = AsyncMock()
         mock_parser.fetch_and_parse = AsyncMock(return_value=mock_spec)
 
-        with patch("security_mcp.scanners.openapi_parser.OpenAPIParser", return_value=mock_parser):
+        with patch("numasec.scanners.openapi_parser.OpenAPIParser", return_value=mock_parser):
             result = await crawl(
                 url="https://api.example.com",
                 openapi_url="https://api.example.com/openapi.json",
@@ -85,7 +85,7 @@ class TestCrawlOpenapiFallbackToHttp:
     @pytest.mark.asyncio
     async def test_openapi_failure_falls_back_to_crawl(self):
         """When OpenAPI import fails, crawl falls back to standard HTTP crawl."""
-        from security_mcp.tools.composite_crawl import crawl
+        from numasec.tools.composite_crawl import crawl
 
         # Return enough URLs (>3) to avoid SPA detection triggering browser crawl
         mock_crawl_result = MagicMock()
@@ -107,8 +107,8 @@ class TestCrawlOpenapiFallbackToHttp:
         mock_crawler = AsyncMock()
         mock_crawler.crawl = AsyncMock(return_value=mock_crawl_result)
 
-        with patch("security_mcp.scanners.openapi_parser.OpenAPIParser", return_value=mock_parser):
-            with patch("security_mcp.scanners.crawler.PythonWebCrawler", return_value=mock_crawler):
+        with patch("numasec.scanners.openapi_parser.OpenAPIParser", return_value=mock_parser):
+            with patch("numasec.scanners.crawler.PythonWebCrawler", return_value=mock_crawler):
                 result = await crawl(
                     url="https://api.example.com",
                     openapi_url="https://api.example.com/openapi.json",
@@ -128,7 +128,7 @@ class TestCrawlBackwardCompatible:
     @pytest.mark.asyncio
     async def test_standard_crawl_without_openapi(self):
         """Crawl without openapi_url uses standard HTTP crawler (unchanged behavior)."""
-        from security_mcp.tools.composite_crawl import crawl
+        from numasec.tools.composite_crawl import crawl
 
         # Return >3 URLs to avoid SPA detection
         mock_crawl_result = MagicMock()
@@ -147,7 +147,7 @@ class TestCrawlBackwardCompatible:
         mock_crawler = AsyncMock()
         mock_crawler.crawl = AsyncMock(return_value=mock_crawl_result)
 
-        with patch("security_mcp.scanners.crawler.PythonWebCrawler", return_value=mock_crawler) as mock_cls:
+        with patch("numasec.scanners.crawler.PythonWebCrawler", return_value=mock_crawler) as mock_cls:
             result = await crawl(url="http://example.com", depth=2, max_pages=50)
 
         assert result["crawler"] == "http"
@@ -159,7 +159,7 @@ class TestCrawlBackwardCompatible:
     @pytest.mark.asyncio
     async def test_empty_openapi_url_uses_http_crawl(self):
         """Empty string openapi_url is treated as not provided."""
-        from security_mcp.tools.composite_crawl import crawl
+        from numasec.tools.composite_crawl import crawl
 
         # Return >3 URLs to avoid SPA detection
         mock_crawl_result = MagicMock()
@@ -178,7 +178,7 @@ class TestCrawlBackwardCompatible:
         mock_crawler = AsyncMock()
         mock_crawler.crawl = AsyncMock(return_value=mock_crawl_result)
 
-        with patch("security_mcp.scanners.crawler.PythonWebCrawler", return_value=mock_crawler):
+        with patch("numasec.scanners.crawler.PythonWebCrawler", return_value=mock_crawler):
             result = await crawl(url="http://example.com", openapi_url="")
 
         assert result["crawler"] == "http"

@@ -1,4 +1,4 @@
-"""Tests for password spray functionality in security_mcp.scanners.auth_tester."""
+"""Tests for password spray functionality in numasec.scanners.auth_tester."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from security_mcp.scanners.auth_tester import (
+from numasec.scanners.auth_tester import (
     AuthResult,
     AuthTester,
     _SPRAY_DELAY,
@@ -129,7 +129,7 @@ class TestSprayRateLimiting:
         with patch.object(httpx.AsyncClient, "__init__", patched_init):
             with patch("asyncio.sleep", side_effect=tracked_sleep):
                 # Limit to just a few attempts by patching constants
-                with patch("security_mcp.scanners.auth_tester._SPRAY_MAX_ATTEMPTS", 3):
+                with patch("numasec.scanners.auth_tester._SPRAY_MAX_ATTEMPTS", 3):
                     findings = await tester._spray_credentials("http://example.com", {})
 
         # Every failed attempt should be followed by a delay
@@ -173,7 +173,7 @@ class TestSprayMaxAttemptsCap:
 
         with patch.object(httpx.AsyncClient, "__init__", patched_init):
             with patch("asyncio.sleep", new_callable=AsyncMock):
-                with patch("security_mcp.scanners.auth_tester._SPRAY_MAX_ATTEMPTS", 5):
+                with patch("numasec.scanners.auth_tester._SPRAY_MAX_ATTEMPTS", 5):
                     findings = await tester._spray_credentials("http://example.com", {})
 
         assert attempt_count <= 5

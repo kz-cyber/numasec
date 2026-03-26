@@ -1,10 +1,10 @@
-"""Tests for security_mcp.security.sandbox module."""
+"""Tests for numasec.security.sandbox module."""
 
 from __future__ import annotations
 
 import pytest
 
-from security_mcp.security.sandbox import TargetNotAllowed, ToolOutput, ToolSandbox, ToolTimeout
+from numasec.security.sandbox import TargetNotAllowed, ToolOutput, ToolSandbox, ToolTimeout
 
 
 class TestToolOutput:

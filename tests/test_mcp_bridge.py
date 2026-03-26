@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from security_mcp.mcp.tool_bridge import DEFAULT_EXCLUDED, bridge_tools_to_mcp
-from security_mcp.tools._base import ToolRegistry
+from numasec.mcp.tool_bridge import DEFAULT_EXCLUDED, bridge_tools_to_mcp
+from numasec.tools._base import ToolRegistry
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -52,8 +52,8 @@ class _FakeMCP:
 
 
 class TestDefaultExcluded:
-    def test_run_command_excluded(self):
-        assert "run_command" in DEFAULT_EXCLUDED
+    def test_run_command_not_excluded(self):
+        assert "run_command" not in DEFAULT_EXCLUDED
 
     def test_is_frozenset(self):
         assert isinstance(DEFAULT_EXCLUDED, frozenset)
@@ -66,10 +66,10 @@ class TestBridgeToolsToMcp:
 
         count = bridge_tools_to_mcp(mcp, reg)
 
-        assert count == 2
+        assert count == 3
         assert "http_request" in mcp.registered
         assert "fetch_page" in mcp.registered
-        assert "run_command" not in mcp.registered
+        assert "run_command" in mcp.registered
 
     def test_custom_exclusion(self):
         reg = _make_registry("http_request", "dns_lookup", "fetch_page")

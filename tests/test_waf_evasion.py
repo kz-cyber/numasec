@@ -17,11 +17,11 @@ from urllib.parse import unquote
 import httpx
 import pytest
 
-from security_mcp.scanners._encoder import PayloadEncoder
-from security_mcp.scanners.lfi_tester import LfiTester
-from security_mcp.scanners.sqli_tester import ERROR_PAYLOADS, BOOLEAN_PAIRS, PythonSQLiTester
-from security_mcp.scanners.ssti_tester import SstiTester, _MATH_PROBES
-from security_mcp.scanners.xss_tester import ESCALATION_PAYLOADS, PythonXSSTester
+from numasec.scanners._encoder import PayloadEncoder
+from numasec.scanners.lfi_tester import LfiTester
+from numasec.scanners.sqli_tester import ERROR_PAYLOADS, BOOLEAN_PAIRS, PythonSQLiTester
+from numasec.scanners.ssti_tester import SstiTester, _MATH_PROBES
+from numasec.scanners.xss_tester import ESCALATION_PAYLOADS, PythonXSSTester
 
 
 # ---------------------------------------------------------------------------
@@ -259,7 +259,7 @@ class TestXSSWAFEvasion:
                 url_str = str(request.url)
                 if "q=" in url_str:
                     param_val = unquote(url_str.split("q=", 1)[1].split("&", 1)[0])
-                    if "security_mcp_" in param_val:
+                    if "numasec_" in param_val:
                         # Reflect canary unchanged so the scanner sees it in the body
                         return _text_response(f"<html>Results for: {param_val}</html>")
                     else:
@@ -295,7 +295,7 @@ class TestXSSWAFEvasion:
             url_str = str(request.url)
             if "q=" in url_str:
                 param_val = unquote(url_str.split("q=", 1)[1].split("&", 1)[0])
-                if "security_mcp_" in param_val:
+                if "numasec_" in param_val:
                     return _text_response(f"<html>{param_val}</html>")
                 else:
                     return _text_response("<html>[filtered]</html>")
@@ -329,7 +329,7 @@ class TestXSSWAFEvasion:
             url_str = str(request.url)
             if "q=" in url_str:
                 param_val = unquote(url_str.split("q=", 1)[1].split("&", 1)[0])
-                if "security_mcp_" in param_val:
+                if "numasec_" in param_val:
                     # Reflect canary so escalation triggers
                     return _text_response(f"<html>{param_val}</html>")
                 else:
@@ -474,7 +474,7 @@ class TestLFIWAFEvasion:
     @pytest.mark.asyncio
     async def test_default_payload_count(self):
         """Default (waf_evasion=False) should only send base _LFI_PAYLOADS."""
-        from security_mcp.scanners.lfi_tester import _LFI_PAYLOADS
+        from numasec.scanners.lfi_tester import _LFI_PAYLOADS
 
         log: list[httpx.Request] = []
         url = "http://target/view?file=readme.txt"
@@ -499,7 +499,7 @@ class TestCompositeInjectionPassthrough:
     @pytest.mark.asyncio
     async def test_injection_test_passes_waf_evasion_to_sqli(self):
         """injection_test(waf_evasion=True) should create PythonSQLiTester with waf_evasion=True."""
-        from security_mcp.tools.composite_injection import injection_test
+        from numasec.tools.composite_injection import injection_test
 
         captured_kwargs: dict = {}
         original_init = PythonSQLiTester.__init__
@@ -522,7 +522,7 @@ class TestCompositeInjectionPassthrough:
     @pytest.mark.asyncio
     async def test_injection_test_passes_waf_evasion_to_ssti(self):
         """injection_test(waf_evasion=True) should create SstiTester with waf_evasion=True."""
-        from security_mcp.tools.composite_injection import injection_test
+        from numasec.tools.composite_injection import injection_test
 
         captured_kwargs: dict = {}
         original_init = SstiTester.__init__
@@ -545,7 +545,7 @@ class TestCompositeInjectionPassthrough:
     @pytest.mark.asyncio
     async def test_injection_test_default_waf_evasion_false(self):
         """injection_test() without waf_evasion should default to False."""
-        from security_mcp.tools.composite_injection import injection_test
+        from numasec.tools.composite_injection import injection_test
 
         captured_kwargs: dict = {}
         original_init = PythonSQLiTester.__init__
@@ -572,7 +572,7 @@ class TestCompositePathPassthrough:
     @pytest.mark.asyncio
     async def test_path_test_passes_waf_evasion_to_lfi(self):
         """path_test(waf_evasion=True) should create LfiTester with waf_evasion=True."""
-        from security_mcp.tools.composite_path import path_test
+        from numasec.tools.composite_path import path_test
 
         captured_kwargs: dict = {}
         original_init = LfiTester.__init__
@@ -595,7 +595,7 @@ class TestCompositePathPassthrough:
     @pytest.mark.asyncio
     async def test_path_test_default_waf_evasion_false(self):
         """path_test() without waf_evasion should default to False."""
-        from security_mcp.tools.composite_path import path_test
+        from numasec.tools.composite_path import path_test
 
         captured_kwargs: dict = {}
         original_init = LfiTester.__init__

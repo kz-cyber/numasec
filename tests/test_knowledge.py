@@ -1,4 +1,4 @@
-"""Tests for security_mcp.knowledge."""
+"""Tests for numasec.knowledge."""
 
 from __future__ import annotations
 
@@ -8,15 +8,15 @@ from pathlib import Path
 import pytest
 import yaml
 
-from security_mcp.knowledge.loader import KnowledgeLoader
-from security_mcp.knowledge.pack import KBPack
-from security_mcp.knowledge.retriever import (
+from numasec.knowledge.loader import KnowledgeLoader
+from numasec.knowledge.pack import KBPack
+from numasec.knowledge.retriever import (
     Chunk,
     KnowledgeChunker,
     KnowledgeRetriever,
     estimate_tokens,
 )
-from security_mcp.knowledge.signer import TemplateSigner
+from numasec.knowledge.signer import TemplateSigner
 
 # ---------------------------------------------------------------------------
 # estimate_tokens
