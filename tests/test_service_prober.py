@@ -1,4 +1,4 @@
-"""Tests for security_mcp.scanners.service_prober — protocol-specific service probing."""
+"""Tests for numasec.scanners.service_prober — protocol-specific service probing."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from security_mcp.scanners._base import PortInfo
-from security_mcp.scanners.service_prober import (
+from numasec.scanners._base import PortInfo
+from numasec.scanners.service_prober import (
     ServiceProbeResult,
     ServiceProber,
 )
@@ -135,7 +135,7 @@ class TestProbeSshWeakAlgorithms:
         """When asyncssh is unavailable, probe falls back to raw banner."""
         prober = ServiceProber()
 
-        with patch("security_mcp.scanners.service_prober.HAS_ASYNCSSH", False):
+        with patch("numasec.scanners.service_prober.HAS_ASYNCSSH", False):
             mock_data = b"SSH-2.0-OpenSSH_7.4 CentOS"
 
             async def fake_raw_recv(host, port, timeout):
@@ -155,7 +155,7 @@ class TestProbeSshNotInstalled:
         """Without asyncssh, SSH probe falls back to raw banner grab."""
         prober = ServiceProber()
 
-        with patch("security_mcp.scanners.service_prober.HAS_ASYNCSSH", False):
+        with patch("numasec.scanners.service_prober.HAS_ASYNCSSH", False):
             mock_data = b"SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.5"
 
             async def fake_raw_recv(host, port, timeout):
@@ -188,7 +188,7 @@ class TestProbeSmbNotInstalled:
         fake_response[70] = 0x00
         fake_response[71] = 0x00
 
-        with patch("security_mcp.scanners.service_prober.HAS_SMBPROTOCOL", False):
+        with patch("numasec.scanners.service_prober.HAS_SMBPROTOCOL", False):
             # Mock _probe_smb_raw to avoid real socket operations
             async def fake_probe_smb_raw(host, port, timeout, result, findings):
                 result.details["raw_response_len"] = len(fake_response)

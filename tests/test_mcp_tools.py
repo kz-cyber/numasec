@@ -1,10 +1,10 @@
-"""Tests for security_mcp.mcp module (legacy tools + server utilities)."""
+"""Tests for numasec.mcp module (legacy tools + server utilities)."""
 
 from __future__ import annotations
 
 import pytest
 
-from security_mcp.mcp.server import (
+from numasec.mcp.server import (
     InvalidTarget,
     RateLimiter,
     SessionRateLimiter,
@@ -26,25 +26,25 @@ class TestValidateTarget:
         result = validate_target("example.com")
         assert result == "example.com"
 
-    def test_rejects_internal_127(self):
-        with pytest.raises(InvalidTarget, match="Internal"):
-            validate_target("http://127.0.0.1")
+    def test_accepts_internal_127(self):
+        result = validate_target("http://127.0.0.1")
+        assert result == "http://127.0.0.1"
 
-    def test_rejects_localhost(self):
-        with pytest.raises(InvalidTarget, match="Internal"):
-            validate_target("http://localhost")
+    def test_accepts_localhost(self):
+        result = validate_target("http://localhost")
+        assert result == "http://localhost"
 
-    def test_rejects_10_network(self):
-        with pytest.raises(InvalidTarget, match="Internal"):
-            validate_target("http://10.0.0.1")
+    def test_accepts_10_network(self):
+        result = validate_target("http://10.0.0.1")
+        assert result == "http://10.0.0.1"
 
-    def test_rejects_172_16(self):
-        with pytest.raises(InvalidTarget, match="Internal"):
-            validate_target("http://172.16.0.1")
+    def test_accepts_172_16(self):
+        result = validate_target("http://172.16.0.1")
+        assert result == "http://172.16.0.1"
 
-    def test_rejects_192_168(self):
-        with pytest.raises(InvalidTarget, match="Internal"):
-            validate_target("http://192.168.1.1")
+    def test_accepts_192_168(self):
+        result = validate_target("http://192.168.1.1")
+        assert result == "http://192.168.1.1"
 
     def test_rejects_long_target(self):
         with pytest.raises(InvalidTarget, match="too long"):
@@ -169,10 +169,10 @@ class TestSessionRateLimiter:
         assert srl.check(session_id="sess-b") is True
 
     def test_env_var_defaults(self, monkeypatch):
-        monkeypatch.setenv("SECMCP_RATE_PER_MINUTE", "42")
-        monkeypatch.setenv("SECMCP_RATE_CONCURRENT", "7")
-        monkeypatch.setenv("SECMCP_RATE_GLOBAL_PER_MINUTE", "200")
-        monkeypatch.setenv("SECMCP_RATE_GLOBAL_CONCURRENT", "15")
+        monkeypatch.setenv("NUMASEC_RATE_PER_MINUTE", "42")
+        monkeypatch.setenv("NUMASEC_RATE_CONCURRENT", "7")
+        monkeypatch.setenv("NUMASEC_RATE_GLOBAL_PER_MINUTE", "200")
+        monkeypatch.setenv("NUMASEC_RATE_GLOBAL_CONCURRENT", "15")
         srl = SessionRateLimiter()
         assert srl.per_minute == 42
         assert srl.concurrent == 7

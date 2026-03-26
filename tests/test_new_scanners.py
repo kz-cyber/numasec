@@ -7,25 +7,25 @@ import json
 import httpx
 import pytest
 
-from security_mcp.scanners.cors_tester import (
+from numasec.scanners.cors_tester import (
     CorsResult,
     CorsVulnerability,
     CorsTester,
     python_cors_test,
 )
-from security_mcp.scanners.host_header_tester import (
+from numasec.scanners.host_header_tester import (
     HostHeaderResult,
     HostHeaderTester,
     HostHeaderVulnerability,
     python_host_header_test,
 )
-from security_mcp.scanners.lfi_tester import (
+from numasec.scanners.lfi_tester import (
     LfiResult,
     LfiTester,
     LfiVulnerability,
     python_lfi_test,
 )
-from security_mcp.scanners.ssti_tester import (
+from numasec.scanners.ssti_tester import (
     SstiResult,
     SstiTester,
     SstiVulnerability,
@@ -187,7 +187,7 @@ class TestCorsToolWrapper:
         assert "vulnerabilities" in data
 
     def test_access_control_test_registered(self):
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         assert "access_control_test" in registry.available_tools
@@ -286,7 +286,7 @@ class TestHostHeaderDetection:
         assert vuln is None
 
     def test_path_test_registered(self):
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         assert "path_test" in registry.available_tools
@@ -374,7 +374,7 @@ class TestSstiDetection:
         assert "page" in param_names
 
     def test_injection_test_registered(self):
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         assert "injection_test" in registry.available_tools
@@ -492,7 +492,7 @@ class TestLfiDetection:
         assert min(page_idx, file_idx) < id_idx or "id" not in names
 
     def test_path_test_registered_with_url(self):
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         assert "path_test" in registry.available_tools

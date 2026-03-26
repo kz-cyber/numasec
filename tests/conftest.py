@@ -1,5 +1,5 @@
 """
-security-mcp — Test Configuration
+numasec — Test Configuration
 
 Shared fixtures for all tests.
 """
@@ -16,14 +16,14 @@ import pytest
 @pytest.fixture
 def target_profile():
     """Fresh TargetProfile."""
-    from security_mcp.models.target import TargetProfile
+    from numasec.models.target import TargetProfile
     return TargetProfile()
 
 
 @pytest.fixture
 def populated_profile():
     """TargetProfile with realistic data."""
-    from security_mcp.models.target import (
+    from numasec.models.target import (
         Credential,
         Endpoint,
         Port,
@@ -74,15 +74,15 @@ def populated_profile():
 @pytest.fixture
 def session_state():
     """Fresh SessionState."""
-    from security_mcp.core.state import SessionState
+    from numasec.core.state import SessionState
     return SessionState()
 
 
 @pytest.fixture
 def populated_state(populated_profile):
     """SessionState with findings and profile data."""
-    from security_mcp.core.state import SessionState
-    from security_mcp.models.finding import Finding
+    from numasec.core.state import SessionState
+    from numasec.models.finding import Finding
 
     s = SessionState()
     s.profile = populated_profile
@@ -120,7 +120,7 @@ def populated_state(populated_profile):
 @pytest.fixture
 def attack_plan(populated_profile):
     """Generated attack plan."""
-    from security_mcp.core.planner import DeterministicPlanner
+    from numasec.core.planner import DeterministicPlanner
     planner = DeterministicPlanner()
     return planner.create_plan(populated_profile, scope="standard")
 
@@ -190,7 +190,7 @@ def ffuf_output():
 @pytest.fixture
 def sample_finding():
     """Single sample Finding for testing."""
-    from security_mcp.models.finding import Finding
+    from numasec.models.finding import Finding
     return Finding(
         title="Test SQL Injection",
         severity="high",

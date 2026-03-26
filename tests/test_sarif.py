@@ -1,4 +1,4 @@
-"""Tests for security_mcp.reporting (SARIF, Markdown, HTML)."""
+"""Tests for numasec.reporting (SARIF, Markdown, HTML)."""
 
 from __future__ import annotations
 
@@ -6,10 +6,10 @@ import json
 
 import pytest
 
-from security_mcp.models.finding import Finding
-from security_mcp.reporting.html import generate_html_report
-from security_mcp.reporting.markdown import generate_markdown_report
-from security_mcp.reporting.sarif import (
+from numasec.models.finding import Finding
+from numasec.reporting.html import generate_html_report
+from numasec.reporting.markdown import generate_markdown_report
+from numasec.reporting.sarif import (
     generate_sarif_report,
     sarif_to_json,
     severity_to_sarif_level,
@@ -84,7 +84,7 @@ class TestSarifReport:
         assert len(report["runs"]) == 1
 
         run = report["runs"][0]
-        assert run["tool"]["driver"]["name"] == "security_mcp"
+        assert run["tool"]["driver"]["name"] == "numasec"
         assert len(run["results"]) == 2
 
     def test_results_have_rule_ids(self, sample_findings: list[Finding]):
@@ -92,7 +92,7 @@ class TestSarifReport:
         results = report["runs"][0]["results"]
         for result in results:
             assert "ruleId" in result
-            assert result["ruleId"].startswith("security_mcp/")
+            assert result["ruleId"].startswith("numasec/")
 
     def test_results_have_levels(self, sample_findings: list[Finding]):
         report = generate_sarif_report(sample_findings)
@@ -103,9 +103,9 @@ class TestSarifReport:
     def test_dast_properties(self, sample_findings: list[Finding]):
         report = generate_sarif_report(sample_findings)
         props = report["runs"][0]["results"][0]["properties"]
-        assert props["security_mcp:http_method"] == "POST"
-        assert props["security_mcp:parameter"] == "username"
-        assert props["security_mcp:cwe"] == "CWE-89"
+        assert props["numasec:http_method"] == "POST"
+        assert props["numasec:parameter"] == "username"
+        assert props["numasec:cwe"] == "CWE-89"
 
     def test_locations(self, sample_findings: list[Finding]):
         report = generate_sarif_report(sample_findings)
@@ -137,7 +137,7 @@ class TestSarifReport:
 class TestMarkdownReport:
     def test_has_header(self, sample_findings: list[Finding]):
         md = generate_markdown_report(sample_findings, target="example.com")
-        assert "# security-mcp" in md
+        assert "# numasec" in md
         assert "example.com" in md
 
     def test_has_summary(self, sample_findings: list[Finding]):

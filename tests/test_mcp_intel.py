@@ -1,4 +1,4 @@
-"""Tests for security_mcp.mcp.intel_tools.
+"""Tests for numasec.mcp.intel_tools.
 
 After consolidation, only 2 MCP tools are registered:
   - kb_search (replaces search_kb, get_cwe_info, get_attack_patterns)
@@ -15,7 +15,7 @@ import json
 
 import pytest
 
-from security_mcp.mcp.intel_tools import _lookup_cwe, register
+from numasec.mcp.intel_tools import _lookup_cwe, register
 
 
 # ---------------------------------------------------------------------------
@@ -255,7 +255,7 @@ class TestClassifyFindingOwasp:
     def test_cwe_based_classification(self):
         from types import SimpleNamespace
 
-        from security_mcp.mcp.intel_tools import _classify_finding_owasp
+        from numasec.mcp.intel_tools import _classify_finding_owasp
 
         finding = SimpleNamespace(cwe_id="CWE-89", tool_used="", title="")
         cats = _classify_finding_owasp(finding)
@@ -264,7 +264,7 @@ class TestClassifyFindingOwasp:
     def test_tool_based_classification(self):
         from types import SimpleNamespace
 
-        from security_mcp.mcp.intel_tools import _classify_finding_owasp
+        from numasec.mcp.intel_tools import _classify_finding_owasp
 
         finding = SimpleNamespace(cwe_id="", tool_used="ssrf_test", title="")
         cats = _classify_finding_owasp(finding)
@@ -273,7 +273,7 @@ class TestClassifyFindingOwasp:
     def test_title_based_classification(self):
         from types import SimpleNamespace
 
-        from security_mcp.mcp.intel_tools import _classify_finding_owasp
+        from numasec.mcp.intel_tools import _classify_finding_owasp
 
         finding = SimpleNamespace(cwe_id="", tool_used="", title="SQL Injection in login form")
         cats = _classify_finding_owasp(finding)
@@ -282,7 +282,7 @@ class TestClassifyFindingOwasp:
     def test_multi_path_classification(self):
         from types import SimpleNamespace
 
-        from security_mcp.mcp.intel_tools import _classify_finding_owasp
+        from numasec.mcp.intel_tools import _classify_finding_owasp
 
         finding = SimpleNamespace(cwe_id="CWE-89", tool_used="sqli_test", title="SQL Injection")
         cats = _classify_finding_owasp(finding)
@@ -292,7 +292,7 @@ class TestClassifyFindingOwasp:
     def test_empty_finding_returns_empty(self):
         from types import SimpleNamespace
 
-        from security_mcp.mcp.intel_tools import _classify_finding_owasp
+        from numasec.mcp.intel_tools import _classify_finding_owasp
 
         finding = SimpleNamespace(cwe_id="", tool_used="", title="")
         cats = _classify_finding_owasp(finding)
@@ -397,14 +397,14 @@ class TestGetCoverageGaps:
 
     @pytest.fixture()
     async def store(self, tmp_path):
-        from security_mcp.mcp.mcp_session_store import McpSessionStore
+        from numasec.mcp.mcp_session_store import McpSessionStore
 
         return McpSessionStore(db_path=str(tmp_path / "test.db"))
 
     @pytest.fixture(autouse=True)
     def _patch_store(self, store, monkeypatch):
         monkeypatch.setattr(
-            "security_mcp.mcp._singletons.get_mcp_session_store",
+            "numasec.mcp._singletons.get_mcp_session_store",
             lambda: store,
         )
 
@@ -412,8 +412,8 @@ class TestGetCoverageGaps:
         return await store.create(target=target)
 
     async def _add_finding(self, store, sid, title="Test", severity="high", cwe="", tool_used=""):
-        from security_mcp.models.enums import Severity
-        from security_mcp.models.finding import Finding
+        from numasec.models.enums import Severity
+        from numasec.models.finding import Finding
 
         sev_map = {"critical": Severity.CRITICAL, "high": Severity.HIGH, "medium": Severity.MEDIUM}
         f = Finding(title=title, severity=sev_map.get(severity, Severity.HIGH), cwe_id=cwe)

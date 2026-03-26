@@ -27,7 +27,7 @@ class TestNoSqlBaselineAware:
 
     async def test_success_keyword_in_baseline_not_flagged(self) -> None:
         """If 'success' already appears in baseline, it should NOT trigger a finding."""
-        from security_mcp.scanners.nosql_tester import NoSqlTester
+        from numasec.scanners.nosql_tester import NoSqlTester
 
         tester = NoSqlTester(timeout=5.0)
         baseline = '{"status": "success", "data": []}'
@@ -43,7 +43,7 @@ class TestNoSqlBaselineAware:
 
     async def test_new_success_keyword_flagged(self) -> None:
         """Success indicator that is NEW vs baseline should be flagged."""
-        from security_mcp.scanners.nosql_tester import NoSqlTester
+        from numasec.scanners.nosql_tester import NoSqlTester
 
         tester = NoSqlTester(timeout=5.0)
         baseline = '{"error": "Invalid credentials"}'
@@ -56,7 +56,7 @@ class TestNoSqlBaselineAware:
 
     async def test_mongo_error_always_flagged(self) -> None:
         """MongoDB error keywords should be flagged regardless of baseline."""
-        from security_mcp.scanners.nosql_tester import NoSqlTester
+        from numasec.scanners.nosql_tester import NoSqlTester
 
         tester = NoSqlTester(timeout=5.0)
         baseline = '{"status": "ok"}'
@@ -75,7 +75,7 @@ class TestNoSqlBaselineAware:
 class TestSqliContentTypeNormalization:
     async def test_application_json_normalized_to_json(self) -> None:
         """content_type='application/json' should be normalized to 'json'."""
-        from security_mcp.scanners.sqli_tester import python_sqli_test
+        from numasec.scanners.sqli_tester import python_sqli_test
 
         def handler(request: httpx.Request) -> httpx.Response:
             if request.method == "POST":
@@ -107,7 +107,7 @@ class TestSqliContentTypeNormalization:
 
     async def test_form_urlencoded_normalized_to_form(self) -> None:
         """content_type='application/x-www-form-urlencoded' → 'form'."""
-        from security_mcp.scanners.sqli_tester import python_sqli_test
+        from numasec.scanners.sqli_tester import python_sqli_test
 
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(200, text="OK")
@@ -141,7 +141,7 @@ class TestSqliContentTypeNormalization:
 class TestSqliAuthBypass:
     async def test_auth_bypass_detected_via_status_upgrade(self) -> None:
         """401 baseline → 200 with injected payload = auth_bypass."""
-        from security_mcp.scanners.sqli_tester import PythonSQLiTester
+        from numasec.scanners.sqli_tester import PythonSQLiTester
 
         call_count = {"n": 0}
 
@@ -174,7 +174,7 @@ class TestSqliAuthBypass:
 
     async def test_auth_bypass_not_triggered_for_non_auth_params(self) -> None:
         """Non-auth parameters (like 'q') should NOT run Phase 0."""
-        from security_mcp.scanners.sqli_tester import AUTH_PARAM_NAMES
+        from numasec.scanners.sqli_tester import AUTH_PARAM_NAMES
 
         assert "q" not in AUTH_PARAM_NAMES
         assert "email" in AUTH_PARAM_NAMES
@@ -182,7 +182,7 @@ class TestSqliAuthBypass:
 
     async def test_no_false_positive_on_same_status(self) -> None:
         """If both baseline and injected return 200 with same content, no auth_bypass."""
-        from security_mcp.scanners.sqli_tester import PythonSQLiTester
+        from numasec.scanners.sqli_tester import PythonSQLiTester
 
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(200, text="Invalid email or password.")
@@ -209,7 +209,7 @@ class TestSqliAuthBypass:
 
 class TestIdorResult:
     def test_to_dict_empty(self) -> None:
-        from security_mcp.scanners.idor_tester import IDORResult
+        from numasec.scanners.idor_tester import IDORResult
 
         r = IDORResult(target="http://example.com/api/Users/1")
         d = r.to_dict()
@@ -218,7 +218,7 @@ class TestIdorResult:
         assert d["ids_tested"] == 0
 
     def test_to_dict_with_vuln(self) -> None:
-        from security_mcp.scanners.idor_tester import IDORResult, IDORVulnerability
+        from numasec.scanners.idor_tester import IDORResult, IDORVulnerability
 
         r = IDORResult(
             target="http://example.com/api/Users/1",
@@ -242,7 +242,7 @@ class TestIdorResult:
 
 class TestIdorIdDetection:
     def test_finds_numeric_path_id(self) -> None:
-        from security_mcp.scanners.idor_tester import IDORTester
+        from numasec.scanners.idor_tester import IDORTester
 
         tester = IDORTester()
         parsed = urlparse("http://target/api/Users/42/profile")
@@ -252,7 +252,7 @@ class TestIdorIdDetection:
         assert any("42" in loc for loc in locations)
 
     def test_finds_query_param_id(self) -> None:
-        from security_mcp.scanners.idor_tester import IDORTester
+        from numasec.scanners.idor_tester import IDORTester
 
         tester = IDORTester()
         parsed = urlparse("http://target/page?id=7&name=test")
@@ -262,7 +262,7 @@ class TestIdorIdDetection:
         assert any("id" in loc for loc in locations)
 
     def test_generates_adjacent_ids(self) -> None:
-        from security_mcp.scanners.idor_tester import IDORTester
+        from numasec.scanners.idor_tester import IDORTester
 
         alt = IDORTester._generate_alt_ids("5")
         assert "4" in alt
@@ -271,7 +271,7 @@ class TestIdorIdDetection:
         assert "7" in alt
 
     def test_generates_common_test_ids(self) -> None:
-        from security_mcp.scanners.idor_tester import IDORTester
+        from numasec.scanners.idor_tester import IDORTester
 
         alt = IDORTester._generate_alt_ids("99")
         assert "1" in alt
@@ -281,7 +281,7 @@ class TestIdorIdDetection:
 class TestIdorDetection:
     async def test_idor_detected(self) -> None:
         """Different content for different IDs → IDOR vulnerability."""
-        from security_mcp.scanners.idor_tester import IDORTester
+        from numasec.scanners.idor_tester import IDORTester
 
         def handler(request: httpx.Request) -> httpx.Response:
             path = request.url.path
@@ -315,7 +315,7 @@ class TestIdorDetection:
 
     async def test_no_idor_when_404(self) -> None:
         """404 for adjacent IDs → no IDOR."""
-        from security_mcp.scanners.idor_tester import IDORTester
+        from numasec.scanners.idor_tester import IDORTester
 
         def handler(request: httpx.Request) -> httpx.Response:
             path = request.url.path
@@ -341,7 +341,7 @@ class TestIdorDetection:
 
 class TestIdorToolWrapper:
     async def test_python_idor_test_returns_json(self) -> None:
-        from security_mcp.scanners.idor_tester import IDORResult, IDORTester, python_idor_test
+        from numasec.scanners.idor_tester import IDORResult, IDORTester, python_idor_test
         import unittest.mock as mock
 
         with mock.patch.object(IDORTester, "test") as mock_test:
@@ -354,7 +354,7 @@ class TestIdorToolWrapper:
         assert "ids_tested" in data
 
     async def test_python_idor_test_with_headers(self) -> None:
-        from security_mcp.scanners.idor_tester import IDORResult, IDORTester, python_idor_test
+        from numasec.scanners.idor_tester import IDORResult, IDORTester, python_idor_test
         import unittest.mock as mock
 
         with mock.patch.object(IDORTester, "test") as mock_test:
@@ -378,7 +378,7 @@ class TestIdorToolWrapper:
 
 class TestGraphQLResult:
     def test_to_dict_empty(self) -> None:
-        from security_mcp.scanners.graphql_tester import GraphQLResult
+        from numasec.scanners.graphql_tester import GraphQLResult
 
         r = GraphQLResult(target="http://example.com")
         d = r.to_dict()
@@ -387,7 +387,7 @@ class TestGraphQLResult:
         assert d["vulnerabilities"] == []
 
     def test_to_dict_with_vuln(self) -> None:
-        from security_mcp.scanners.graphql_tester import GraphQLResult, GraphQLVulnerability
+        from numasec.scanners.graphql_tester import GraphQLResult, GraphQLVulnerability
 
         r = GraphQLResult(
             target="http://example.com",
@@ -413,7 +413,7 @@ class TestGraphQLResult:
 
 class TestGraphQLEndpointDiscovery:
     async def test_discovers_graphql_endpoint(self) -> None:
-        from security_mcp.scanners.graphql_tester import GraphQLTester
+        from numasec.scanners.graphql_tester import GraphQLTester
 
         def handler(request: httpx.Request) -> httpx.Response:
             if request.url.path == "/graphql" and request.method == "POST":
@@ -428,7 +428,7 @@ class TestGraphQLEndpointDiscovery:
         assert "/graphql" in endpoint
 
     async def test_no_endpoint_found(self) -> None:
-        from security_mcp.scanners.graphql_tester import GraphQLTester
+        from numasec.scanners.graphql_tester import GraphQLTester
 
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(404, text="Not found")
@@ -442,7 +442,7 @@ class TestGraphQLEndpointDiscovery:
 
 class TestGraphQLIntrospection:
     async def test_introspection_detected(self) -> None:
-        from security_mcp.scanners.graphql_tester import GraphQLResult, GraphQLTester
+        from numasec.scanners.graphql_tester import GraphQLResult, GraphQLTester
 
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(200, text=json.dumps({
@@ -473,7 +473,7 @@ class TestGraphQLIntrospection:
 
 class TestGraphQLBatchQueries:
     async def test_batch_queries_detected(self) -> None:
-        from security_mcp.scanners.graphql_tester import GraphQLResult, GraphQLTester
+        from numasec.scanners.graphql_tester import GraphQLResult, GraphQLTester
 
         def handler(request: httpx.Request) -> httpx.Response:
             body = json.loads(request.content.decode())
@@ -498,7 +498,7 @@ class TestGraphQLBatchQueries:
 
 class TestGraphQLToolWrapper:
     async def test_python_graphql_test_returns_json(self) -> None:
-        from security_mcp.scanners.graphql_tester import GraphQLResult, GraphQLTester, python_graphql_test
+        from numasec.scanners.graphql_tester import GraphQLResult, GraphQLTester, python_graphql_test
         import unittest.mock as mock
 
         with mock.patch.object(GraphQLTester, "test") as mock_test:
@@ -518,7 +518,7 @@ class TestGraphQLToolWrapper:
 
 class TestBrowserCrawlResult:
     def test_to_dict(self) -> None:
-        from security_mcp.scanners.browser_crawler import BrowserCrawlResult
+        from numasec.scanners.browser_crawler import BrowserCrawlResult
 
         r = BrowserCrawlResult(
             target="http://example.com",
@@ -539,7 +539,7 @@ class TestBrowserCrawlerPlaywrightFallback:
 
         with mock.patch.dict("sys.modules", {"playwright": None, "playwright.async_api": None}):
             # Import the module fresh after patching
-            from security_mcp.scanners.browser_crawler import BrowserCrawler
+            from numasec.scanners.browser_crawler import BrowserCrawler
 
             crawler = BrowserCrawler(timeout=5.0)
             result = await crawler.crawl("http://example.com")
@@ -556,7 +556,7 @@ class TestBrowserCrawlerPlaywrightFallback:
 class TestOpenRedirectBypassPayloads:
     def test_bypass_payloads_exist(self) -> None:
         """Verify that allowlist bypass payloads were added."""
-        from security_mcp.scanners.open_redirect_tester import _REDIRECT_PAYLOADS
+        from numasec.scanners.open_redirect_tester import _REDIRECT_PAYLOADS
 
         # Check for bypass-style payloads
         payloads_str = " ".join(_REDIRECT_PAYLOADS)
@@ -566,7 +566,7 @@ class TestOpenRedirectBypassPayloads:
 
     def test_to_param_in_redirect_params(self) -> None:
         """Verify 'to' param is in the redirect param list."""
-        from security_mcp.scanners.open_redirect_tester import _REDIRECT_PARAMS
+        from numasec.scanners.open_redirect_tester import _REDIRECT_PARAMS
 
         assert "to" in _REDIRECT_PARAMS
         assert "dest" in _REDIRECT_PARAMS
@@ -576,7 +576,7 @@ class TestOpenRedirectBypassPayloads:
 
     def test_payload_count_at_least_11(self) -> None:
         """We should have at least 11 redirect payloads (4 original + 8 bypass)."""
-        from security_mcp.scanners.open_redirect_tester import _REDIRECT_PAYLOADS
+        from numasec.scanners.open_redirect_tester import _REDIRECT_PAYLOADS
 
         assert len(_REDIRECT_PAYLOADS) >= 11
 
@@ -719,32 +719,32 @@ class TestScorer:
 
 class TestNewToolRegistration:
     def test_access_control_test_registered(self) -> None:
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         assert "access_control_test" in registry._tools
 
     def test_injection_test_registered(self) -> None:
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         assert "injection_test" in registry._tools
 
     def test_crawl_registered(self) -> None:
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         assert "crawl" in registry._tools
 
     def test_total_tool_count_at_least_14(self) -> None:
         """Consolidated registry has ~14-16 tools (plus conditional sqlmap/nuclei)."""
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         assert len(registry._tools) >= 14
 
     def test_composite_tool_schemas_have_required_url(self) -> None:
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         schemas = registry.get_schemas()
@@ -764,7 +764,7 @@ class TestScanPlanGuidance:
         """plan(action='initial') should return testing_guidance with checklists."""
         import unittest.mock as mock
 
-        from security_mcp.mcp.intel_tools import register
+        from numasec.mcp.intel_tools import register
 
         # Create a minimal mock MCP server to capture the registered tool
         tools: dict = {}
@@ -782,12 +782,12 @@ class TestScanPlanGuidance:
         assert "plan" in tools
 
         # Mock the planner at its actual module (lazy import inside the tool function)
-        with mock.patch("security_mcp.core.planner.DeterministicPlanner") as MockPlanner:
+        with mock.patch("numasec.core.planner.DeterministicPlanner") as MockPlanner:
             mock_plan = mock.MagicMock()
             mock_plan.phases = []
             MockPlanner.return_value.create_plan.return_value = mock_plan
 
-            with mock.patch("security_mcp.models.target.TargetProfile"):
+            with mock.patch("numasec.models.target.TargetProfile"):
                 result_json = await tools["plan"](action="initial", target="http://target.com", scope="quick")
 
         result = json.loads(result_json)

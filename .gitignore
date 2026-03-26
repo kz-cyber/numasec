@@ -20,7 +20,8 @@ coverage.xml
 *.sarif
 *.kbpack
 .sentrysec/
-.claude/settings.local.json
+.claude/
+CLAUDE.md
 .codelens/
 docs/
 .mcp.json

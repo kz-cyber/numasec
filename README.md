@@ -1,149 +1,163 @@
-# security-mcp
+# numasec
 
-MCP server that gives your AI assistant (Claude Code, Copilot, Cursor) a full appsec toolkit: vulnerability scanners, session management, and reporting. Point it at a web target, it runs a PTES assessment and produces findings with CWE, CVSS, and OWASP classification.
+AI-powered penetration testing through the Model Context Protocol.
 
-> **Quick setup:** paste this README into Claude Code, GitHub Copilot Chat, or Claude Desktop and ask *"Install and configure security-mcp as MCP server"*, the AI will handle the rest.
+numasec exposes 21 composite security tools to any MCP-compatible AI assistant (GitHub Copilot, Claude Desktop, Cursor, OpenCode, etc.), enabling automated vulnerability discovery following the PTES 5-phase methodology.
 
----
+## Features
 
-## Install
+- **21 security tools** — recon, crawling, injection testing, XSS, SSRF, auth testing, access control, path traversal, directory fuzzing, JS analysis, and more
+- **PTES methodology** — deterministic 5-phase planner guides the assessment from reconnaissance through exploitation and reporting
+- **Multi-client** — works with any MCP-compatible host via stdio or HTTP transport
+- **Auto-enrichment** — findings are automatically enriched with CWE, CVSS 3.1, OWASP Top 10, and MITRE ATT&CK mappings
+- **Knowledge base** — 34 YAML templates covering detection, exploitation, post-exploitation, payloads, attack chains, and remediation
+- **Report generation** — SARIF 2.1.0, Markdown, HTML, and JSON output formats
+- **Zero external dependencies for scanning** — pure Python scanners with optional binary acceleration (nmap, naabu)
+
+## Quick Start
 
 ```bash
-git clone
-cd security-mcp
 pip install -e ".[mcp]"
 playwright install chromium
 ```
 
-Verify:
+Verify installation:
+
 ```bash
-security-mcp --version
+numasec --version
 ```
 
----
+## MCP Configuration
 
-## Setup: Claude Code
+### VS Code / GitHub Copilot
 
-Add to your project's `.mcp.json` or global `~/.claude.json`:
-
-```json
-{
-  "mcpServers": {
-    "security-mcp": {
-      "command": "security-mcp",
-      "args": ["--mcp"],
-      "env": {
-        "SECMCP_ALLOW_INTERNAL": "1"
-      }
-    }
-  }
-}
-```
-
-Restart Claude Code. The 47 tools appear automatically.
-
-## Setup: GitHub Copilot (VS Code)
-
-Create `.vscode/mcp.json` in your project root:
+Add to `.vscode/mcp.json`:
 
 ```json
 {
   "servers": {
-    "security-mcp": {
-      "command": "security-mcp",
-      "args": ["--mcp"],
-      "env": {
-        "SECMCP_ALLOW_INTERNAL": "1"
-      }
+    "numasec": {
+      "command": "numasec",
+      "args": ["--mcp"]
     }
   }
 }
 ```
 
-Reload VS Code (Ctrl+Shift+P → "Developer: Reload Window"). In Copilot Chat, switch to **Agent** mode — the tools appear in the 🔧 menu.
+### Claude Desktop
 
-Requires VS Code 1.99+ and GitHub Copilot Chat extension.
-
-## Setup: Claude Desktop
-
-Edit `claude_desktop_config.json` (`%APPDATA%\Claude\` on Windows, `~/Library/Application Support/Claude/` on macOS):
+Add to `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
-    "security-mcp": {
-      "command": "security-mcp",
-      "args": ["--mcp"],
-      "env": {
-        "SECMCP_ALLOW_INTERNAL": "1"
-      }
+    "numasec": {
+      "command": "numasec",
+      "args": ["--mcp"]
     }
   }
 }
 ```
 
-Restart Claude Desktop.
-
-## Setup: Cursor
+### Cursor
 
 ```json
 {
   "mcpServers": {
-    "security-mcp": {
-      "command": "security-mcp",
+    "numasec": {
+      "command": "numasec",
       "args": ["--mcp-http"]
     }
   }
 }
 ```
 
-Cursor uses HTTP transport (`--mcp-http`), not stdio.
+### OpenCode
 
----
+Add to `opencode.json`:
 
-## Environment variables
+```json
+{
+  "mcp": {
+    "numasec": {
+      "type": "local",
+      "command": ["numasec", "--mcp"],
+      "enabled": true
+    }
+  }
+}
+```
 
-security-mcp does not read `.env` files. Variables are passed via the `"env"` block in the MCP config above.
+> If `numasec` is not in your PATH, use the full path: `["/usr/bin/python", "-m", "numasec", "--mcp"]`
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `SECMCP_ALLOW_INTERNAL` | `0` | Set to `1` to scan localhost/private IPs (lab targets) |
-| `MCP_TRANSPORT` | `stdio` | Transport override: `stdio` or `http` |
-| `SECMCP_RATE_PER_MINUTE` | `60` | Per-session rate limit (calls/min) |
-| `SECMCP_RATE_CONCURRENT` | `5` | Per-session max concurrent tool calls |
-| `SECMCP_RATE_GLOBAL_PER_MINUTE` | `120` | Global rate limit across all sessions |
-| `SECMCP_RATE_GLOBAL_CONCURRENT` | `10` | Global max concurrent tool calls |
+## Tools
 
----
+### Security Testing (13)
 
-## Quick start
+| Tool | Description |
+|------|-------------|
+| `recon` | Port scan, tech fingerprint, service probing, CVE enrichment |
+| `crawl` | HTTP + SPA crawling, OpenAPI/Swagger import |
+| `injection_test` | SQLi, NoSQL, SSTI, command injection, GraphQL |
+| `xss_test` | Reflected + DOM XSS with canary injection |
+| `auth_test` | JWT attacks, OAuth testing, credential spray |
+| `access_control_test` | IDOR, CSRF, CORS misconfiguration |
+| `ssrf_test` | SSRF with cloud metadata detection |
+| `path_test` | LFI, XXE, open redirect, host header injection |
+| `dir_fuzz` | Directory and file enumeration |
+| `js_analyze` | JavaScript source analysis for secrets, endpoints, DOM XSS |
+| `browser` | Playwright-based browser interaction |
+| `http_request` | Raw HTTP requests for manual testing |
+| `run_scanner_batch` | Run multiple scanners in parallel |
 
-Once connected, ask your AI assistant:
+### Intelligence (2)
 
-> "Run a security assessment on http://localhost:3000"
+| Tool | Description |
+|------|-------------|
+| `kb_search` | Search the knowledge base for techniques, CWEs, attack patterns |
+| `plan` | Generate scan plans, track coverage, suggest next steps |
 
-Or step by step:
+### State Management (6)
 
-1. **"Create a session for http://localhost:3000"** → `create_session`
-2. **"Get a scan plan for this target"** → `get_scan_plan`
-3. **"Run the mandatory tests"** → `get_mandatory_tests` → individual scanner tools
-4. **"Check OWASP coverage gaps"** → `get_coverage_gaps`
-5. **"Generate a SARIF report"** → `generate_report`
+| Tool | Description |
+|------|-------------|
+| `create_session` | Start a new assessment session |
+| `save_finding` | Store a finding with auto-enrichment (CWE → CVSS → OWASP → ATT&CK) |
+| `get_findings` | Retrieve findings, filter by severity |
+| `generate_report` | Export as SARIF, Markdown, HTML, or JSON |
+| `relay_credentials` | Store discovered credentials for authenticated testing |
+| `run_scanner_batch` | Parallel scanner execution |
 
-Every finding saved via `save_finding` is auto-enriched with CVSS v3.1 score, CWE, OWASP Top 10 category, and MITRE ATT&CK technique.
+## Environment Variables
 
----
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NUMASEC_ALLOW_INTERNAL` | Allow scanning localhost/private IPs | `0` |
+| `NUMASEC_NVD_API_KEY` | NVD API key for CVE enrichment | — |
+| `NUMASEC_RATE_PER_MINUTE` | Per-session rate limit | `9999` |
+| `NUMASEC_RATE_CONCURRENT` | Per-session concurrency | `100` |
+| `NUMASEC_RATE_GLOBAL_PER_MINUTE` | Global rate limit | `9999` |
+| `NUMASEC_RATE_GLOBAL_CONCURRENT` | Global concurrency | `200` |
+| `MCP_TRANSPORT` | Transport protocol (`stdio` or `http`) | `stdio` |
 
-## What's included
+Pass environment variables through your MCP client's config, not `.env` files.
 
-- **36 atomic security tools** — port scan, HTTP requests, browser automation, 22 vulnerability scanners
-- **7 intelligence tools** — KB search, CWE info, PTES scan planning, OWASP coverage tracking
-- **4 session tools** — create session, save findings, get findings, generate reports (SARIF, HTML, Markdown, JSON)
-- **3 prompt templates** — `security_assessment` (full PTES workflow), `threat_model` (STRIDE), `code_review` (OWASP/CWE)
+## Optional Dependencies
 
-## Responsible use
+```bash
+pip install -e ".[protocols]"  # SSH/SMB protocol probing (asyncssh, smbprotocol)
+pip install -e ".[all]"        # Everything including dev tools
+```
 
-This tool is for authorized testing only:
-- Pentest sessions on **authorized** test/staging environments
-- Internal security reviews before deployment
-- Security training labs (DVWA, Juice Shop, WebGoat)
+## Development
+
+```bash
+pip install -e ".[all]"
+pytest tests/ -v
+ruff check numasec/
+mypy numasec/
+```
+
+## License
+
+MIT

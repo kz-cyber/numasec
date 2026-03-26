@@ -8,16 +8,16 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 import pytest
 
-from security_mcp.scanners.csrf_tester import CsrfResult, CsrfTester, CsrfVulnerability, python_csrf_test
-from security_mcp.scanners.nosql_tester import NoSqlResult, NoSqlTester, NoSqlVulnerability, python_nosql_test
-from security_mcp.scanners.open_redirect_tester import (
+from numasec.scanners.csrf_tester import CsrfResult, CsrfTester, CsrfVulnerability, python_csrf_test
+from numasec.scanners.nosql_tester import NoSqlResult, NoSqlTester, NoSqlVulnerability, python_nosql_test
+from numasec.scanners.open_redirect_tester import (
     OpenRedirectTester,
     RedirectResult,
     RedirectVulnerability,
     python_open_redirect_test,
 )
-from security_mcp.scanners.ssrf_tester import SsrfResult, SsrfTester, SsrfVulnerability, python_ssrf_test
-from security_mcp.scanners.xxe_tester import XxeResult, XxeTester, XxeVulnerability, python_xxe_test
+from numasec.scanners.ssrf_tester import SsrfResult, SsrfTester, SsrfVulnerability, python_ssrf_test
+from numasec.scanners.xxe_tester import XxeResult, XxeTester, XxeVulnerability, python_xxe_test
 
 
 def _transport(handler) -> httpx.MockTransport:
@@ -728,7 +728,7 @@ class TestPythonXxeTest:
 
 class TestV2ToolRegistration:
     def test_new_tools_registered(self) -> None:
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         tool_names = set(registry._tools.keys())
@@ -738,7 +738,7 @@ class TestV2ToolRegistration:
         assert "access_control_test" in tool_names  # replaces csrf_test, idor_test, cors_test
 
     def test_total_tool_count_at_least_14(self) -> None:
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         assert len(registry._tools) >= 14

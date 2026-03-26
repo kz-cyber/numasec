@@ -6,15 +6,15 @@ results against the 7-vulnerability ground truth defined in
 
 Requirements:
     - DVWA running at http://localhost:8080 (or ``DVWA_TARGET`` env var)
-    - ``SECMCP_ALLOW_INTERNAL=1`` env var set
+    - ``NUMASEC_ALLOW_INTERNAL=1`` env var set
     - Network access to the target
 
 Skip conditions:
-    - No ``SECMCP_ALLOW_INTERNAL`` → skip (safety guard)
+    - No ``NUMASEC_ALLOW_INTERNAL`` → skip (safety guard)
     - DVWA unreachable → skip
 
 Run:
-    SECMCP_ALLOW_INTERNAL=1 DVWA_TARGET=http://localhost:8080 pytest tests/benchmarks/test_dvwa.py -v
+    NUMASEC_ALLOW_INTERNAL=1 DVWA_TARGET=http://localhost:8080 pytest tests/benchmarks/test_dvwa.py -v
 """
 
 from __future__ import annotations
@@ -34,13 +34,13 @@ from tests.benchmarks.ground_truth import DVWA_GROUND_TRUTH
 DVWA_TARGET = os.environ.get("DVWA_TARGET", DVWA_GROUND_TRUTH["target"])
 
 _skip_no_internal = pytest.mark.skipif(
-    os.environ.get("SECMCP_ALLOW_INTERNAL") != "1",
-    reason="SECMCP_ALLOW_INTERNAL not set — skipping live target benchmark",
+    os.environ.get("NUMASEC_ALLOW_INTERNAL") != "1",
+    reason="NUMASEC_ALLOW_INTERNAL not set — skipping live target benchmark",
 )
 
 _skip_dvwa_unreachable = pytest.mark.skipif(
-    not os.environ.get("SECMCP_ALLOW_INTERNAL"),
-    reason="DVWA reachability check skipped (no SECMCP_ALLOW_INTERNAL)",
+    not os.environ.get("NUMASEC_ALLOW_INTERNAL"),
+    reason="DVWA reachability check skipped (no NUMASEC_ALLOW_INTERNAL)",
 )
 
 
@@ -79,7 +79,7 @@ class TestDVWABenchmark:
     @pytest.mark.asyncio
     async def test_sqli_on_dvwa(self, dvwa_target, allow_internal):
         """SQLi scanner should detect injection in /vulnerabilities/sqli/."""
-        from security_mcp.scanners.sqli_tester import PythonSQLiTester
+        from numasec.scanners.sqli_tester import PythonSQLiTester
 
         tester = PythonSQLiTester()
         result = await tester.test(f"{dvwa_target}/vulnerabilities/sqli/?id=1&Submit=Submit")
@@ -88,7 +88,7 @@ class TestDVWABenchmark:
     @pytest.mark.asyncio
     async def test_xss_reflected_on_dvwa(self, dvwa_target, allow_internal):
         """XSS scanner should detect reflected XSS in /vulnerabilities/xss_r/."""
-        from security_mcp.scanners.xss_tester import PythonXSSTester
+        from numasec.scanners.xss_tester import PythonXSSTester
 
         tester = PythonXSSTester()
         result = await tester.test(f"{dvwa_target}/vulnerabilities/xss_r/?name=test")
@@ -97,7 +97,7 @@ class TestDVWABenchmark:
     @pytest.mark.asyncio
     async def test_command_injection_on_dvwa(self, dvwa_target, allow_internal):
         """Command injection scanner should detect CWE-78 in /vulnerabilities/exec/."""
-        from security_mcp.scanners.command_injection_tester import CommandInjectionTester
+        from numasec.scanners.command_injection_tester import CommandInjectionTester
 
         tester = CommandInjectionTester()
         result = await tester.test(
@@ -110,7 +110,7 @@ class TestDVWABenchmark:
     @pytest.mark.asyncio
     async def test_lfi_on_dvwa(self, dvwa_target, allow_internal):
         """LFI scanner should detect file inclusion in /vulnerabilities/fi/."""
-        from security_mcp.scanners.lfi_tester import LfiTester
+        from numasec.scanners.lfi_tester import LfiTester
 
         tester = LfiTester()
         result = await tester.test(f"{dvwa_target}/vulnerabilities/fi/?page=include.php")
@@ -119,7 +119,7 @@ class TestDVWABenchmark:
     @pytest.mark.asyncio
     async def test_csrf_on_dvwa(self, dvwa_target, allow_internal):
         """CSRF scanner should detect missing protection on /vulnerabilities/csrf/."""
-        from security_mcp.scanners.csrf_tester import CsrfTester
+        from numasec.scanners.csrf_tester import CsrfTester
 
         tester = CsrfTester()
         result = await tester.test(f"{dvwa_target}/vulnerabilities/csrf/")
@@ -130,7 +130,7 @@ class TestDVWABenchmark:
     @pytest.mark.asyncio
     async def test_dir_fuzz_on_dvwa(self, dvwa_target, allow_internal):
         """Dir fuzzer should discover common DVWA paths."""
-        from security_mcp.scanners.dir_fuzzer import PythonDirFuzzer
+        from numasec.scanners.dir_fuzzer import PythonDirFuzzer
 
         fuzzer = PythonDirFuzzer()
         result = await fuzzer.fuzz(dvwa_target)

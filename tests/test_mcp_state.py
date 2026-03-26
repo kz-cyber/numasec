@@ -1,4 +1,4 @@
-"""Tests for security_mcp.mcp.state_tools — MCP v2.0 state management and reporting.
+"""Tests for numasec.mcp.state_tools — MCP v2.0 state management and reporting.
 
 v2.0 API:
   - create_session(target) → session_id (required before save_finding)
@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from security_mcp.mcp import state_tools
+from numasec.mcp import state_tools
 
 
 class _FakeMCP:
@@ -38,7 +38,7 @@ def tmp_db(tmp_path: Path) -> Path:
 @pytest.fixture
 async def store(tmp_db: Path):
     """Fresh McpSessionStore backed by a temp SQLite DB."""
-    from security_mcp.mcp.mcp_session_store import McpSessionStore
+    from numasec.mcp.mcp_session_store import McpSessionStore
     return McpSessionStore(db_path=str(tmp_db))
 
 
@@ -46,7 +46,7 @@ async def store(tmp_db: Path):
 def patch_mcp_store(store, monkeypatch):
     """Patch get_mcp_session_store to return the test-local McpSessionStore."""
     monkeypatch.setattr(
-        "security_mcp.mcp._singletons.get_mcp_session_store",
+        "numasec.mcp._singletons.get_mcp_session_store",
         lambda: store,
     )
     yield
@@ -265,7 +265,7 @@ class TestGenerateReport:
         result = json.loads(await mcp.tools["generate_report"](session_id=sid, format="markdown"))
         assert result["format"] == "markdown"
         assert result["findings_count"] == 2
-        assert "security-mcp Security Assessment Report" in result["content"]
+        assert "numasec Security Assessment Report" in result["content"]
         assert "SQL Injection in login" in result["content"]
 
     async def test_json_format(self, mcp):

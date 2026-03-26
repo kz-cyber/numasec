@@ -1,4 +1,4 @@
-"""Tests for security_mcp.scanners."""
+"""Tests for numasec.scanners."""
 
 from __future__ import annotations
 
@@ -6,14 +6,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from security_mcp.scanners._base import PortInfo, ScanEngineFactory, ScanResult, ScanType
-from security_mcp.scanners.naabu import NaabuScanner, _guess_service
-from security_mcp.scanners.nmap import NmapScanner
-from security_mcp.scanners.python_connect import (
+from numasec.scanners._base import PortInfo, ScanEngineFactory, ScanResult, ScanType
+from numasec.scanners.naabu import NaabuScanner, _guess_service
+from numasec.scanners.nmap import NmapScanner
+from numasec.scanners.python_connect import (
     TOP_PORTS,
     PythonConnectScanner,
 )
-from security_mcp.scanners.shodan import ShodanError, ShodanPassiveScanner
+from numasec.scanners.shodan import ShodanError, ShodanPassiveScanner
 
 # ---------------------------------------------------------------------------
 # Dataclass / Enum tests
@@ -68,7 +68,7 @@ class TestScanType:
 
 class TestScanEngineFactory:
     def test_auto_naabu(self):
-        with patch("security_mcp.scanners._base.shutil.which", side_effect=lambda x: "/usr/bin/naabu" if x == "naabu" else None):
+        with patch("numasec.scanners._base.shutil.which", side_effect=lambda x: "/usr/bin/naabu" if x == "naabu" else None):
             scanner = ScanEngineFactory.create("auto")
             assert isinstance(scanner, NaabuScanner)
 
@@ -80,12 +80,12 @@ class TestScanEngineFactory:
                 return "/usr/bin/nmap"
             return None
 
-        with patch("security_mcp.scanners._base.shutil.which", side_effect=_which):
+        with patch("numasec.scanners._base.shutil.which", side_effect=_which):
             scanner = ScanEngineFactory.create("auto")
             assert isinstance(scanner, NmapScanner)
 
     def test_auto_python_fallback(self):
-        with patch("security_mcp.scanners._base.shutil.which", return_value=None):
+        with patch("numasec.scanners._base.shutil.which", return_value=None):
             scanner = ScanEngineFactory.create("auto")
             assert isinstance(scanner, PythonConnectScanner)
 
@@ -164,7 +164,7 @@ class TestPythonConnectDiscover:
                 return (AsyncMock(), mock_writer)
             raise OSError("Connection refused")
 
-        with patch("security_mcp.scanners.python_connect.asyncio.open_connection", side_effect=fake_open):
+        with patch("numasec.scanners.python_connect.asyncio.open_connection", side_effect=fake_open):
             result = await s.discover_ports("10.0.0.1", ports="80,443,22", rate_limit=100)
 
         assert result.host == "10.0.0.1"
@@ -190,7 +190,7 @@ class TestPythonConnectBanner:
         async def fake_open(host, port):
             return (mock_reader, mock_writer)
 
-        with patch("security_mcp.scanners.python_connect.asyncio.open_connection", side_effect=fake_open):
+        with patch("numasec.scanners.python_connect.asyncio.open_connection", side_effect=fake_open):
             result = await s.detect_services("10.0.0.1", [22])
 
         assert len(result) == 1
@@ -252,7 +252,7 @@ class TestNaabuDiscover:
     async def test_binary_not_found(self):
         s = NaabuScanner()
         with (
-            patch("security_mcp.scanners.naabu.shutil.which", return_value=None),
+            patch("numasec.scanners.naabu.shutil.which", return_value=None),
             pytest.raises(FileNotFoundError, match="naabu binary not found"),
         ):
             await s.discover_ports("example.com")
@@ -269,8 +269,8 @@ class TestNaabuDiscover:
         mock_proc.communicate = AsyncMock(return_value=(json_output.encode(), b""))
         mock_proc.returncode = 0
 
-        with patch("security_mcp.scanners.naabu.shutil.which", return_value="/usr/bin/naabu"), \
-             patch("security_mcp.scanners.naabu.asyncio.create_subprocess_exec", return_value=mock_proc):
+        with patch("numasec.scanners.naabu.shutil.which", return_value="/usr/bin/naabu"), \
+             patch("numasec.scanners.naabu.asyncio.create_subprocess_exec", return_value=mock_proc):
             result = await s.discover_ports("example.com", ports="top-1000")
 
         assert result.host == "example.com"
@@ -368,7 +368,7 @@ class TestNmapDiscover:
     async def test_binary_not_found(self):
         s = NmapScanner()
         with (
-            patch("security_mcp.scanners.nmap.shutil.which", return_value=None),
+            patch("numasec.scanners.nmap.shutil.which", return_value=None),
             pytest.raises(FileNotFoundError, match="nmap binary not found"),
         ):
             await s.discover_ports("example.com")
@@ -382,8 +382,8 @@ class TestNmapDiscover:
         )
         mock_proc.returncode = 0
 
-        with patch("security_mcp.scanners.nmap.shutil.which", return_value="/usr/bin/nmap"), \
-             patch("security_mcp.scanners.nmap.asyncio.create_subprocess_exec", return_value=mock_proc):
+        with patch("numasec.scanners.nmap.shutil.which", return_value="/usr/bin/nmap"), \
+             patch("numasec.scanners.nmap.asyncio.create_subprocess_exec", return_value=mock_proc):
             result = await s.discover_ports("example.com", ports="top-1000")
 
         assert len(result.ports) == 2
@@ -399,8 +399,8 @@ class TestNmapDiscover:
         )
         mock_proc.returncode = 0
 
-        with patch("security_mcp.scanners.nmap.shutil.which", return_value="/usr/bin/nmap"), \
-             patch("security_mcp.scanners.nmap.asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
+        with patch("numasec.scanners.nmap.shutil.which", return_value="/usr/bin/nmap"), \
+             patch("numasec.scanners.nmap.asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
             await s.discover_ports("example.com", scan_type=ScanType.SYN)
 
         # Check that -sS was passed
@@ -465,7 +465,7 @@ class TestShodanDiscover:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("security_mcp.scanners.shodan.httpx.AsyncClient", return_value=mock_client):
+        with patch("numasec.scanners.shodan.httpx.AsyncClient", return_value=mock_client):
             s = ShodanPassiveScanner(api_key="test-key")
             result = await s.discover_ports("93.184.216.34")
 
@@ -488,7 +488,7 @@ class TestShodanDiscover:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("security_mcp.scanners.shodan.httpx.AsyncClient", return_value=mock_client):
+        with patch("numasec.scanners.shodan.httpx.AsyncClient", return_value=mock_client):
             s = ShodanPassiveScanner(api_key="test-key")
             result = await s.discover_ports("10.0.0.1")
 
@@ -506,7 +506,7 @@ class TestShodanDiscover:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("security_mcp.scanners.shodan.httpx.AsyncClient", return_value=mock_client):
+        with patch("numasec.scanners.shodan.httpx.AsyncClient", return_value=mock_client):
             s = ShodanPassiveScanner(api_key="bad-key")
             with pytest.raises(ShodanError, match="401"):
                 await s.discover_ports("1.2.3.4")
@@ -528,7 +528,7 @@ class TestShodanDiscover:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("security_mcp.scanners.shodan.httpx.AsyncClient", return_value=mock_client):
+        with patch("numasec.scanners.shodan.httpx.AsyncClient", return_value=mock_client):
             s = ShodanPassiveScanner(api_key="test-key")
             result = await s.discover_ports("1.2.3.4")
 
@@ -556,7 +556,7 @@ class TestShodanDetectServices:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("security_mcp.scanners.shodan.httpx.AsyncClient", return_value=mock_client):
+        with patch("numasec.scanners.shodan.httpx.AsyncClient", return_value=mock_client):
             s = ShodanPassiveScanner(api_key="test-key")
             ports = await s.detect_services("1.2.3.4", [80, 22])
 
@@ -826,7 +826,7 @@ class TestSslInfoExtraction:
             raise OSError("Connection refused")
 
         with patch(
-            "security_mcp.scanners.python_connect.asyncio.open_connection",
+            "numasec.scanners.python_connect.asyncio.open_connection",
             side_effect=fake_open,
         ):
             info = await s._get_ssl_info("10.0.0.1", 443)
@@ -877,7 +877,7 @@ class TestEnhancedResultFormat:
             raise OSError("Connection refused")
 
         with patch(
-            "security_mcp.scanners.python_connect.asyncio.open_connection",
+            "numasec.scanners.python_connect.asyncio.open_connection",
             side_effect=fake_open,
         ):
             result = await s.scan_with_banners("10.0.0.1", ports="22,80,443")
@@ -913,7 +913,7 @@ class TestEnhancedResultFormat:
             raise OSError("Connection refused")
 
         with patch(
-            "security_mcp.scanners.python_connect.asyncio.open_connection",
+            "numasec.scanners.python_connect.asyncio.open_connection",
             side_effect=fake_open,
         ):
             result = await s.scan_with_banners("10.0.0.1", ports="12345")
@@ -944,7 +944,7 @@ class TestEnhancedResultFormat:
             raise OSError("Connection refused")
 
         with patch(
-            "security_mcp.scanners.python_connect.asyncio.open_connection",
+            "numasec.scanners.python_connect.asyncio.open_connection",
             side_effect=fake_open,
         ):
             result = await s.scan_with_banners("10.0.0.1", ports="80")
@@ -966,7 +966,7 @@ class TestPortScanTool:
 
     def test_recon_in_registry(self):
         """Verify recon is registered with correct schema."""
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         assert "recon" in registry.available_tools
@@ -982,7 +982,7 @@ class TestPortScanTool:
     @pytest.mark.asyncio
     async def test_port_scan_tool_calls_scanner(self):
         """Verify the tool wrapper creates scanner and returns results."""
-        from security_mcp.tools import port_scan
+        from numasec.tools import port_scan
 
         mock_writer = AsyncMock()
         mock_writer.close = MagicMock()
@@ -1000,7 +1000,7 @@ class TestPortScanTool:
             raise OSError("Connection refused")
 
         with patch(
-            "security_mcp.scanners.python_connect.asyncio.open_connection",
+            "numasec.scanners.python_connect.asyncio.open_connection",
             side_effect=fake_open,
         ):
             result = await port_scan(target="10.0.0.1", ports="80,443")

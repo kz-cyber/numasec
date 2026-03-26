@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from security_mcp.models.enums import PTESPhase, PhaseStatus
-from security_mcp.models.plan import AttackPlan, AttackPhase, AttackStep
+from numasec.models.enums import PTESPhase, PhaseStatus
+from numasec.models.plan import AttackPlan, AttackPhase, AttackStep
 
 
 def _make_plan() -> AttackPlan:

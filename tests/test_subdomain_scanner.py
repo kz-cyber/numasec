@@ -1,4 +1,4 @@
-"""Tests for security_mcp.scanners.subdomain_scanner."""
+"""Tests for numasec.scanners.subdomain_scanner."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-from security_mcp.scanners.subdomain_scanner import (
+from numasec.scanners.subdomain_scanner import (
     COMMON_PREFIXES,
     PythonSubdomainScanner,
     SubdomainEntry,
@@ -205,7 +205,7 @@ class TestCommonPrefixes:
 class TestSubdomainToolRegistration:
     def test_registry_has_recon(self):
         """recon (replaces subdomain_scan) should be registered in the default tool registry."""
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         assert "recon" in registry.available_tools

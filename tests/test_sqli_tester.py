@@ -1,4 +1,4 @@
-"""Tests for security_mcp.scanners.sqli_tester — 4-phase SQLi detection."""
+"""Tests for numasec.scanners.sqli_tester — 4-phase SQLi detection."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import time
 import httpx
 import pytest
 
-from security_mcp.scanners.sqli_tester import (
+from numasec.scanners.sqli_tester import (
     PythonSQLiTester,
     SQLiResult,
     SQLiVulnerability,

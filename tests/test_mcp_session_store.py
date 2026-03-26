@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from security_mcp.mcp.mcp_session_store import McpSessionStore, _McpSession
-from security_mcp.models.enums import Severity
-from security_mcp.models.finding import Finding
+from numasec.mcp.mcp_session_store import McpSessionStore, _McpSession
+from numasec.models.enums import Severity
+from numasec.models.finding import Finding
 
 
 # ---------------------------------------------------------------------------

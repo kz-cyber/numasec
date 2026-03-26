@@ -2,7 +2,7 @@
 
 import json
 
-from security_mcp.scanners.auth_tester import (
+from numasec.scanners.auth_tester import (
     AuthResult,
     AuthTester,
     _b64url_encode,

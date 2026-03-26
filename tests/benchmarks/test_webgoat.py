@@ -9,11 +9,11 @@ generalises across technology stacks.
 
 Requirements:
     - WebGoat running at http://localhost:8081/WebGoat (or ``WEBGOAT_TARGET`` env var)
-    - ``SECMCP_ALLOW_INTERNAL=1`` env var set
+    - ``NUMASEC_ALLOW_INTERNAL=1`` env var set
     - Network access to the target
 
 Run:
-    SECMCP_ALLOW_INTERNAL=1 WEBGOAT_TARGET=http://localhost:8081/WebGoat pytest tests/benchmarks/test_webgoat.py -v
+    NUMASEC_ALLOW_INTERNAL=1 WEBGOAT_TARGET=http://localhost:8081/WebGoat pytest tests/benchmarks/test_webgoat.py -v
 """
 
 from __future__ import annotations
@@ -32,8 +32,8 @@ from tests.benchmarks.ground_truth import WEBGOAT_GROUND_TRUTH
 WEBGOAT_TARGET = os.environ.get("WEBGOAT_TARGET", WEBGOAT_GROUND_TRUTH["target"])
 
 _skip_no_internal = pytest.mark.skipif(
-    os.environ.get("SECMCP_ALLOW_INTERNAL") != "1",
-    reason="SECMCP_ALLOW_INTERNAL not set -- skipping live target benchmark",
+    os.environ.get("NUMASEC_ALLOW_INTERNAL") != "1",
+    reason="NUMASEC_ALLOW_INTERNAL not set -- skipping live target benchmark",
 )
 
 
@@ -94,7 +94,7 @@ class TestWebGoatSQLi:
     @pytest.mark.asyncio
     async def test_sqli_string_injection(self, webgoat_target, webgoat_session, allow_internal):
         """String SQLi in login form."""
-        from security_mcp.scanners.sqli_tester import PythonSQLiTester
+        from numasec.scanners.sqli_tester import PythonSQLiTester
 
         tester = PythonSQLiTester(extra_headers=webgoat_session)
         result = await tester.test(f"{webgoat_target}/SqlInjection/attack5a")
@@ -103,7 +103,7 @@ class TestWebGoatSQLi:
     @pytest.mark.asyncio
     async def test_sqli_numeric_injection(self, webgoat_target, webgoat_session, allow_internal):
         """Numeric SQLi in account field."""
-        from security_mcp.scanners.sqli_tester import PythonSQLiTester
+        from numasec.scanners.sqli_tester import PythonSQLiTester
 
         tester = PythonSQLiTester(extra_headers=webgoat_session)
         result = await tester.test(f"{webgoat_target}/SqlInjection/attack5b")
@@ -112,7 +112,7 @@ class TestWebGoatSQLi:
     @pytest.mark.asyncio
     async def test_sqli_blind_order_by(self, webgoat_target, webgoat_session, allow_internal):
         """Blind SQLi via ORDER BY clause."""
-        from security_mcp.scanners.sqli_tester import PythonSQLiTester
+        from numasec.scanners.sqli_tester import PythonSQLiTester
 
         tester = PythonSQLiTester(extra_headers=webgoat_session)
         result = await tester.test(f"{webgoat_target}/SqlInjectionMitigations/servers?column=hostname")
@@ -130,7 +130,7 @@ class TestWebGoatXSS:
     @pytest.mark.asyncio
     async def test_xss_reflected(self, webgoat_target, webgoat_session, allow_internal):
         """Reflected XSS in search field."""
-        from security_mcp.scanners.xss_tester import PythonXSSTester
+        from numasec.scanners.xss_tester import PythonXSSTester
 
         tester = PythonXSSTester(extra_headers=webgoat_session)
         result = await tester.test(f"{webgoat_target}/CrossSiteScripting/attack5a?QTY1=1&QTY2=1&QTY3=1&QTY4=1&field1=test")
@@ -148,7 +148,7 @@ class TestWebGoatPathTraversal:
     @pytest.mark.asyncio
     async def test_lfi_path_traversal(self, webgoat_target, webgoat_session, allow_internal):
         """Path traversal in file endpoint."""
-        from security_mcp.scanners.lfi_tester import LfiTester
+        from numasec.scanners.lfi_tester import LfiTester
 
         tester = LfiTester(extra_headers=webgoat_session)
         result = await tester.test(f"{webgoat_target}/PathTraversal/random?id=test")
@@ -168,7 +168,7 @@ class TestWebGoatXXE:
         """Basic XXE via XML comment submission."""
         # WebGoat XXE endpoints accept XML POST bodies
         # The scanner should detect XXE when given the endpoint
-        from security_mcp.scanners.xss_tester import PythonXSSTester
+        from numasec.scanners.xss_tester import PythonXSSTester
 
         # Note: XXE testing would use path_test in production;
         # this test verifies the scanner can handle WebGoat's XML endpoints
@@ -188,7 +188,7 @@ class TestWebGoatAuth:
     @pytest.mark.asyncio
     async def test_jwt_weak_secret(self, webgoat_target, webgoat_session, allow_internal):
         """JWT with weak HS256 secret."""
-        from security_mcp.scanners.auth_tester import AuthTester
+        from numasec.scanners.auth_tester import AuthTester
 
         tester = AuthTester(extra_headers=webgoat_session)
         result = await tester.test(f"{webgoat_target}/JWT/decode")
@@ -206,7 +206,7 @@ class TestWebGoatSSRF:
     @pytest.mark.asyncio
     async def test_ssrf_url_param(self, webgoat_target, webgoat_session, allow_internal):
         """SSRF via URL parameter in image proxy."""
-        from security_mcp.scanners.ssrf_tester import SsrfTester
+        from numasec.scanners.ssrf_tester import SsrfTester
 
         tester = SsrfTester(extra_headers=webgoat_session)
         result = await tester.test(f"{webgoat_target}/SSRF/task1?url=http://localhost")
@@ -224,7 +224,7 @@ class TestWebGoatCSRF:
     @pytest.mark.asyncio
     async def test_csrf_basic(self, webgoat_target, webgoat_session, allow_internal):
         """CSRF on state-changing GET request."""
-        from security_mcp.scanners.csrf_tester import CsrfTester
+        from numasec.scanners.csrf_tester import CsrfTester
 
         tester = CsrfTester(extra_headers=webgoat_session)
         result = await tester.test(f"{webgoat_target}/csrf/basic-get-flag")
@@ -242,7 +242,7 @@ class TestWebGoatAccessControl:
     @pytest.mark.asyncio
     async def test_idor_profile(self, webgoat_target, webgoat_session, allow_internal):
         """IDOR on user profile endpoint."""
-        from security_mcp.scanners.idor_tester import IdorTester
+        from numasec.scanners.idor_tester import IdorTester
 
         tester = IdorTester(extra_headers=webgoat_session)
         result = await tester.test(f"{webgoat_target}/IDOR/profile/2342384")

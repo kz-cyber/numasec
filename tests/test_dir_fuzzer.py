@@ -1,4 +1,4 @@
-"""Tests for security_mcp.scanners.dir_fuzzer."""
+"""Tests for numasec.scanners.dir_fuzzer."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import json
 import httpx
 import pytest
 
-from security_mcp.scanners.dir_fuzzer import (
+from numasec.scanners.dir_fuzzer import (
     COMMON_PATHS,
     FuzzResult,
     PythonDirFuzzer,
@@ -160,7 +160,7 @@ class TestPythonDirFuzzWrapper:
 
     def test_registry_has_dir_fuzz(self):
         """dir_fuzz should be registered in the default tool registry."""
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         assert "dir_fuzz" in registry.available_tools

@@ -26,7 +26,7 @@ class TestBrowserCrawlerRouteExtraction:
 
     def test_bare_route_regex_matches_angular(self) -> None:
         """Bare route pattern like path: 'administration' should match."""
-        from security_mcp.scanners.browser_crawler import _ROUTE_PATTERNS
+        from numasec.scanners.browser_crawler import _ROUTE_PATTERNS
 
         sample = "path: 'administration'"
         matched = False
@@ -38,7 +38,7 @@ class TestBrowserCrawlerRouteExtraction:
 
     def test_bare_route_regex_matches_with_quotes(self) -> None:
         """Both single and double quotes should work."""
-        from security_mcp.scanners.browser_crawler import _ROUTE_PATTERNS
+        from numasec.scanners.browser_crawler import _ROUTE_PATTERNS
 
         for sample in ['path: "dashboard"', "path: 'settings'"]:
             matched = any(pat.search(sample) for pat in _ROUTE_PATTERNS)
@@ -46,7 +46,7 @@ class TestBrowserCrawlerRouteExtraction:
 
     def test_existing_prefixed_routes_still_match(self) -> None:
         """Routes with leading / or # should still be captured."""
-        from security_mcp.scanners.browser_crawler import _ROUTE_PATTERNS
+        from numasec.scanners.browser_crawler import _ROUTE_PATTERNS
 
         for sample in ["path: '/admin'", "route: '/#/login'"]:
             matched = any(pat.search(sample) for pat in _ROUTE_PATTERNS)
@@ -54,7 +54,7 @@ class TestBrowserCrawlerRouteExtraction:
 
     def test_route_extraction_bare_goes_to_fragment(self) -> None:
         """Bare routes should be converted to /#/ fragment routes."""
-        from security_mcp.scanners.browser_crawler import _ROUTE_PATTERNS
+        from numasec.scanners.browser_crawler import _ROUTE_PATTERNS
 
         sample = "path: 'administration'"
         for pat in _ROUTE_PATTERNS:
@@ -70,7 +70,7 @@ class TestBrowserCrawlerRouteExtraction:
 
     def test_common_paths_includes_actuator(self) -> None:
         """Expanded common_paths should include /actuator."""
-        from security_mcp.scanners.browser_crawler import BrowserCrawler
+        from numasec.scanners.browser_crawler import BrowserCrawler
 
         crawler = BrowserCrawler.__new__(BrowserCrawler)
         # Access the common paths list used in crawl()
@@ -84,7 +84,7 @@ class TestBrowserCrawlerRouteExtraction:
         """SPA fragment route probing should include admin routes."""
         import inspect
 
-        from security_mcp.scanners.browser_crawler import BrowserCrawler
+        from numasec.scanners.browser_crawler import BrowserCrawler
 
         source = inspect.getsource(BrowserCrawler)
         for route in ["/#/admin", "/#/administration", "/#/dashboard"]:
@@ -101,7 +101,7 @@ class TestSsrfParamInjection:
 
     def test_ssrf_param_names_list_exists(self) -> None:
         """_SSRF_PARAM_NAMES should be defined with common SSRF params."""
-        from security_mcp.scanners.ssrf_tester import _SSRF_PARAM_NAMES
+        from numasec.scanners.ssrf_tester import _SSRF_PARAM_NAMES
 
         assert len(_SSRF_PARAM_NAMES) >= 10
         assert "url" in _SSRF_PARAM_NAMES
@@ -112,7 +112,7 @@ class TestSsrfParamInjection:
         """python_ssrf_test should accept a headers parameter."""
         import inspect
 
-        from security_mcp.scanners.ssrf_tester import python_ssrf_test
+        from numasec.scanners.ssrf_tester import python_ssrf_test
 
         sig = inspect.signature(python_ssrf_test)
         assert "headers" in sig.parameters, "python_ssrf_test should accept headers"
@@ -121,7 +121,7 @@ class TestSsrfParamInjection:
         """SsrfTester.test() should accept headers."""
         import inspect
 
-        from security_mcp.scanners.ssrf_tester import SsrfTester
+        from numasec.scanners.ssrf_tester import SsrfTester
 
         sig = inspect.signature(SsrfTester.test)
         assert "headers" in sig.parameters
@@ -130,7 +130,7 @@ class TestSsrfParamInjection:
         """SSRF tester should NOT return early when URL has no query params."""
         import unittest.mock as mock
 
-        from security_mcp.scanners.ssrf_tester import SsrfTester
+        from numasec.scanners.ssrf_tester import SsrfTester
 
         call_count = 0
 
@@ -156,7 +156,7 @@ class TestSsrfParamInjection:
         """Strategy 2 should inject param names like ?url=<ssrf_payload>."""
         import unittest.mock as mock
 
-        from security_mcp.scanners.ssrf_tester import SsrfTester
+        from numasec.scanners.ssrf_tester import SsrfTester
 
         injected_params = set()
 
@@ -182,7 +182,7 @@ class TestSsrfParamInjection:
 
     async def test_ssrf_headers_json_parsing(self) -> None:
         """python_ssrf_test should parse JSON headers string."""
-        from security_mcp.scanners.ssrf_tester import python_ssrf_test
+        from numasec.scanners.ssrf_tester import python_ssrf_test
 
         # Just verify the function signature accepts headers and doesn't crash
         import inspect
@@ -201,7 +201,7 @@ class TestXxeMultipartUpload:
 
     def test_xxe_svg_payload_exists(self) -> None:
         """_XXE_SVG payload should be defined."""
-        from security_mcp.scanners.xxe_tester import _XXE_SVG
+        from numasec.scanners.xxe_tester import _XXE_SVG
 
         assert "svg" in _XXE_SVG.lower()
         assert "ENTITY" in _XXE_SVG
@@ -209,14 +209,14 @@ class TestXxeMultipartUpload:
 
     def test_xxe_svg_in_payloads_list(self) -> None:
         """_PAYLOADS should include the SVG payload."""
-        from security_mcp.scanners.xxe_tester import _PAYLOADS
+        from numasec.scanners.xxe_tester import _PAYLOADS
 
         payload_types = [pt for _, pt in _PAYLOADS]
         assert "svg" in payload_types, "_PAYLOADS should include svg type"
 
     def test_multipart_field_names_defined(self) -> None:
         """_MULTIPART_FIELD_NAMES should be defined."""
-        from security_mcp.scanners.xxe_tester import _MULTIPART_FIELD_NAMES
+        from numasec.scanners.xxe_tester import _MULTIPART_FIELD_NAMES
 
         assert len(_MULTIPART_FIELD_NAMES) >= 4
         assert "file" in _MULTIPART_FIELD_NAMES
@@ -224,7 +224,7 @@ class TestXxeMultipartUpload:
 
     def test_multipart_filenames_defined(self) -> None:
         """_MULTIPART_FILENAMES should include XML and SVG files."""
-        from security_mcp.scanners.xxe_tester import _MULTIPART_FILENAMES
+        from numasec.scanners.xxe_tester import _MULTIPART_FILENAMES
 
         filenames = [fn for fn, _ in _MULTIPART_FILENAMES]
         assert any("xml" in fn.lower() for fn in filenames)
@@ -234,7 +234,7 @@ class TestXxeMultipartUpload:
         """XxeTester.test() should accept headers."""
         import inspect
 
-        from security_mcp.scanners.xxe_tester import XxeTester
+        from numasec.scanners.xxe_tester import XxeTester
 
         sig = inspect.signature(XxeTester.test)
         assert "headers" in sig.parameters
@@ -243,20 +243,20 @@ class TestXxeMultipartUpload:
         """python_xxe_test should accept headers."""
         import inspect
 
-        from security_mcp.scanners.xxe_tester import python_xxe_test
+        from numasec.scanners.xxe_tester import python_xxe_test
 
         sig = inspect.signature(python_xxe_test)
         assert "headers" in sig.parameters
 
     async def test_xxe_probe_multipart_exists(self) -> None:
         """XxeTester should have _probe_multipart method."""
-        from security_mcp.scanners.xxe_tester import XxeTester
+        from numasec.scanners.xxe_tester import XxeTester
 
         assert hasattr(XxeTester, "_probe_multipart")
 
     async def test_xxe_multipart_sends_files(self) -> None:
         """Multipart strategy should send file uploads."""
-        from security_mcp.scanners.xxe_tester import XxeTester
+        from numasec.scanners.xxe_tester import XxeTester
 
         received_multipart = False
 
@@ -269,7 +269,7 @@ class TestXxeMultipartUpload:
 
         tester = XxeTester(timeout=5.0)
         async with httpx.AsyncClient(transport=_transport(handler)) as client:
-            from security_mcp.scanners.xxe_tester import _PAYLOADS
+            from numasec.scanners.xxe_tester import _PAYLOADS
 
             payload_str, payload_type = _PAYLOADS[0]
             await tester._probe_multipart(client, "http://testserver/upload", payload_str, payload_type)
@@ -277,7 +277,7 @@ class TestXxeMultipartUpload:
 
     async def test_xxe_svg_detection_in_probe(self) -> None:
         """SVG payload type in _probe should check file_read keywords."""
-        from security_mcp.scanners.xxe_tester import XxeTester, _XXE_SVG
+        from numasec.scanners.xxe_tester import XxeTester, _XXE_SVG
 
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(200, text="root:x:0:0:root:/root:/bin/bash")
@@ -291,7 +291,7 @@ class TestXxeMultipartUpload:
 
     async def test_xxe_multipart_detects_file_read(self) -> None:
         """Multipart strategy should detect file read in response."""
-        from security_mcp.scanners.xxe_tester import XxeTester
+        from numasec.scanners.xxe_tester import XxeTester
 
         def handler(request: httpx.Request) -> httpx.Response:
             ct = request.headers.get("content-type", "")
@@ -301,7 +301,7 @@ class TestXxeMultipartUpload:
 
         tester = XxeTester(timeout=5.0)
         async with httpx.AsyncClient(transport=_transport(handler)) as client:
-            from security_mcp.scanners.xxe_tester import _PAYLOADS
+            from numasec.scanners.xxe_tester import _PAYLOADS
 
             vuln = await tester._probe_multipart(client, "http://testserver/upload", _PAYLOADS[0][0], "file_read")
         assert vuln is not None
@@ -310,7 +310,7 @@ class TestXxeMultipartUpload:
 
     async def test_xxe_full_test_uses_both_strategies(self) -> None:
         """Full test() should use both POST body and multipart strategies."""
-        from security_mcp.scanners.xxe_tester import XxeTester
+        from numasec.scanners.xxe_tester import XxeTester
 
         post_body_seen = False
         multipart_seen = False
@@ -329,7 +329,7 @@ class TestXxeMultipartUpload:
         # Use the mock transport directly
         async with httpx.AsyncClient(transport=_transport(handler), verify=False) as client:
             # Call the internal methods to verify both strategies
-            from security_mcp.scanners.xxe_tester import _PAYLOADS
+            from numasec.scanners.xxe_tester import _PAYLOADS
 
             payload_str, payload_type = _PAYLOADS[0]
             await tester._probe(client, "http://testserver/api", payload_str, payload_type, "application/xml")
@@ -349,7 +349,7 @@ class TestOpenRedirectEndpointDiscovery:
 
     def test_common_redirect_paths_defined(self) -> None:
         """_COMMON_REDIRECT_PATHS should be defined with common paths."""
-        from security_mcp.scanners.open_redirect_tester import _COMMON_REDIRECT_PATHS
+        from numasec.scanners.open_redirect_tester import _COMMON_REDIRECT_PATHS
 
         assert len(_COMMON_REDIRECT_PATHS) >= 10
         assert "/redirect" in _COMMON_REDIRECT_PATHS
@@ -357,7 +357,7 @@ class TestOpenRedirectEndpointDiscovery:
 
     def test_discovery_params_subset(self) -> None:
         """_DISCOVERY_PARAMS should be a bounded subset for discovery."""
-        from security_mcp.scanners.open_redirect_tester import _DISCOVERY_PARAMS
+        from numasec.scanners.open_redirect_tester import _DISCOVERY_PARAMS
 
         assert len(_DISCOVERY_PARAMS) <= 10  # Bounded for performance
         assert "url" in _DISCOVERY_PARAMS
@@ -365,7 +365,7 @@ class TestOpenRedirectEndpointDiscovery:
 
     def test_discovery_payloads_subset(self) -> None:
         """_DISCOVERY_PAYLOADS should be a bounded subset."""
-        from security_mcp.scanners.open_redirect_tester import _DISCOVERY_PAYLOADS
+        from numasec.scanners.open_redirect_tester import _DISCOVERY_PAYLOADS
 
         assert len(_DISCOVERY_PAYLOADS) <= 5  # Bounded
         assert any("evil.example.com" in p for p in _DISCOVERY_PAYLOADS)
@@ -374,7 +374,7 @@ class TestOpenRedirectEndpointDiscovery:
         """OpenRedirectTester.test() should accept headers."""
         import inspect
 
-        from security_mcp.scanners.open_redirect_tester import OpenRedirectTester
+        from numasec.scanners.open_redirect_tester import OpenRedirectTester
 
         sig = inspect.signature(OpenRedirectTester.test)
         assert "headers" in sig.parameters
@@ -383,7 +383,7 @@ class TestOpenRedirectEndpointDiscovery:
         """python_open_redirect_test should accept headers."""
         import inspect
 
-        from security_mcp.scanners.open_redirect_tester import python_open_redirect_test
+        from numasec.scanners.open_redirect_tester import python_open_redirect_test
 
         sig = inspect.signature(python_open_redirect_test)
         assert "headers" in sig.parameters
@@ -392,7 +392,7 @@ class TestOpenRedirectEndpointDiscovery:
         """Strategy 3 should probe common redirect endpoints."""
         import unittest.mock as mock
 
-        from security_mcp.scanners.open_redirect_tester import OpenRedirectTester
+        from numasec.scanners.open_redirect_tester import OpenRedirectTester
 
         probed_paths = set()
 
@@ -422,7 +422,7 @@ class TestOpenRedirectEndpointDiscovery:
         """Strategy 3 should be bounded in request count."""
         import unittest.mock as mock
 
-        from security_mcp.scanners.open_redirect_tester import (
+        from numasec.scanners.open_redirect_tester import (
             _COMMON_REDIRECT_PATHS,
             _DISCOVERY_PARAMS,
             _DISCOVERY_PAYLOADS,
@@ -458,7 +458,7 @@ class TestOpenRedirectEndpointDiscovery:
         """Strategies 1 and 2 should still work."""
         import unittest.mock as mock
 
-        from security_mcp.scanners.open_redirect_tester import OpenRedirectTester
+        from numasec.scanners.open_redirect_tester import OpenRedirectTester
 
         injected_params = set()
 
@@ -482,7 +482,7 @@ class TestOpenRedirectEndpointDiscovery:
 
     async def test_headers_json_parsing(self) -> None:
         """python_open_redirect_test should parse JSON headers."""
-        from security_mcp.scanners.open_redirect_tester import python_open_redirect_test
+        from numasec.scanners.open_redirect_tester import python_open_redirect_test
 
         import inspect
 
@@ -509,7 +509,7 @@ class TestToolSchemaUpdates:
 
     def test_ssrf_schema_has_headers(self) -> None:
         """ssrf_test schema should have headers property."""
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         schema = self._find_schema(registry.get_schemas(), "ssrf_test")
@@ -517,7 +517,7 @@ class TestToolSchemaUpdates:
 
     def test_path_test_schema_has_headers(self) -> None:
         """path_test (replaces xxe_test, open_redirect_test) schema should have headers property."""
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         schema = self._find_schema(registry.get_schemas(), "path_test")
@@ -525,7 +525,7 @@ class TestToolSchemaUpdates:
 
     def test_ssrf_description_mentions_param_injection(self) -> None:
         """ssrf_test description should mention param injection."""
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         schema = self._find_schema(registry.get_schemas(), "ssrf_test")
@@ -534,7 +534,7 @@ class TestToolSchemaUpdates:
 
     def test_path_test_description_mentions_traversal(self) -> None:
         """path_test (replaces xxe_test, open_redirect_test, lfi_test, host_header_test) should mention traversal."""
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         schema = self._find_schema(registry.get_schemas(), "path_test")
@@ -543,7 +543,7 @@ class TestToolSchemaUpdates:
 
     def test_crawl_description_mentions_spa(self) -> None:
         """crawl (replaces browser_crawl_site) description should mention SPA detection."""
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         schema = self._find_schema(registry.get_schemas(), "crawl")

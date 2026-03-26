@@ -1,4 +1,4 @@
-"""Tests for security_mcp.scanners.cve_enricher — CVE enrichment engine."""
+"""Tests for numasec.scanners.cve_enricher — CVE enrichment engine."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from security_mcp.scanners.cve_enricher import (
+from numasec.scanners.cve_enricher import (
     CVEEnricher,
     CVEMatch,
     _BANNER_PATTERNS,
@@ -164,7 +164,7 @@ class TestNvdApiLookup:
         mock_resp.status_code = 200
         mock_resp.json.return_value = nvd_response
 
-        with patch.dict("os.environ", {"SECMCP_NVD_API_KEY": "test-key"}):
+        with patch.dict("os.environ", {"NUMASEC_NVD_API_KEY": "test-key"}):
             with patch.object(enricher, "_cache_get", return_value=None):
                 with patch.object(enricher, "_cache_set", new_callable=AsyncMock):
                     with patch("httpx.AsyncClient") as mock_client_cls:
@@ -208,7 +208,7 @@ class TestNvdApiRateLimited:
                 return mock_resp_429
             return mock_resp_200
 
-        with patch.dict("os.environ", {"SECMCP_NVD_API_KEY": "test-key"}):
+        with patch.dict("os.environ", {"NUMASEC_NVD_API_KEY": "test-key"}):
             with patch("asyncio.sleep", new_callable=AsyncMock):
                 with patch("httpx.AsyncClient") as mock_client_cls:
                     mock_client = AsyncMock()
@@ -226,7 +226,7 @@ class TestNvdApiRateLimited:
 class TestNvdApiDisabledWithoutKey:
     @pytest.mark.asyncio
     async def test_no_api_key_skips_nvd(self):
-        """Without SECMCP_NVD_API_KEY, lookup returns empty (no API calls)."""
+        """Without NUMASEC_NVD_API_KEY, lookup returns empty (no API calls)."""
         enricher = CVEEnricher.__new__(CVEEnricher)
         enricher._kb_loaded = True
         enricher._kb_entries = {}
@@ -234,7 +234,7 @@ class TestNvdApiDisabledWithoutKey:
         with patch.dict("os.environ", {}, clear=True):
             # Remove the key if present
             import os
-            os.environ.pop("SECMCP_NVD_API_KEY", None)
+            os.environ.pop("NUMASEC_NVD_API_KEY", None)
 
             with patch.object(enricher, "_query_nvd", new_callable=AsyncMock) as mock_nvd:
                 matches = await enricher.lookup("apache", "2.4.49")
@@ -265,7 +265,7 @@ class TestCacheHit:
             source="nvd",
         )
 
-        with patch.dict("os.environ", {"SECMCP_NVD_API_KEY": "test-key"}):
+        with patch.dict("os.environ", {"NUMASEC_NVD_API_KEY": "test-key"}):
             with patch.object(enricher, "_cache_get", return_value=[cached_match]):
                 with patch.object(enricher, "_query_nvd", new_callable=AsyncMock) as mock_nvd:
                     matches = await enricher.lookup("apache", "2.4.49")
@@ -283,7 +283,7 @@ class TestCacheExpiry:
         enricher._kb_loaded = True
         enricher._kb_entries = {}
 
-        with patch.dict("os.environ", {"SECMCP_NVD_API_KEY": "test-key"}):
+        with patch.dict("os.environ", {"NUMASEC_NVD_API_KEY": "test-key"}):
             # _cache_get returns None for expired
             with patch.object(enricher, "_cache_get", return_value=None):
                 with patch.object(enricher, "_cache_set", new_callable=AsyncMock):

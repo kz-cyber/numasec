@@ -1,4 +1,4 @@
-"""Tests for security_mcp.scanners.auth_tester — JWT/OAuth authentication testing."""
+"""Tests for numasec.scanners.auth_tester — JWT/OAuth authentication testing."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import json
 import httpx
 import pytest
 
-from security_mcp.scanners.auth_tester import (
+from numasec.scanners.auth_tester import (
     AuthResult,
     AuthTester,
     AuthVulnerability,
@@ -434,13 +434,13 @@ class TestExtractAllJwts:
 
 class TestAuthToolRegistration:
     def test_auth_test_registered(self):
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         assert "auth_test" in registry.available_tools
 
     def test_auth_test_schema(self):
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         schemas = registry.get_schemas()

@@ -1,11 +1,11 @@
-"""Tests for security_mcp.core.planner."""
+"""Tests for numasec.core.planner."""
 
 from __future__ import annotations
 
-from security_mcp.core.planner import ReplanSignal
-from security_mcp.core.planner import DeterministicPlanner
-from security_mcp.models.enums import PTESPhase
-from security_mcp.models.target import Port, TargetProfile, Technology
+from numasec.core.planner import ReplanSignal
+from numasec.core.planner import DeterministicPlanner
+from numasec.models.enums import PTESPhase
+from numasec.models.target import Port, TargetProfile, Technology
 
 
 class TestCreatePlan:

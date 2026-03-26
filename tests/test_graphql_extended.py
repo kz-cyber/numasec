@@ -1,4 +1,4 @@
-"""Tests for extended GraphQL checks (checks 5-8) in security_mcp.scanners.graphql_tester."""
+"""Tests for extended GraphQL checks (checks 5-8) in numasec.scanners.graphql_tester."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from security_mcp.scanners.graphql_tester import (
+from numasec.scanners.graphql_tester import (
     GraphQLResult,
     GraphQLTester,
     GraphQLVulnerability,

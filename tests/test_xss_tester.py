@@ -1,4 +1,4 @@
-"""Tests for security_mcp.scanners.xss_tester."""
+"""Tests for numasec.scanners.xss_tester."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import json
 import httpx
 import pytest
 
-from security_mcp.scanners.xss_tester import (
+from numasec.scanners.xss_tester import (
     DOM_SINKS,
     DOM_SOURCES,
     ESCALATION_PAYLOADS,
@@ -126,7 +126,7 @@ class TestPythonXSSTester:
         """Canary should contain special characters for encoding detection."""
         tester = PythonXSSTester()
         canary = tester._generate_canary()
-        assert canary.startswith("security_mcp_")
+        assert canary.startswith("numasec_")
         assert "'" in canary
         assert '"' in canary
         assert "<" in canary
@@ -242,7 +242,7 @@ class TestDomXssBrowser:
         # Simulate ImportError for playwright
         with mock.patch.dict("sys.modules", {"playwright": None, "playwright.async_api": None}):
             with mock.patch(
-                "security_mcp.scanners.xss_tester.PythonXSSTester._scan_dom_xss_browser",
+                "numasec.scanners.xss_tester.PythonXSSTester._scan_dom_xss_browser",
                 wraps=tester._scan_dom_xss_browser,
             ):
                 # Should not crash
@@ -271,7 +271,7 @@ class TestDomXssBrowser:
 class TestXSSToolRegistration:
     def test_registry_has_xss_test(self):
         """xss_test should be registered in the default tool registry."""
-        from security_mcp.tools import create_default_tool_registry
+        from numasec.tools import create_default_tool_registry
 
         registry = create_default_tool_registry()
         assert "xss_test" in registry.available_tools
