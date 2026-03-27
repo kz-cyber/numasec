@@ -225,7 +225,7 @@ export function Session() {
     if (part.id === lastSwitch) return
 
     // Switch to pentest agent when recon phase completes
-    if (part.tool === "recon" && local.agent.name() === "recon") {
+    if (part.tool === "recon" && local.agent.current().name === "recon") {
       local.agent.set("pentest")
       lastSwitch = part.id
     }
@@ -1689,7 +1689,8 @@ function GetFindingsTool(props: ToolProps<any>) {
 function SecurityScanTool(props: ToolProps<any> & { icon: string; label: string }) {
   const { theme } = useTheme()
   const target = createMemo(() => {
-    const t = props.input?.target ?? props.input?.url ?? ""
+    const input = props.input as Record<string, any> | undefined
+    const t = input?.target ?? input?.url ?? ""
     return typeof t === "string" ? t : ""
   })
   const findingCount = createMemo(() => {
@@ -1976,7 +1977,7 @@ function Bash(props: ToolProps<typeof BashTool>) {
   )
 }
 
-function Write(props: ToolProps<typeof WriteTool>) {
+function Write(props: ToolProps<any>) {
   const { theme, syntax } = useTheme()
   const code = createMemo(() => {
     if (!props.input.content) return ""
@@ -2174,7 +2175,7 @@ function Task(props: ToolProps<typeof TaskTool>) {
   )
 }
 
-function Edit(props: ToolProps<typeof EditTool>) {
+function Edit(props: ToolProps<any>) {
   const ctx = use()
   const { theme, syntax } = useTheme()
 
@@ -2226,7 +2227,7 @@ function Edit(props: ToolProps<typeof EditTool>) {
   )
 }
 
-function ApplyPatch(props: ToolProps<typeof ApplyPatchTool>) {
+function ApplyPatch(props: ToolProps<any>) {
   const ctx = use()
   const { theme, syntax } = useTheme()
 
