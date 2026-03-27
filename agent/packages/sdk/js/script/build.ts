@@ -25,7 +25,7 @@ await createClient({
     },
     {
       name: "@hey-api/sdk",
-      instance: "OpencodeClient",
+      instance: "NumasecClient",
       exportFromIndex: false,
       auth: false,
       paramsStructure: "flat",

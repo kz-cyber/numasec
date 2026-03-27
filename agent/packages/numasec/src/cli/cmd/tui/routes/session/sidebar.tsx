@@ -25,6 +25,7 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
     diff: true,
     todo: true,
     findings: true,
+    chains: true,
   })
 
   // Sort MCP servers alphabetically for consistent display order
@@ -87,6 +88,33 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
   const totalFindings = createMemo(() => {
     const c = findings()
     return c.critical + c.high + c.medium + c.low + c.info
+  })
+
+  // Derive attack chains from save_finding tool results with chain_id
+  const attackChains = createMemo(() => {
+    const chains: Record<string, { titles: string[]; severity: string }> = {}
+    for (const msg of messages()) {
+      const parts = sync.data.part[msg.id] ?? []
+      for (const part of parts) {
+        if (part.type !== "tool" || part.state.status !== "completed") continue
+        if (!part.tool.includes("save_finding")) continue
+        const out = (part.state as { output?: string }).output ?? ""
+        try {
+          const data = JSON.parse(out)
+          const chainId = data.chain_id || data.finding?.chain_id
+          if (!chainId) continue
+          if (!chains[chainId]) chains[chainId] = { titles: [], severity: "info" }
+          const title = data.title || data.finding?.title || "Finding"
+          chains[chainId].titles.push(title)
+          const sev = (data.severity || "").toLowerCase()
+          const sevOrder = ["critical", "high", "medium", "low", "info"]
+          if (sevOrder.indexOf(sev) < sevOrder.indexOf(chains[chainId].severity)) {
+            chains[chainId].severity = sev
+          }
+        } catch { /* skip */ }
+      }
+    }
+    return Object.entries(chains).filter(([_, c]) => c.titles.length > 1)
   })
 
   // Derive target URL from recon/create_session tool inputs
@@ -278,6 +306,39 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                 </Show>
               </Show>
             </box>
+            <Show when={attackChains().length > 0}>
+              <box>
+                <box
+                  flexDirection="row"
+                  gap={1}
+                  onMouseDown={() => setExpanded("chains", !expanded.chains)}
+                >
+                  <text fg={theme.text}>{expanded.chains ? "▼" : "▶"}</text>
+                  <text fg={theme.text}>
+                    <b>Attack Chains</b>
+                    <span style={{ fg: theme.textMuted }}> ({attackChains().length})</span>
+                  </text>
+                </box>
+                <Show when={expanded.chains}>
+                  <For each={attackChains()}>
+                    {([chainId, chain]) => (
+                      <box paddingLeft={1}>
+                        <text fg={chain.severity === "critical" || chain.severity === "high" ? theme.error : theme.warning} wrapMode="word">
+                          ⛓ {chainId}
+                        </text>
+                        <For each={chain.titles}>
+                          {(title, i) => (
+                            <text fg={theme.textMuted} wrapMode="word">
+                              {i() < chain.titles.length - 1 ? "├─ " : "└─ "}{title}
+                            </text>
+                          )}
+                        </For>
+                      </box>
+                    )}
+                  </For>
+                </Show>
+              </box>
+            </Show>
             <Show when={todo().length > 0 && todo().some((t) => t.status !== "completed")}>
               <box>
                 <box

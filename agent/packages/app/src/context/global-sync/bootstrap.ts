@@ -1,6 +1,6 @@
 import type {
   Config,
-  OpencodeClient,
+  NumasecClient,
   Path,
   PermissionRequest,
   Project,
@@ -80,7 +80,7 @@ function showErrors(input: {
 }
 
 export async function bootstrapGlobal(input: {
-  globalSDK: OpencodeClient
+  globalSDK: NumasecClient
   requestFailedTitle: string
   translate: (key: string, vars?: Record<string, string | number>) => string
   formatMoreCount: (count: number) => string
@@ -169,7 +169,7 @@ function warmSessions(input: {
   ids: string[]
   store: Store<State>
   setStore: SetStoreFunction<State>
-  sdk: OpencodeClient
+  sdk: NumasecClient
 }) {
   const known = new Set(input.store.session.map((item) => item.id))
   const ids = [...new Set(input.ids)].filter((id) => !!id && !known.has(id))
@@ -187,7 +187,7 @@ function warmSessions(input: {
 
 export async function bootstrapDirectory(input: {
   directory: string
-  sdk: OpencodeClient
+  sdk: NumasecClient
   store: Store<State>
   setStore: SetStoreFunction<State>
   vcsCache: VcsCache

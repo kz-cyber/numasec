@@ -20,9 +20,9 @@ iamdavidhill
 jayair
 kitlangton
 kommander
--opencode2026
+-numasec2026
 r44vc0rp
 rekram1-node
 -spider-yamet clawdbot/llm psychosis, spam pinging the team
 thdxr
--OpenCodeEngineer bot that spams issues
+-NumasecEngineer bot that spams issues

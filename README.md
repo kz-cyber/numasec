@@ -2,7 +2,7 @@
 
 AI-powered penetration testing through the Model Context Protocol.
 
-numasec exposes 21 composite security tools to any MCP-compatible AI assistant (GitHub Copilot, Claude Desktop, Cursor, OpenCode, etc.), enabling automated vulnerability discovery following the PTES 5-phase methodology.
+numasec exposes 21 composite security tools to any MCP-compatible AI assistant (GitHub Copilot, Claude Desktop, Cursor, numasec agent, etc.), enabling automated vulnerability discovery following the PTES 5-phase methodology.
 
 ## Features
 
@@ -72,9 +72,9 @@ Add to `claude_desktop_config.json`:
 }
 ```
 
-### OpenCode
+### numasec agent
 
-Add to `opencode.json`:
+Add to `numasec.json`:
 
 ```json
 {

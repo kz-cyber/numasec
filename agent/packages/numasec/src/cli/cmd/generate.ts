@@ -14,9 +14,9 @@ export const GenerateCommand = {
           {
             lang: "js",
             source: [
-              `import { createOpencodeClient } from "@numasec/sdk`,
+              `import { createNumasecClient } from "@numasec/sdk`,
               ``,
-              `const client = createOpencodeClient()`,
+              `const client = createNumasecClient()`,
               `await client.${operation.operationId}({`,
               `  ...`,
               `})`,

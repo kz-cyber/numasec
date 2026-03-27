@@ -1,4 +1,4 @@
-import { createOpencodeClient, type Event } from "@numasec/sdk/v2"
+import { createNumasecClient, type Event } from "@numasec/sdk/v2"
 import { createSimpleContext } from "./helper"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { batch, onCleanup, onMount } from "solid-js"
@@ -22,7 +22,7 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
     let sse: AbortController | undefined
 
     function createSDK() {
-      return createOpencodeClient({
+      return createNumasecClient({
         baseUrl: props.url,
         signal: abort.signal,
         directory: props.directory,

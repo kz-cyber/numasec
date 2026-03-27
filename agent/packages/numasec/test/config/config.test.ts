@@ -1853,8 +1853,8 @@ describe("NUMASEC_DISABLE_PROJECT_CONFIG", () => {
         fn: async () => {
           const directories = await Config.directories()
           // Project .numasec should NOT be in directories list
-          const hasProjectOpencode = directories.some((d) => d.startsWith(tmp.path))
-          expect(hasProjectOpencode).toBe(false)
+          const hasProjectnumasec = directories.some((d) => d.startsWith(tmp.path))
+          expect(hasProjectnumasec).toBe(false)
         },
       })
     } finally {

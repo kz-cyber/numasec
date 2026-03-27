@@ -1,11 +1,11 @@
 name: "Setup Git Committer"
 description: "Create app token and configure git user"
 inputs:
-  opencode-app-id:
-    description: "OpenCode GitHub App ID"
+  numasec-app-id:
+    description: "numasec GitHub App ID"
     required: true
-  opencode-app-secret:
-    description: "OpenCode GitHub App private key"
+  numasec-app-secret:
+    description: "numasec GitHub App private key"
     required: true
 outputs:
   token:
@@ -21,8 +21,8 @@ runs:
       id: apptoken
       uses: actions/create-github-app-token@v2
       with:
-        app-id: ${{ inputs.opencode-app-id }}
-        private-key: ${{ inputs.opencode-app-secret }}
+        app-id: ${{ inputs.numasec-app-id }}
+        private-key: ${{ inputs.numasec-app-secret }}
         owner: ${{ github.repository_owner }}
 
     - name: Configure git user
