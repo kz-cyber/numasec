@@ -22,7 +22,7 @@ jobs:
         with:
           bun-version: latest
       - run: pip install -e ".[all]"
-      - run: ruff check src/
+      - run: ruff check numasec/
       - run: pytest tests/ -v -m "not slow and not benchmark" --tb=short
       - run: bun install
         working-directory: agent
