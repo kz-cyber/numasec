@@ -1570,6 +1570,36 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
         <Match when={props.part.tool === "skill"}>
           <Skill {...toolprops} />
         </Match>
+        <Match when={props.part.tool.includes("save_finding")}>
+          <SaveFindingTool {...toolprops} />
+        </Match>
+        <Match when={props.part.tool.includes("get_findings")}>
+          <GetFindingsTool {...toolprops} />
+        </Match>
+        <Match when={props.part.tool.includes("recon")}>
+          <SecurityScanTool icon="🔍" label="Recon" {...toolprops} />
+        </Match>
+        <Match when={props.part.tool.includes("injection_test")}>
+          <SecurityScanTool icon="💉" label="Injection Test" {...toolprops} />
+        </Match>
+        <Match when={props.part.tool.includes("xss_test")}>
+          <SecurityScanTool icon="⚡" label="XSS Test" {...toolprops} />
+        </Match>
+        <Match when={props.part.tool.includes("ssrf_test")}>
+          <SecurityScanTool icon="🌐" label="SSRF Test" {...toolprops} />
+        </Match>
+        <Match when={props.part.tool.includes("auth_test")}>
+          <SecurityScanTool icon="🔐" label="Auth Test" {...toolprops} />
+        </Match>
+        <Match when={props.part.tool.includes("access_control")}>
+          <SecurityScanTool icon="🛡" label="Access Control" {...toolprops} />
+        </Match>
+        <Match when={props.part.tool.includes("crawl")}>
+          <SecurityScanTool icon="🕷" label="Crawl" {...toolprops} />
+        </Match>
+        <Match when={props.part.tool.includes("dir_fuzz")}>
+          <SecurityScanTool icon="📂" label="Dir Fuzz" {...toolprops} />
+        </Match>
         <Match when={true}>
           <GenericTool {...toolprops} />
         </Match>
@@ -1586,6 +1616,111 @@ type ToolProps<T extends Tool.Info> = {
   output?: string
   part: ToolPart
 }
+
+// --------------- Security tool renderers ---------------
+
+const SEVERITY_COLORS: Record<string, string> = {}
+
+function SaveFindingTool(props: ToolProps<any>) {
+  const { theme } = useTheme()
+  const parsed = createMemo(() => {
+    try {
+      const data = JSON.parse(props.output ?? "{}")
+      return data
+    } catch {
+      return null
+    }
+  })
+  const severity = createMemo(() => {
+    const d = parsed()
+    if (d?.severity) return (d.severity as string).toUpperCase()
+    const m = (props.output ?? "").match(/\b(CRITICAL|HIGH|MEDIUM|LOW|INFO)\b/i)
+    return m ? m[1].toUpperCase() : "INFO"
+  })
+  const severityColor = createMemo(() => {
+    const s = severity()
+    if (s === "CRITICAL" || s === "HIGH") return theme.error
+    if (s === "MEDIUM") return theme.warning
+    if (s === "LOW") return theme.success
+    return theme.textMuted
+  })
+
+  return (
+    <InlineTool icon="🔴" pending="Saving finding..." complete={props.output != null} part={props.part}>
+      <span style={{ fg: severityColor(), bold: true }}>[{severity()}]</span>{" "}
+      {parsed()?.title ?? parsed()?.message ?? `Finding saved`}
+    </InlineTool>
+  )
+}
+
+function GetFindingsTool(props: ToolProps<any>) {
+  const { theme } = useTheme()
+  const [expanded, setExpanded] = createSignal(false)
+  const output = createMemo(() => props.output?.trim() ?? "")
+  const lines = createMemo(() => output().split("\n"))
+
+  return (
+    <Show
+      when={props.output}
+      fallback={
+        <InlineTool icon="📋" pending="Fetching findings..." complete={false} part={props.part}>
+          get_findings {input(props.input)}
+        </InlineTool>
+      }
+    >
+      <BlockTool
+        title="# 📋 Findings"
+        part={props.part}
+        onClick={() => setExpanded((prev) => !prev)}
+      >
+        <box gap={0}>
+          <For each={expanded() ? lines() : lines().slice(0, 10)}>
+            {(line) => <text fg={theme.text}>{line}</text>}
+          </For>
+          <Show when={lines().length > 10}>
+            <text fg={theme.textMuted}>{expanded() ? "Click to collapse" : `… ${lines().length - 10} more lines`}</text>
+          </Show>
+        </box>
+      </BlockTool>
+    </Show>
+  )
+}
+
+function SecurityScanTool(props: ToolProps<any> & { icon: string; label: string }) {
+  const { theme } = useTheme()
+  const target = createMemo(() => {
+    const t = props.input?.target ?? props.input?.url ?? ""
+    return typeof t === "string" ? t : ""
+  })
+  const findingCount = createMemo(() => {
+    if (!props.output) return null
+    try {
+      const data = JSON.parse(props.output)
+      return data.findings?.length ?? data.vulnerabilities?.length ?? null
+    } catch {
+      return null
+    }
+  })
+
+  return (
+    <InlineTool
+      icon={props.icon}
+      pending={`Running ${props.label}...`}
+      complete={props.output != null}
+      part={props.part}
+    >
+      {props.label} {target()}
+      <Show when={findingCount() != null}>
+        <span style={{ fg: findingCount()! > 0 ? theme.error : theme.success }}>
+          {" "}→ {findingCount()} finding{findingCount() !== 1 ? "s" : ""}
+        </span>
+      </Show>
+    </InlineTool>
+  )
+}
+
+// --------------- End security tool renderers ---------------
+
 function GenericTool(props: ToolProps<any>) {
   const { theme } = useTheme()
   const ctx = use()
