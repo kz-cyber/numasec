@@ -328,13 +328,10 @@ class OpenRedirectTester:
         # Only flag if the HOSTNAME actually changed to an attacker-controlled domain.
         # A substring check on the full URL would false-positive when the evil
         # domain appears URL-encoded in a query parameter without a real redirect.
-        is_evil = (
-            _EVIL_DOMAIN in final_parsed.netloc
-            or (
-                final_parsed.netloc != original_parsed.netloc
-                and final_parsed.netloc != ""
-                and not final_parsed.netloc.startswith(original_parsed.netloc)
-            )
+        is_evil = _EVIL_DOMAIN in final_parsed.netloc or (
+            final_parsed.netloc != original_parsed.netloc
+            and final_parsed.netloc != ""
+            and not final_parsed.netloc.startswith(original_parsed.netloc)
         )
         if not is_evil:
             return None

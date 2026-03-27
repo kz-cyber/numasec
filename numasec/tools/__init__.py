@@ -280,8 +280,7 @@ def create_default_tool_registry() -> ToolRegistry:
                     "headers": {
                         "type": "string",
                         "description": (
-                            "Optional comma-separated key:value headers "
-                            "(e.g. 'Authorization:Bearer xyz,X-Api-Key:abc')"
+                            "Optional comma-separated key:value headers (e.g. 'Authorization:Bearer xyz,X-Api-Key:abc')"
                         ),
                     },
                     "checks": {
@@ -372,7 +371,11 @@ def create_default_tool_registry() -> ToolRegistry:
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "command": {"type": "array", "items": {"type": "string"}, "description": "ffuf command and args"},
+                        "command": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "ffuf command and args",
+                        },
                     },
                     "required": ["command"],
                 },
@@ -394,8 +397,14 @@ def create_default_tool_registry() -> ToolRegistry:
                     "type": "object",
                     "properties": {
                         "url": {"type": "string", "description": "Target base URL"},
-                        "wordlist": {"type": "string", "description": "Comma-separated custom paths. Uses built-in if omitted"},
-                        "extensions": {"type": "string", "description": "File extensions to append (e.g. 'php,bak,old')"},
+                        "wordlist": {
+                            "type": "string",
+                            "description": "Comma-separated custom paths. Uses built-in if omitted",
+                        },
+                        "extensions": {
+                            "type": "string",
+                            "description": "File extensions to append (e.g. 'php,bak,old')",
+                        },
                     },
                     "required": ["url"],
                 },
@@ -552,7 +561,11 @@ def create_default_tool_registry() -> ToolRegistry:
                     "type": "object",
                     "properties": {
                         "target": {"type": "string", "description": "Target URL or host"},
-                        "templates": {"type": "array", "items": {"type": "string"}, "description": "Template IDs to use"},
+                        "templates": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Template IDs to use",
+                        },
                     },
                     "required": ["target"],
                 },

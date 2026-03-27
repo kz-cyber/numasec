@@ -64,27 +64,49 @@ _TIME_TOLERANCE = 1.0  # seconds
 
 # Shell error patterns that indicate the payload reached a shell
 _ERROR_PATTERNS: list[str] = [
-    r"sh:\s+\d+:\s+",           # sh: 1: <cmd>: not found
-    r"bash:\s+",                 # bash: <cmd>: command not found
-    r"/bin/sh:\s+",              # /bin/sh: <cmd>: not found
-    r"not found",                # generic "not found"
+    r"sh:\s+\d+:\s+",  # sh: 1: <cmd>: not found
+    r"bash:\s+",  # bash: <cmd>: command not found
+    r"/bin/sh:\s+",  # /bin/sh: <cmd>: not found
+    r"not found",  # generic "not found"
     r"not recognized as an internal or external command",  # Windows cmd.exe
     r"is not recognized",
     r"cmd\.exe",
 ]
 
 # Parameters commonly used for command injection
-_CMD_PARAM_NAMES: frozenset[str] = frozenset({
-    "cmd", "exec", "command", "execute", "run", "ping", "query",
-    "host", "ip", "hostname", "target", "address", "addr",
-    "domain", "dir", "path", "file", "filename", "name",
-    "process", "action", "do", "func",
-})
+_CMD_PARAM_NAMES: frozenset[str] = frozenset(
+    {
+        "cmd",
+        "exec",
+        "command",
+        "execute",
+        "run",
+        "ping",
+        "query",
+        "host",
+        "ip",
+        "hostname",
+        "target",
+        "address",
+        "addr",
+        "domain",
+        "dir",
+        "path",
+        "file",
+        "filename",
+        "name",
+        "process",
+        "action",
+        "do",
+        "func",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
 # Data models
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class CmdInjVulnerability:
@@ -93,7 +115,7 @@ class CmdInjVulnerability:
     param: str
     payload: str
     technique: str  # response_based, time_based, error_based
-    platform: str   # unix, windows
+    platform: str  # unix, windows
     evidence: str
     confidence: float = 0.5
     location: str = "GET"
@@ -129,8 +151,7 @@ class CmdInjResult:
             "params_tested": self.params_tested,
             "duration_ms": round(self.duration_ms, 2),
             "summary": (
-                f"Command injection confirmed "
-                f"(confidence: {max(v.confidence for v in self.vulnerabilities):.1f})"
+                f"Command injection confirmed (confidence: {max(v.confidence for v in self.vulnerabilities):.1f})"
                 if self.vulnerabilities
                 else "No command injection found"
             ),
@@ -172,7 +193,10 @@ class CommandInjectionTester:
         result.params_tested = len(ordered)
 
         async with httpx.AsyncClient(
-            timeout=self.timeout, follow_redirects=True, verify=False, headers=self._extra_headers,
+            timeout=self.timeout,
+            follow_redirects=True,
+            verify=False,
+            headers=self._extra_headers,
         ) as client:
             for param_name, location in ordered:
                 vuln = await self._test_param(client, url, param_name, location, method, body)
@@ -183,7 +207,10 @@ class CommandInjectionTester:
         result.duration_ms = (time.monotonic() - start) * 1000
         logger.info(
             "CmdInj test complete: %s -- %d params, %d vulns, %.0fms",
-            url, result.params_tested, len(result.vulnerabilities), result.duration_ms,
+            url,
+            result.params_tested,
+            len(result.vulnerabilities),
+            result.duration_ms,
         )
         return result
 
@@ -260,17 +287,34 @@ class CommandInjectionTester:
 
         # Phase 1: Response-based
         resp_hit = await self._test_response_based(
-            client, url, param, location, method, body, baseline_text,
+            client,
+            url,
+            param,
+            location,
+            method,
+            body,
+            baseline_text,
         )
 
         # Phase 2: Time-based blind
         time_hit = await self._test_time_based(
-            client, url, param, location, method, body,
+            client,
+            url,
+            param,
+            location,
+            method,
+            body,
         )
 
         # Phase 3: Error-based
         err_hit = await self._test_error_based(
-            client, url, param, location, method, body, baseline_text,
+            client,
+            url,
+            param,
+            location,
+            method,
+            body,
+            baseline_text,
         )
 
         # Multi-signal confidence upgrade
@@ -308,7 +352,9 @@ class CommandInjectionTester:
             if match and not re.search(pattern, baseline_text, re.MULTILINE):
                 logger.info(
                     "CmdInj response hit: param=%s payload=%r platform=%s",
-                    param, payload, platform,
+                    param,
+                    payload,
+                    platform,
                 )
                 return CmdInjVulnerability(
                     param=param,
@@ -351,7 +397,10 @@ class CommandInjectionTester:
 
                 logger.info(
                     "CmdInj time hit: param=%s platform=%s elapsed=%.1fs ctrl=%.1fs",
-                    param, platform, elapsed, ctrl_elapsed,
+                    param,
+                    platform,
+                    elapsed,
+                    ctrl_elapsed,
                 )
                 return CmdInjVulnerability(
                     param=param,
@@ -389,7 +438,8 @@ class CommandInjectionTester:
                 if match and not re.search(pattern, baseline_text, re.IGNORECASE):
                     logger.info(
                         "CmdInj error hit: param=%s pattern=%s",
-                        param, pattern,
+                        param,
+                        pattern,
                     )
                     return CmdInjVulnerability(
                         param=param,

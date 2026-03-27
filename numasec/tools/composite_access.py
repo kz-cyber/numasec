@@ -49,8 +49,8 @@ async def access_control_test(
         try:
             from numasec.scanners.csrf_tester import CsrfTester
 
-            tester = CsrfTester(extra_headers=extra_headers)
-            csrf_result = await tester.test(url)
+            csrf_tester = CsrfTester(extra_headers=extra_headers)
+            csrf_result = await csrf_tester.test(url)
             result_dict = csrf_result.to_dict()
             results["csrf"] = result_dict
             results["vulnerabilities"].extend(result_dict.get("vulnerabilities", []))
@@ -61,8 +61,8 @@ async def access_control_test(
         try:
             from numasec.scanners.cors_tester import CorsTester
 
-            tester = CorsTester(extra_headers=extra_headers)
-            cors_result = await tester.test(url)
+            cors_tester = CorsTester(extra_headers=extra_headers)
+            cors_result = await cors_tester.test(url)
             result_dict = cors_result.to_dict()
             results["cors"] = result_dict
             results["vulnerabilities"].extend(result_dict.get("vulnerabilities", []))

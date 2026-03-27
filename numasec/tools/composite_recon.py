@@ -61,8 +61,8 @@ async def recon(
         try:
             from numasec.scanners.subdomain_scanner import PythonSubdomainScanner
 
-            scanner = PythonSubdomainScanner(timeout=timeout)
-            sub_result = await scanner.scan(hostname)
+            sub_scanner = PythonSubdomainScanner(timeout=timeout)
+            sub_result = await sub_scanner.scan(hostname)
             results["subdomains"] = sub_result.to_dict()
         except Exception as exc:
             results["subdomains"] = {"error": str(exc)}

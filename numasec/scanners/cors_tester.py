@@ -81,11 +81,7 @@ class CorsResult:
                 if self.vulnerabilities
                 else "No CORS issues found"
             ),
-            "next_steps": (
-                ["Verify if credentials are exposed cross-origin"]
-                if self.vulnerabilities
-                else []
-            ),
+            "next_steps": (["Verify if credentials are exposed cross-origin"] if self.vulnerabilities else []),
         }
 
 

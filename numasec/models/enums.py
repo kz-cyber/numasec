@@ -13,7 +13,6 @@ class Severity(StrEnum):
     INFO = "info"
 
 
-
 class PhaseStatus(StrEnum):
     """Attack phase execution status."""
 
@@ -32,6 +31,3 @@ class PTESPhase(StrEnum):
     VULNERABILITY = "vulnerability_testing"
     EXPLOITATION = "exploitation_validation"
     REPORTING = "reporting"
-
-
-

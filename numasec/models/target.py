@@ -94,10 +94,7 @@ class TargetProfile:
 
     def add_credential(self, cred: Credential) -> None:
         """Deduplicated credential addition."""
-        if not any(
-            c.username == cred.username and c.password == cred.password
-            for c in self.credentials
-        ):
+        if not any(c.username == cred.username and c.password == cred.password for c in self.credentials):
             self.credentials.append(cred)
 
     def add_token(self, token: Token) -> None:

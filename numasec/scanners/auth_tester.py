@@ -242,9 +242,13 @@ class AuthResult:
                     "param": v.param,
                     "evidence": v.evidence,
                     "confidence": v.confidence,
-                    **({
-                        "forged_token": v.forged_token,
-                    } if v.forged_token else {}),
+                    **(
+                        {
+                            "forged_token": v.forged_token,
+                        }
+                        if v.forged_token
+                        else {}
+                    ),
                 }
                 for v in self.vulnerabilities
             ],
@@ -444,11 +448,7 @@ class AuthTester:
 
             # Step 3: Active JWT checks (require a token)
             if "jwt" in active_checks:
-                jwts = (
-                    [token]
-                    if token
-                    else self._extract_all_jwts(response) if response is not None else []
-                )
+                jwts = [token] if token else self._extract_all_jwts(response) if response is not None else []
                 result.jwts_found = [j[:40] + "..." for j in jwts]  # truncate for safety
 
                 for jwt_token in jwts:

@@ -84,7 +84,7 @@ def register_resources(mcp: Any) -> None:
         if fmt == "sarif":
             from numasec.reporting.sarif import generate_sarif_report
 
-            return generate_sarif_report(findings)
+            return json.dumps(generate_sarif_report(findings), indent=2, default=str)
 
         if fmt == "markdown":
             from numasec.reporting.markdown import generate_markdown_report
@@ -129,7 +129,7 @@ def register_resources(mcp: Any) -> None:
         from numasec.mcp._singletons import get_kb
 
         kb = get_kb()
-        results = kb.search(topic, top_k=3)
+        results = kb.query(topic, top_k=3)
 
         if not results:
             return json.dumps({"error": f"No KB articles found for topic: {topic}"})

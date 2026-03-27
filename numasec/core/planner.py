@@ -24,6 +24,7 @@ class ReplanSignal:
     finding: object | None = None
     replan_reason: str | None = None
 
+
 logger = logging.getLogger("numasec.core.planner")
 
 
@@ -35,7 +36,7 @@ class Task:
     description: str
     tool: str = ""
     category: str = ""
-    params: dict = None
+    params: dict | None = None
     expected_output: str = ""
 
     def __post_init__(self):

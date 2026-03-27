@@ -53,19 +53,14 @@ def build_executive_summary(findings: list[Any], target: str = "") -> dict[str, 
     Returns a dict with risk_score, severity_counts, top_remediation,
     and owasp_coverage_pct -- suitable for embedding in any report format.
     """
-    severity_counts = Counter(
-        f.severity.value if hasattr(f.severity, "value") else str(f.severity)
-        for f in findings
-    )
+    severity_counts = Counter(f.severity.value if hasattr(f.severity, "value") else str(f.severity) for f in findings)
     risk_score = calculate_risk_score(findings)
 
     # Top 3 remediation priorities (highest severity, then highest CVSS)
     sorted_findings = sorted(
         findings,
         key=lambda f: (
-            -_SEVERITY_WEIGHTS.get(
-                f.severity.value if hasattr(f.severity, "value") else str(f.severity), 0
-            ),
+            -_SEVERITY_WEIGHTS.get(f.severity.value if hasattr(f.severity, "value") else str(f.severity), 0),
             -(f.cvss_score or 0),
         ),
     )

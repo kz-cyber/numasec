@@ -51,8 +51,7 @@ class PayloadEncoder:
 
         ``UNION SELECT`` -> ``UN/**/ION SEL/**/ECT``
         """
-        keywords = ["UNION", "SELECT", "INSERT", "UPDATE", "DELETE",
-                     "FROM", "WHERE", "AND", "OR", "ORDER", "GROUP"]
+        keywords = ["UNION", "SELECT", "INSERT", "UPDATE", "DELETE", "FROM", "WHERE", "AND", "OR", "ORDER", "GROUP"]
         result = payload
         for kw in keywords:
             pattern = re.compile(re.escape(kw), re.IGNORECASE)
@@ -130,7 +129,7 @@ class PayloadEncoder:
         if len(payload) < 4:
             return payload
         mid = len(payload) // 2
-        return f"{payload[:mid]}'+'{ payload[mid:]}"
+        return f"{payload[:mid]}'+'{payload[mid:]}"
 
     # ------------------------------------------------------------------
     # Composite
