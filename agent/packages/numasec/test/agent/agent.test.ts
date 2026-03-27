@@ -22,8 +22,8 @@ test("returns default native agents when no config", async () => {
     fn: async () => {
       const agents = await Agent.list()
       const names = agents.map((a) => a.name)
-      expect(names).toContain("build")
-      expect(names).toContain("plan")
+      expect(names).toContain("pentest")
+      expect(names).toContain("recon")
       expect(names).toContain("general")
       expect(names).toContain("explore")
       expect(names).toContain("compaction")
@@ -33,32 +33,33 @@ test("returns default native agents when no config", async () => {
   })
 })
 
-test("build agent has correct default properties", async () => {
+test("pentest agent has correct default properties", async () => {
   await using tmp = await tmpdir()
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
-      const build = await Agent.get("build")
-      expect(build).toBeDefined()
-      expect(build?.mode).toBe("primary")
-      expect(build?.native).toBe(true)
-      expect(evalPerm(build, "edit")).toBe("allow")
-      expect(evalPerm(build, "bash")).toBe("allow")
+      const pentest = await Agent.get("pentest")
+      expect(pentest).toBeDefined()
+      expect(pentest?.mode).toBe("primary")
+      expect(pentest?.native).toBe(true)
+      expect(evalPerm(pentest, "edit")).toBe("allow")
+      expect(evalPerm(pentest, "bash")).toBe("ask")  // pentest restricts bash to ask
     },
   })
 })
 
-test("plan agent denies edits except .numasec/plans/*", async () => {
+test("recon agent restricts bash to safe commands only", async () => {
   await using tmp = await tmpdir()
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
-      const plan = await Agent.get("plan")
-      expect(plan).toBeDefined()
-      // Wildcard is denied
-      expect(evalPerm(plan, "edit")).toBe("deny")
-      // But specific path is allowed
-      expect(Permission.evaluate("edit", ".numasec/plans/foo.md", plan!.permission).action).toBe("allow")
+      const recon = await Agent.get("recon")
+      expect(recon).toBeDefined()
+      // Wildcard bash is denied
+      expect(evalPerm(recon, "bash")).toBe("deny")
+      // But specific recon commands are allowed
+      expect(Permission.evaluate("bash", "nmap -sV target", recon!.permission).action).toBe("allow")
+      expect(Permission.evaluate("bash", "dig example.com", recon!.permission).action).toBe("allow")
     },
   })
 })
@@ -154,7 +155,7 @@ test("custom agent config overrides native agent properties", async () => {
   await using tmp = await tmpdir({
     config: {
       agent: {
-        build: {
+        pentest: {
           model: "anthropic/claude-3",
           description: "Custom build agent",
           temperature: 0.7,
@@ -166,14 +167,14 @@ test("custom agent config overrides native agent properties", async () => {
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
-      const build = await Agent.get("build")
-      expect(build).toBeDefined()
-      expect(String(build?.model?.providerID)).toBe("anthropic")
-      expect(String(build?.model?.modelID)).toBe("claude-3")
-      expect(build?.description).toBe("Custom build agent")
-      expect(build?.temperature).toBe(0.7)
-      expect(build?.color).toBe("#FF0000")
-      expect(build?.native).toBe(true)
+      const pentest = await Agent.get("pentest")
+      expect(pentest).toBeDefined()
+      expect(String(pentest?.model?.providerID)).toBe("anthropic")
+      expect(String(pentest?.model?.modelID)).toBe("claude-3")
+      expect(pentest?.description).toBe("Custom build agent")
+      expect(pentest?.temperature).toBe(0.7)
+      expect(pentest?.color).toBe("#FF0000")
+      expect(pentest?.native).toBe(true)
     },
   })
 })
@@ -236,9 +237,9 @@ test("global permission config applies to all agents", async () => {
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
-      const build = await Agent.get("build")
-      expect(build).toBeDefined()
-      expect(evalPerm(build, "bash")).toBe("deny")
+      const pentest = await Agent.get("pentest")
+      expect(pentest).toBeDefined()
+      expect(evalPerm(pentest, "bash")).toBe("deny")
     },
   })
 })
@@ -389,7 +390,7 @@ test("multiple custom agents can be defined", async () => {
 test("Agent.list keeps the default agent first and sorts the rest by name", async () => {
   await using tmp = await tmpdir({
     config: {
-      default_agent: "plan",
+      default_agent: "recon",
       agent: {
         zebra: {
           description: "Zebra",
@@ -406,7 +407,7 @@ test("Agent.list keeps the default agent first and sorts the rest by name", asyn
     directory: tmp.path,
     fn: async () => {
       const names = (await Agent.list()).map((a) => a.name)
-      expect(names[0]).toBe("plan")
+      expect(names[0]).toBe("recon")
       expect(names.slice(1)).toEqual(names.slice(1).toSorted((a, b) => a.localeCompare(b)))
     },
   })
@@ -428,9 +429,9 @@ test("default permission includes doom_loop and external_directory as ask", asyn
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
-      const build = await Agent.get("build")
-      expect(evalPerm(build, "doom_loop")).toBe("ask")
-      expect(evalPerm(build, "external_directory")).toBe("ask")
+      const pentest = await Agent.get("pentest")
+      expect(evalPerm(pentest, "doom_loop")).toBe("ask")
+      expect(evalPerm(pentest, "external_directory")).toBe("ask")
     },
   })
 })
@@ -440,8 +441,8 @@ test("webfetch is allowed by default", async () => {
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
-      const build = await Agent.get("build")
-      expect(evalPerm(build, "webfetch")).toBe("allow")
+      const pentest = await Agent.get("pentest")
+      expect(evalPerm(pentest, "webfetch")).toBe("allow")
     },
   })
 })
@@ -502,10 +503,10 @@ test("Truncate.GLOB is allowed even when user denies external_directory globally
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
-      const build = await Agent.get("build")
-      expect(Permission.evaluate("external_directory", Truncate.GLOB, build!.permission).action).toBe("allow")
-      expect(Permission.evaluate("external_directory", Truncate.DIR, build!.permission).action).toBe("deny")
-      expect(Permission.evaluate("external_directory", "/some/other/path", build!.permission).action).toBe("deny")
+      const pentest = await Agent.get("pentest")
+      expect(Permission.evaluate("external_directory", Truncate.GLOB, pentest!.permission).action).toBe("allow")
+      expect(Permission.evaluate("external_directory", Truncate.DIR, pentest!.permission).action).toBe("deny")
+      expect(Permission.evaluate("external_directory", "/some/other/path", pentest!.permission).action).toBe("deny")
     },
   })
 })
@@ -549,9 +550,9 @@ test("explicit Truncate.GLOB deny is respected", async () => {
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
-      const build = await Agent.get("build")
-      expect(Permission.evaluate("external_directory", Truncate.GLOB, build!.permission).action).toBe("deny")
-      expect(Permission.evaluate("external_directory", Truncate.DIR, build!.permission).action).toBe("deny")
+      const pentest = await Agent.get("pentest")
+      expect(Permission.evaluate("external_directory", Truncate.GLOB, pentest!.permission).action).toBe("deny")
+      expect(Permission.evaluate("external_directory", Truncate.DIR, pentest!.permission).action).toBe("deny")
     },
   })
 })
@@ -581,10 +582,10 @@ description: Permission skill.
     await Instance.provide({
       directory: tmp.path,
       fn: async () => {
-        const build = await Agent.get("build")
+        const pentest = await Agent.get("pentest")
         const skillDir = path.join(tmp.path, ".numasec", "skill", "perm-skill")
         const target = path.join(skillDir, "reference", "notes.md")
-        expect(Permission.evaluate("external_directory", target, build!.permission).action).toBe("allow")
+        expect(Permission.evaluate("external_directory", target, pentest!.permission).action).toBe("allow")
       },
     })
   } finally {
@@ -592,28 +593,28 @@ description: Permission skill.
   }
 })
 
-test("defaultAgent returns build when no default_agent config", async () => {
+test("defaultAgent returns pentest when no default_agent config", async () => {
   await using tmp = await tmpdir()
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
       const agent = await Agent.defaultAgent()
-      expect(agent).toBe("build")
+      expect(agent).toBe("pentest")
     },
   })
 })
 
-test("defaultAgent respects default_agent config set to plan", async () => {
+test("defaultAgent respects default_agent config set to recon", async () => {
   await using tmp = await tmpdir({
     config: {
-      default_agent: "plan",
+      default_agent: "recon",
     },
   })
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
       const agent = await Agent.defaultAgent()
-      expect(agent).toBe("plan")
+      expect(agent).toBe("recon")
     },
   })
 })
@@ -680,11 +681,11 @@ test("defaultAgent throws when default_agent points to non-existent agent", asyn
   })
 })
 
-test("defaultAgent returns plan when build is disabled and default_agent not set", async () => {
+test("defaultAgent returns recon when pentest is disabled and default_agent not set", async () => {
   await using tmp = await tmpdir({
     config: {
       agent: {
-        build: { disable: true },
+        pentest: { disable: true },
       },
     },
   })
@@ -692,8 +693,8 @@ test("defaultAgent returns plan when build is disabled and default_agent not set
     directory: tmp.path,
     fn: async () => {
       const agent = await Agent.defaultAgent()
-      // build is disabled, so it should return plan (next primary agent)
-      expect(agent).toBe("plan")
+      // pentest is disabled, so it should return recon (next primary agent)
+      expect(agent).toBe("recon")
     },
   })
 })
@@ -702,15 +703,15 @@ test("defaultAgent throws when all primary agents are disabled", async () => {
   await using tmp = await tmpdir({
     config: {
       agent: {
-        build: { disable: true },
-        plan: { disable: true },
+        pentest: { disable: true },
+        recon: { disable: true },
       },
     },
   })
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
-      // build and plan are disabled, no primary-capable agents remain
+      // pentest and recon are disabled, no primary visible agents remain
       await expect(Agent.defaultAgent()).rejects.toThrow("no primary visible agent found")
     },
   })
