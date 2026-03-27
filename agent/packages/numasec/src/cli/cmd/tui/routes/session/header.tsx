@@ -79,6 +79,41 @@ export function Header() {
     return `Workspace ${id} (${info.type})`
   })
 
+  // Derive target URL from recon/create_session tool inputs
+  const targetUrl = createMemo(() => {
+    for (const msg of messages()) {
+      const parts = sync.data.part[msg.id] ?? []
+      for (const part of parts) {
+        if (part.type !== "tool") continue
+        if (!part.tool.includes("create_session") && !part.tool.includes("recon")) continue
+        const state = part.state as { input?: Record<string, unknown> }
+        const url = state.input?.target ?? state.input?.url ?? state.input?.base_url
+        if (typeof url === "string" && url.startsWith("http")) return url
+      }
+    }
+    return undefined
+  })
+
+  // Derive OWASP coverage from save_finding tool results
+  const owaspCategories = [
+    "A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10",
+  ] as const
+  const coverageInfo = createMemo(() => {
+    const covered = new Set<string>()
+    const categoryRe = /A0[1-9]|A10/g
+    for (const msg of messages()) {
+      const parts = sync.data.part[msg.id] ?? []
+      for (const part of parts) {
+        if (part.type !== "tool" || part.state.status !== "completed") continue
+        if (!part.tool.includes("save_finding")) continue
+        const out = (part.state as { output?: string }).output ?? ""
+        const matches = out.match(categoryRe)
+        if (matches) matches.forEach((m) => covered.add(m))
+      }
+    }
+    return { covered: covered.size, total: owaspCategories.length }
+  })
+
   const { theme } = useTheme()
   const keybind = useKeybind()
   const command = useCommandDialog()
@@ -153,16 +188,32 @@ export function Header() {
             </box>
           </Match>
           <Match when={true}>
-            <box flexDirection={narrow() ? "column" : "row"} justifyContent="space-between" gap={1}>
-              {Flag.NUMASEC_EXPERIMENTAL_WORKSPACES ? (
-                <box flexDirection="column">
+            <box flexDirection="column" gap={0}>
+              <box flexDirection={narrow() ? "column" : "row"} justifyContent="space-between" gap={1}>
+                {Flag.NUMASEC_EXPERIMENTAL_WORKSPACES ? (
+                  <box flexDirection="column">
+                    <Title session={session} />
+                    <WorkspaceInfo workspace={workspace} />
+                  </box>
+                ) : (
                   <Title session={session} />
-                  <WorkspaceInfo workspace={workspace} />
+                )}
+                <ContextInfo context={context} cost={cost} />
+              </box>
+              <Show when={targetUrl() || coverageInfo().covered > 0}>
+                <box flexDirection={narrow() ? "column" : "row"} justifyContent="space-between" gap={1}>
+                  <Show when={targetUrl()}>
+                    <text fg={theme.textMuted} wrapMode="none" flexShrink={1}>
+                      ☠ {targetUrl()}
+                    </text>
+                  </Show>
+                  <Show when={coverageInfo().covered > 0}>
+                    <text fg={theme.textMuted} wrapMode="none" flexShrink={0}>
+                      OWASP {coverageInfo().covered}/{coverageInfo().total}
+                    </text>
+                  </Show>
                 </box>
-              ) : (
-                <Title session={session} />
-              )}
-              <ContextInfo context={context} cost={cost} />
+              </Show>
             </box>
           </Match>
         </Switch>
