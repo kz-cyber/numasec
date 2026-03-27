@@ -78,7 +78,7 @@ If unsure, choose the team/section with the most overlap with the issue and assi
     }
 
     if (web && !nix && !(TEAM.desktop as readonly string[]).includes(assignee)) {
-      throw new Error("Web issues must be assigned to adamdotdevin, iamdavidhill, Brendonovich, or nexxeln")
+      throw new Error("Web issues must be assigned to a numasec maintainer listed in the desktop team")
     }
 
     if ((TEAM.zen as readonly string[]).includes(assignee) && !labels.includes("zen")) {
