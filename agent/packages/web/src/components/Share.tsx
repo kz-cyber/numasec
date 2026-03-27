@@ -2,7 +2,7 @@ import { For, Show, onMount, Suspense, onCleanup, createMemo, createSignal, Susp
 import { DateTime } from "luxon"
 import { createStore, reconcile } from "solid-js/store"
 import { IconArrowDown } from "./icons"
-import { IconOpencode } from "./icons/custom"
+import { IconNumasec } from "./icons/custom"
 import { ShareI18nProvider, formatCurrency, formatNumber, normalizeLocale } from "./share/common"
 import styles from "./share.module.css"
 import type { MessageV2 } from "numasec/session/message-v2"
@@ -305,7 +305,7 @@ export default function Share(props: {
               <ul data-component="header-stats">
                 <li title={props.messages.numasec_version} data-slot="item">
                   <div data-slot="icon" title={props.messages.numasec_name}>
-                    <IconOpencode width={16} height={16} />
+                    <IconNumasec width={16} height={16} />
                   </div>
                   <Show when={store.info?.version} fallback="v0.0.1">
                     <span>v{store.info?.version}</span>

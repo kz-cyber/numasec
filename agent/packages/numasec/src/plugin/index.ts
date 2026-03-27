@@ -2,7 +2,7 @@ import type { Hooks, PluginInput, Plugin as PluginInstance } from "@numasec/plug
 import { Config } from "../config/config"
 import { Bus } from "../bus"
 import { Log } from "../util/log"
-import { createOpencodeClient } from "@numasec/sdk"
+import { createNumasecClient } from "@numasec/sdk"
 import { BunProc } from "../bun"
 import { Flag } from "../flag/flag"
 import { CodexAuthPlugin } from "./codex"
@@ -61,7 +61,7 @@ export namespace Plugin {
           yield* Effect.promise(async () => {
             const { Server } = await import("../server/server")
 
-            const client = createOpencodeClient({
+            const client = createNumasecClient({
               baseUrl: "http://localhost:4096",
               directory: ctx.directory,
               headers: Flag.NUMASEC_SERVER_PASSWORD

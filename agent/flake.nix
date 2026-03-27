@@ -1,5 +1,5 @@
 {
-  description = "OpenCode development flake";
+  description = "numasec development flake";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -37,16 +37,16 @@
             node_modules = final.callPackage ./nix/node_modules.nix {
               inherit rev;
             };
-            opencode = final.callPackage ./nix/opencode.nix {
+            numasec = final.callPackage ./nix/numasec.nix {
               inherit node_modules;
             };
             desktop = final.callPackage ./nix/desktop.nix {
-              inherit opencode;
+              inherit numasec;
             };
           in
           {
-            inherit opencode;
-            opencode-desktop = desktop;
+            inherit numasec;
+            numasec-desktop = desktop;
           };
       };
 
@@ -56,16 +56,16 @@
           node_modules = pkgs.callPackage ./nix/node_modules.nix {
             inherit rev;
           };
-          opencode = pkgs.callPackage ./nix/opencode.nix {
+          numasec = pkgs.callPackage ./nix/numasec.nix {
             inherit node_modules;
           };
           desktop = pkgs.callPackage ./nix/desktop.nix {
-            inherit opencode;
+            inherit numasec;
           };
         in
         {
-          default = opencode;
-          inherit opencode desktop;
+          default = numasec;
+          inherit numasec desktop;
           # Updater derivation with fakeHash - build fails and reveals correct hash
           node_modules_updater = node_modules.override {
             hash = pkgs.lib.fakeHash;

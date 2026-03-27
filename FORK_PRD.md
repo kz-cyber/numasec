@@ -1,4 +1,4 @@
-# numasec: The OpenCode Fork for Pentesting
+# numasec: The numasec-upstream Fork for Pentesting
 
 ## Product Requirements Document & Engineering Blueprint
 
@@ -10,22 +10,22 @@
 
 ## 1. Executive Summary
 
-**What**: Fork OpenCode (MIT, TypeScript/Bun, 131k stars) and replace its "coding assistant" domain with numasec's pentesting domain, producing a standalone agentic pentesting terminal called **numasec**.
+**What**: Fork numasec-upstream (MIT, TypeScript/Bun, 131k stars) and replace its "coding assistant" domain with numasec's pentesting domain, producing a standalone agentic pentesting terminal called **numasec**.
 
-**Why**: OpenCode is the best open-source implementation of the Claude Code UX pattern — interactive, multi-turn, human-in-the-loop agentic sessions with context management, subagents, checkpoints, and undo/redo. Building this from scratch would take 6+ months. Forking gives us the entire agentic infrastructure in exchange for learning the codebase.
+**Why**: numasec-upstream is the best open-source implementation of the Claude Code UX pattern — interactive, multi-turn, human-in-the-loop agentic sessions with context management, subagents, checkpoints, and undo/redo. Building this from scratch would take 6+ months. Forking gives us the entire agentic infrastructure in exchange for learning the codebase.
 
 **Product vision**: `numasec` is what you get when a senior pentester has an AI co-pilot that can scan, exploit, document, and report — interactively, in real-time, in a terminal.
 
 ---
 
-## 2. OpenCode Architecture Audit
+## 2. numasec-upstream Architecture Audit
 
 ### 2.1 Monorepo Structure
 
 ```
-opencode/
+numasec/
 ├── packages/
-│   ├── opencode/          # ★ CORE: Engine, server, CLI, TUI, tools, sessions
+│   ├── numasec/          # ★ CORE: Engine, server, CLI, TUI, tools, sessions
 │   │   ├── src/
 │   │   │   ├── agent/     # Agent definitions, prompts, generation
 │   │   │   ├── session/   # Session management, LLM calls, compaction, revert
@@ -51,8 +51,8 @@ opencode/
 │   ├── app/               # Web UI (SolidJS components)
 │   ├── desktop/           # Native desktop (Tauri)
 │   ├── desktop-electron/  # Electron alternative 
-│   ├── sdk/               # JS/TS SDK (@opencode-ai/sdk)
-│   ├── plugin/            # Plugin toolkit (@opencode-ai/plugin)
+│   ├── sdk/               # JS/TS SDK (@numasec-ai/sdk)
+│   ├── plugin/            # Plugin toolkit (@numasec-ai/plugin)
 │   ├── ui/                # Shared UI components
 │   ├── web/               # Documentation site
 │   ├── console/           # Console UI
@@ -93,7 +93,7 @@ Based on structure analysis and active development velocity (741 releases, 828 c
 
 | Package | Estimated LOC | Relevance to Fork |
 |---------|--------------|-------------------|
-| `packages/opencode/src/` | ~40-50k | HIGH — this is the engine |
+| `packages/numasec/src/` | ~40-50k | HIGH — this is the engine |
 | `packages/app/` | ~15-20k | MEDIUM — UI customization |
 | `packages/sdk/` | ~5k | KEEP — client library |
 | `packages/plugin/` | ~2k | KEEP — plugin system |
@@ -106,7 +106,7 @@ Based on structure analysis and active development velocity (741 releases, 828 c
 
 ### 3.1 Philosophy: Domain Swap, Not Rewrite
 
-OpenCode is a **domain-agnostic agentic harness** dressed in coding clothes. The agentic loop, session management, context compaction, tool dispatch, provider abstraction, permission system, checkpoint/revert, subagent orchestration — none of this is coding-specific.
+numasec-upstream is a **domain-agnostic agentic harness** dressed in coding clothes. The agentic loop, session management, context compaction, tool dispatch, provider abstraction, permission system, checkpoint/revert, subagent orchestration — none of this is coding-specific.
 
 What makes it a "coding agent" is:
 1. **18 coding-specific tools** (read, write, edit, multiedit, apply_patch, glob, grep, ls, lsp, bash, codesearch, websearch, webfetch, batch, task, todo, skill, question, plan)
@@ -174,7 +174,7 @@ These are the foundation — we do not touch them:
 | TUI layout | Add findings panel, OWASP coverage, target info bar | MEDIUM |
 | Web UI layout | Security dashboard instead of code editor | MEDIUM |
 | CLI commands | `/target`, `/findings`, `/report`, `/creds`, `/coverage` | MEDIUM |
-| Branding | opencode→numasec everywhere | SMALL (sed) |
+| Branding | numasec→numasec everywhere | SMALL (sed) |
 | Config schema | Add security-specific config (target scope, auth, proxy) | SMALL |
 | Tool registry | Register numasec tools instead of coding tools | MEDIUM |
 
@@ -323,9 +323,9 @@ export class PythonBridge {
 
 ## 5. Tool Mapping
 
-### 5.1 Kept Tools (from OpenCode)
+### 5.1 Kept Tools (from numasec-upstream)
 
-| OpenCode Tool | numasec Use |
+| numasec-upstream Tool | numasec Use |
 |--------------|-------------|
 | `bash` | Running security commands (nmap, curl, etc.) |
 | `read` | Reading target configs, server files (post-exploit) |
@@ -475,7 +475,7 @@ The human can **interrupt at any step**, steer the agent, add context, expand/na
 
 ### 7.1 Layout Changes
 
-OpenCode's TUI has a chat-centric layout:
+numasec-upstream's TUI has a chat-centric layout:
 ```
 ┌──────────────────────────────────────┐
 │  Session Title          Agent: Build │
@@ -534,14 +534,14 @@ numasec's TUI adds a **status bar** and **findings feed**:
 
 ```bash
 # Fork
-git clone https://github.com/anomalyco/opencode numasec-agent
+git clone https://github.com/anomalyco/numasec numasec-agent
 cd numasec-agent
 git remote rename origin upstream
 git remote add origin git@github.com:your-org/numasec-agent.git
 
 # Global rename
 find . -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.json" -o -name "*.md" \) \
-  -exec sed -i 's/opencode/numasec/g' {} +
+  -exec sed -i 's/numasec/numasec/g' {} +
 # (careful: needs case-sensitive passes and manual review)
 
 # Verify it builds
@@ -630,7 +630,7 @@ async function ensurePythonEnv() {
 
 numasec currently IS an MCP server. After the fork, the relationship changes:
 
-- **numasec-agent** (the fork) = the agentic terminal (replaces the OpenCode binary)
+- **numasec-agent** (the fork) = the agentic terminal (replaces the numasec-upstream binary)
 - **numasec** (original Python package) = the scanner engine (used as a library by the worker process, NOT as MCP server)
 
 The MCP server capability is preserved but becomes optional — you can still run `numasec --mcp` to expose tools to Claude Code or VS Code Copilot. But the primary product is the standalone agent.
@@ -639,7 +639,7 @@ The MCP server capability is preserved but becomes optional — you can still ru
 
 **Policy: Selective cherry-pick, not merge.**
 
-After forking, we track upstream `anomalyco/opencode` tags. When they release, we:
+After forking, we track upstream `anomalyco/numasec` tags. When they release, we:
 1. Read the changelog
 2. Cherry-pick bug fixes and infrastructure improvements
 3. Ignore coding-specific features
@@ -697,7 +697,7 @@ The product is **numasec**.
 
 - Binary: `numasec`
 - Config: `numasec.json` (or `.numasec/`)
-- Rules file: `AGENTS.md` (keep OpenCode convention)
+- Rules file: `AGENTS.md` (keep numasec-upstream convention)
 - npm package: `numasec` (TBD if public)
 - Python package: `numasec` (scanner engine, already on PyPI path)
 
@@ -724,7 +724,7 @@ The product is **numasec**.
 - [ ] Interactive conversation with course-correction works
 - [ ] Findings are persisted and queryable
 - [ ] Report generation works (at least Markdown)
-- [ ] Undo/redo (inherited from OpenCode) works
+- [ ] Undo/redo (inherited from numasec-upstream) works
 - [ ] Session resume works
 
 ### Phase 2 Full Product (ship in 5 weeks)
@@ -747,7 +747,7 @@ The product is **numasec**.
 ## Appendix A: File-Level Change Map
 
 ```
-packages/opencode/src/
+packages/numasec/src/
 ├── agent/
 │   ├── agent.ts                    # MODIFY: add pentest/recon agent defs
 │   ├── prompt/                     # REWRITE: all security-focused prompts

@@ -1430,7 +1430,7 @@ export namespace SessionPrompt {
           sessionID: userMessage.info.sessionID,
           type: "text",
           text:
-            BUILD_SWITCH + "\n\n" + `A plan file exists at ${plan}. You should execute on the plan defined within it`,
+            BUILD_SWITCH + "\n\n" + `Reconnaissance data exists at ${plan}. You should use the identified endpoints and attack surface to guide your vulnerability testing.`,
           synthetic: true,
         })
         userMessage.parts.push(part)
@@ -1449,74 +1449,48 @@ export namespace SessionPrompt {
         sessionID: userMessage.info.sessionID,
         type: "text",
         text: `<system-reminder>
-Plan mode is active. The user indicated that they do not want you to execute yet -- you MUST NOT make any edits (with the exception of the plan file mentioned below), run any non-readonly tools (including changing configs or making commits), or otherwise make any changes to the system. This supersedes any other instructions you have received.
+Reconnaissance mode is active. The user indicated recon-only -- you MUST NOT send exploitation payloads, run injection/XSS/SSRF/auth tests, or attempt any vulnerability exploitation. This supersedes any other instructions you have received.
 
-## Plan File Info:
-${exists ? `A plan file already exists at ${plan}. You can read it and make incremental edits using the edit tool.` : `No plan file exists yet. You should create your plan at ${plan} using the write tool.`}
-You should build your plan incrementally by writing to or editing this file. NOTE that this is the only file you are allowed to edit - other than this you are only allowed to take READ-ONLY actions.
+## Recon Notes:
+${exists ? `Previous reconnaissance data exists at ${plan}. Review it and continue mapping the attack surface.` : `No recon data yet. Begin mapping the target's attack surface.`}
 
-## Plan Workflow
+## Recon Workflow
 
-### Phase 1: Initial Understanding
-Goal: Gain a comprehensive understanding of the user's request by reading through code and asking them questions. Critical: In this phase you should only use the explore subagent type.
+### Phase 1: Target Enumeration
+Goal: Map the target's attack surface using passive and active reconnaissance.
 
-1. Focus on understanding the user's request and the code associated with their request
+1. Run **recon** on the target to enumerate ports, services, and technologies
+2. Run **crawl** to discover endpoints, forms, and API routes
+3. Run **dir_fuzz** to find hidden directories and files
+4. Run **js_analyze** to extract secrets, endpoints, and API keys from JavaScript
 
-2. **Launch up to 3 explore agents IN PARALLEL** (single message, multiple tool calls) to efficiently explore the codebase.
-   - Use 1 agent when the task is isolated to known files, the user provided specific file paths, or you're making a small targeted change.
-   - Use multiple agents when: the scope is uncertain, multiple areas of the codebase are involved, or you need to understand existing patterns before planning.
-   - Quality over quantity - 3 agents maximum, but you should try to use the minimum number of agents necessary (usually just 1)
-   - If using multiple agents: Provide each agent with a specific search focus or area to explore. Example: One agent searches for existing implementations, another explores related components, a third investigates testing patterns
+### Phase 2: Deep Enumeration
+Goal: Enumerate specific services and identify potential attack vectors.
 
-3. After exploring the code, use the question tool to clarify ambiguities in the user request up front.
+- Use **scanner** subagents in parallel for different aspects (e.g., one for service fingerprinting, one for endpoint discovery)
+- Map authentication mechanisms, API schemas, and input parameters
+- Identify technologies and frameworks for targeted testing
 
-### Phase 2: Design
-Goal: Design an implementation approach.
+### Phase 3: Attack Surface Review
+Goal: Review the reconnaissance data and prioritise for testing.
+1. Correlate findings across tools to build a complete target profile
+2. Identify high-value targets (auth endpoints, file upload, API endpoints with params)
+3. Use question tool to confirm scope and priorities with the user
 
-Launch general agent(s) to design the implementation based on the user's intent and your exploration results from Phase 1.
-
-You can launch up to 1 agent(s) in parallel.
-
-**Guidelines:**
-- **Default**: Launch at least 1 Plan agent for most tasks - it helps validate your understanding and consider alternatives
-- **Skip agents**: Only for truly trivial tasks (typo fixes, single-line changes, simple renames)
-
-Examples of when to use multiple agents:
-- The task touches multiple parts of the codebase
-- It's a large refactor or architectural change
-- There are many edge cases to consider
-- You'd benefit from exploring different approaches
-
-Example perspectives by task type:
-- New feature: simplicity vs performance vs maintainability
-- Bug fix: root cause vs workaround vs prevention
-- Refactoring: minimal change vs clean architecture
-
-In the agent prompt:
-- Provide comprehensive background context from Phase 1 exploration including filenames and code path traces
-- Describe requirements and constraints
-- Request a detailed implementation plan
-
-### Phase 3: Review
-Goal: Review the plan(s) from Phase 2 and ensure alignment with the user's intentions.
-1. Read the critical files identified by agents to deepen your understanding
-2. Ensure that the plans align with the user's original request
-3. Use question tool to clarify any remaining questions with the user
-
-### Phase 4: Final Plan
-Goal: Write your final plan to the plan file (the only file you can edit).
-- Include only your recommended approach, not all alternatives
-- Ensure that the plan file is concise enough to scan quickly, but detailed enough to execute effectively
-- Include the paths of critical files to be modified
-- Include a verification section describing how to test the changes end-to-end (run the code, use MCP tools, run tests)
+### Phase 4: Recon Summary
+Goal: Present the attack surface summary.
+- List all discovered endpoints with their parameters
+- Note all identified technologies and versions
+- Highlight high-priority targets for exploitation testing
+- Track which OWASP Top 10 categories can be tested based on discoveries
 
 ### Phase 5: Call plan_exit tool
-At the very end of your turn, once you have asked the user questions and are happy with your final plan file - you should always call plan_exit to indicate to the user that you are done planning.
+At the very end of your turn, once you have gathered sufficient reconnaissance data and are ready to present the attack surface to the user - you should always call plan_exit to indicate that recon is complete.
 This is critical - your turn should only end with either asking the user a question or calling plan_exit. Do not stop unless it's for these 2 reasons.
 
-**Important:** Use question tool to clarify requirements/approach, use plan_exit to request plan approval. Do NOT use question tool to ask "Is this plan okay?" - that's what plan_exit does.
+**Important:** Use question tool to clarify scope/approach, use plan_exit to request approval to proceed to vulnerability testing. Do NOT use question tool to ask "Should we start testing?" - that's what plan_exit does.
 
-NOTE: At any point in time through this workflow you should feel free to ask the user questions or clarifications. Don't make large assumptions about user intent. The goal is to present a well researched plan to the user, and tie any loose ends before implementation begins.
+NOTE: At any point in time through this workflow you should feel free to ask the user questions about scope, priorities, or specific areas of interest. The goal is to produce a thorough reconnaissance report before exploitation begins.
 </system-reminder>`,
         synthetic: true,
       })

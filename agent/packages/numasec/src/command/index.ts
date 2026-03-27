@@ -15,6 +15,7 @@ import PROMPT_FINDINGS from "./template/findings.txt"
 import PROMPT_REPORT from "./template/report.txt"
 import PROMPT_COVERAGE from "./template/coverage.txt"
 import PROMPT_CREDS from "./template/creds.txt"
+import PROMPT_EVIDENCE from "./template/evidence.txt"
 
 export namespace Command {
   const log = Log.create({ service: "command" })
@@ -73,6 +74,7 @@ export namespace Command {
     REPORT: "report",
     COVERAGE: "coverage",
     CREDS: "creds",
+    EVIDENCE: "evidence",
   } as const
 
   export interface Interface {
@@ -163,6 +165,16 @@ export namespace Command {
           },
           subtask: true,
           hints: hints(PROMPT_CREDS),
+        }
+        commands[Default.EVIDENCE] = {
+          name: Default.EVIDENCE,
+          description: "show evidence for a finding",
+          source: "command",
+          get template() {
+            return PROMPT_EVIDENCE
+          },
+          subtask: true,
+          hints: hints(PROMPT_EVIDENCE),
         }
 
         for (const [name, command] of Object.entries(cfg.command ?? {})) {

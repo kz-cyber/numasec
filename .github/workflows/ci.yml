@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main, numasec-agent]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-lint:
+    name: Python Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install ruff
+      - run: ruff check src/
+      - run: ruff format --check src/
+
+  python-typecheck:
+    name: Python Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[all]"
+      - run: mypy src/
+
+  python-test:
+    name: Python Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[all]"
+      - run: pytest tests/ -v -m "not slow and not benchmark" --tb=short
+      - run: pytest --cov=src tests/ -m "not slow and not benchmark" --cov-report=term-missing
+        if: matrix.python-version == '3.11'
+
+  ts-typecheck:
+    name: TypeScript Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+        working-directory: agent
+      - run: bun run typecheck
+        working-directory: agent/packages/numasec
+
+  ts-test:
+    name: TypeScript Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+        working-directory: agent
+      - run: bun test --timeout 30000
+        working-directory: agent/packages/numasec
+
+  bridge-validate:
+    name: Validate MCP Bridge
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: pip install -e ".[mcp]"
+      - run: |
+          # Verify the Python MCP server starts and exposes tools
+          python -c "
+          from security_mcp.mcp.server import create_mcp_server
+          mcp = create_mcp_server()
+          print('MCP server created successfully')
+          "
+      - run: |
+          # Verify TS tool definitions import without error
+          cd agent && bun install
+          cd packages/numasec && bun run -e "
+          import './src/tool/registry.ts';
+          console.log('Tool registry loaded successfully');
+          "
