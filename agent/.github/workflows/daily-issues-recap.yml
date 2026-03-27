@@ -52,7 +52,7 @@ jobs:
           gh issue list --repo ${{ github.repository }} --state open --search \"created:${TODAY}\" --json number,title,body,labels,state,comments,createdAt,author --limit 500
 
           IMPORTANT: EXCLUDE all issues authored by Anomaly team members. Filter out issues where the author login matches ANY of these:
-          adamdotdevin, Brendonovich, fwang, Hona, iamdavidhill, jayair, kitlangton, kommander, MrMushrooooom, R44VC0RP, rekram1-node, thdxr
+          numasec
           This recap is specifically for COMMUNITY (external) issues only.
 
           STEP 2: Analyze and categorize

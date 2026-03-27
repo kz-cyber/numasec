@@ -93,10 +93,7 @@ When assigning to people here are the following rules:
 Desktop / Web:
 Use for desktop-labeled issues only.
 
-- adamdotdevin
-- iamdavidhill
-- Brendonovich
-- nexxeln
+- numasec
 
 Zen:
 ONLY assign if the issue will have the "zen" label.
