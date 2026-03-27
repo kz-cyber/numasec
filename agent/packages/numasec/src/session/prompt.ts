@@ -1154,8 +1154,8 @@ export namespace SessionPrompt {
                       let range: LSP.Range | undefined
                       if ("range" in symbol) {
                         range = symbol.range
-                      } else if ("location" in symbol) {
-                        range = symbol.location.range
+                      } else if ("location" in (symbol as any)) {
+                        range = (symbol as any).location.range
                       }
                       if (range?.start?.line && range?.start?.line === start) {
                         start = range.start.line

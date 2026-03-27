@@ -19,7 +19,7 @@ export function bridgeTool<T extends z.ZodType>(
   return Tool.define(id, {
     description,
     parameters,
-    async execute(args: z.infer<T>, ctx: Tool.Context) {
+    async execute(args, ctx) {
       const bridge = PythonBridge.instance()
       const result = await bridge.call(id, args)
 

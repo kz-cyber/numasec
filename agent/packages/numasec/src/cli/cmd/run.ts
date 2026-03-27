@@ -18,9 +18,10 @@ import { GrepTool } from "../../tool/grep"
 import { ListTool } from "../../tool/ls"
 import { ReadTool } from "../../tool/read"
 import { WebFetchTool } from "../../tool/webfetch"
-import { EditTool } from "../../tool/edit"
-import { WriteTool } from "../../tool/write"
-import { CodeSearchTool } from "../../tool/codesearch"
+// Deleted tools — renderers kept for compatibility with old sessions
+type EditTool = any
+type WriteTool = any
+type CodeSearchTool = any
 import { WebSearchTool } from "../../tool/websearch"
 import { TaskTool } from "../../tool/task"
 import { SkillTool } from "../../tool/skill"
@@ -124,7 +125,7 @@ function read(info: ToolProps<typeof ReadTool>) {
   })
 }
 
-function write(info: ToolProps<typeof WriteTool>) {
+function write(info: ToolProps<any>) {
   block(
     {
       icon: "←",
@@ -141,7 +142,7 @@ function webfetch(info: ToolProps<typeof WebFetchTool>) {
   })
 }
 
-function edit(info: ToolProps<typeof EditTool>) {
+function edit(info: ToolProps<any>) {
   const title = normalizePath(info.input.filePath)
   const diff = info.metadata.diff
   block(
@@ -153,7 +154,7 @@ function edit(info: ToolProps<typeof EditTool>) {
   )
 }
 
-function codesearch(info: ToolProps<typeof CodeSearchTool>) {
+function codesearch(info: ToolProps<any>) {
   inline({
     icon: "◇",
     title: `Exa Code Search "${info.input.query}"`,
@@ -416,10 +417,10 @@ export const RunCommand = cmd({
           if (part.tool === "grep") return grep(props<typeof GrepTool>(part))
           if (part.tool === "list") return list(props<typeof ListTool>(part))
           if (part.tool === "read") return read(props<typeof ReadTool>(part))
-          if (part.tool === "write") return write(props<typeof WriteTool>(part))
+          if (part.tool === "write") return write(props<any>(part))
           if (part.tool === "webfetch") return webfetch(props<typeof WebFetchTool>(part))
-          if (part.tool === "edit") return edit(props<typeof EditTool>(part))
-          if (part.tool === "codesearch") return codesearch(props<typeof CodeSearchTool>(part))
+          if (part.tool === "edit") return edit(props<any>(part))
+          if (part.tool === "codesearch") return codesearch(props<any>(part))
           if (part.tool === "websearch") return websearch(props<typeof WebSearchTool>(part))
           if (part.tool === "task") return task(props<typeof TaskTool>(part))
           if (part.tool === "todowrite") return todo(props<typeof TodoWriteTool>(part))
