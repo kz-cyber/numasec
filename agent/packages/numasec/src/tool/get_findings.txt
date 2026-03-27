@@ -1,0 +1,8 @@
+Retrieve security findings for a session, optionally filtered.
+
+Parameters:
+- session_id (required): Session ID to query
+- severity: Filter by severity — "critical", "high", "medium", "low", "info"
+- category: Filter by OWASP category (e.g., "A01:2021")
+
+Returns all matching findings with full details and enrichment data.

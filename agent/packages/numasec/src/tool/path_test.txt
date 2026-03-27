@@ -1,0 +1,11 @@
+Test for path traversal and Local File Inclusion (LFI) vulnerabilities.
+
+Parameters:
+- target (required): Target URL to test
+- method: HTTP method. Default: "GET".
+- params: JSON object of parameters to test.
+- headers: JSON object of additional headers.
+- auth_token: Bearer token for authenticated requests.
+- os: Target operating system — "linux", "windows", "auto". Default: "auto".
+
+Returns detected path traversal/LFI vulnerabilities with evidence and severity.

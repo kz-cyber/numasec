@@ -1,0 +1,252 @@
+// --- Kept tools (generic infrastructure) ---
+import { QuestionTool } from "./question"
+import { BashTool } from "./bash"
+import { GlobTool } from "./glob"
+import { GrepTool } from "./grep"
+import { BatchTool } from "./batch"
+import { ReadTool } from "./read"
+import { TaskTool } from "./task"
+import { TodoWriteTool } from "./todo"
+import { WebFetchTool } from "./webfetch"
+import { WebSearchTool } from "./websearch"
+import { InvalidTool } from "./invalid"
+import { SkillTool } from "./skill"
+
+// --- Security tools (via Python bridge) ---
+import { ReconTool } from "./recon"
+import { CrawlTool } from "./crawl"
+import { InjectionTestTool } from "./injection_test"
+import { XssTestTool } from "./xss_test"
+import { SsrfTestTool } from "./ssrf_test"
+import { AuthTestTool } from "./auth_test"
+import { AccessControlTestTool } from "./access_control_test"
+import { PathTestTool } from "./path_test"
+import { DirFuzzTool } from "./dir_fuzz"
+import { JsAnalyzeTool } from "./js_analyze"
+import { BrowserTool } from "./browser_tool"
+import { OobTool } from "./oob"
+import { HttpRequestTool } from "./http_request"
+import { SaveFindingTool } from "./save_finding"
+import { GetFindingsTool } from "./get_findings"
+import { GenerateReportTool } from "./generate_report"
+import { KbSearchTool } from "./kb_search"
+import { CreateSessionTool } from "./create_session"
+import { RelayCredentialsTool } from "./relay_credentials"
+import { RunScannerBatchTool } from "./run_scanner_batch"
+import { PentestPlanTool } from "./pentest_plan"
+
+import type { Agent } from "../agent/agent"
+import { Tool } from "./tool"
+import { Config } from "../config/config"
+import path from "path"
+import { type ToolContext as PluginToolContext, type ToolDefinition } from "@numasec/plugin"
+import z from "zod"
+import { Plugin } from "../plugin"
+import { ProviderID, type ModelID } from "../provider/schema"
+import { Flag } from "@/flag/flag"
+import { Log } from "@/util/log"
+import { Truncate } from "./truncate"
+import { Glob } from "../util/glob"
+import { pathToFileURL } from "url"
+import { Effect, Layer, ServiceMap } from "effect"
+import { InstanceState } from "@/effect/instance-state"
+import { makeRuntime } from "@/effect/run-service"
+
+export namespace ToolRegistry {
+  const log = Log.create({ service: "tool.registry" })
+
+  type State = {
+    custom: Tool.Info[]
+  }
+
+  export interface Interface {
+    readonly register: (tool: Tool.Info) => Effect.Effect<void>
+    readonly ids: () => Effect.Effect<string[]>
+    readonly tools: (
+      model: { providerID: ProviderID; modelID: ModelID },
+      agent?: Agent.Info,
+    ) => Effect.Effect<(Awaited<ReturnType<Tool.Info["init"]>> & { id: string })[]>
+  }
+
+  export class Service extends ServiceMap.Service<Service, Interface>()("@numasec/ToolRegistry") {}
+
+  export const layer = Layer.effect(
+    Service,
+    Effect.gen(function* () {
+      const cache = yield* InstanceState.make<State>(
+        Effect.fn("ToolRegistry.state")(function* (ctx) {
+          const custom: Tool.Info[] = []
+
+          function fromPlugin(id: string, def: ToolDefinition): Tool.Info {
+            return {
+              id,
+              init: async (initCtx) => ({
+                parameters: z.object(def.args),
+                description: def.description,
+                execute: async (args, toolCtx) => {
+                  const pluginCtx = {
+                    ...toolCtx,
+                    directory: ctx.directory,
+                    worktree: ctx.worktree,
+                  } as unknown as PluginToolContext
+                  const result = await def.execute(args as any, pluginCtx)
+                  const out = await Truncate.output(result, {}, initCtx?.agent)
+                  return {
+                    title: "",
+                    output: out.truncated ? out.content : result,
+                    metadata: { truncated: out.truncated, outputPath: out.truncated ? out.outputPath : undefined },
+                  }
+                },
+              }),
+            }
+          }
+
+          yield* Effect.promise(async () => {
+            const matches = await Config.directories().then((dirs) =>
+              dirs.flatMap((dir) =>
+                Glob.scanSync("{tool,tools}/*.{js,ts}", { cwd: dir, absolute: true, dot: true, symlink: true }),
+              ),
+            )
+            if (matches.length) await Config.waitForDependencies()
+            for (const match of matches) {
+              const namespace = path.basename(match, path.extname(match))
+              const mod = await import(process.platform === "win32" ? match : pathToFileURL(match).href)
+              for (const [id, def] of Object.entries<ToolDefinition>(mod)) {
+                custom.push(fromPlugin(id === "default" ? namespace : `${namespace}_${id}`, def))
+              }
+            }
+
+            const plugins = await Plugin.list()
+            for (const plugin of plugins) {
+              for (const [id, def] of Object.entries(plugin.tool ?? {})) {
+                custom.push(fromPlugin(id, def))
+              }
+            }
+          })
+
+          return { custom }
+        }),
+      )
+
+      async function all(custom: Tool.Info[]): Promise<Tool.Info[]> {
+        const cfg = await Config.get()
+        const question = ["app", "cli", "desktop"].includes(Flag.NUMASEC_CLIENT) || Flag.NUMASEC_ENABLE_QUESTION_TOOL
+
+        return [
+          InvalidTool,
+          ...(question ? [QuestionTool] : []),
+          // --- Kept generic tools ---
+          BashTool,
+          ReadTool,
+          GlobTool,
+          GrepTool,
+          TaskTool,
+          WebFetchTool,
+          TodoWriteTool,
+          WebSearchTool,
+          SkillTool,
+          ...(cfg.experimental?.batch_tool === true ? [BatchTool] : []),
+          // --- Security scanning tools (via Python bridge) ---
+          ReconTool,
+          CrawlTool,
+          InjectionTestTool,
+          XssTestTool,
+          SsrfTestTool,
+          AuthTestTool,
+          AccessControlTestTool,
+          PathTestTool,
+          DirFuzzTool,
+          JsAnalyzeTool,
+          BrowserTool,
+          OobTool,
+          HttpRequestTool,
+          // --- Security state tools (via Python bridge) ---
+          CreateSessionTool,
+          SaveFindingTool,
+          GetFindingsTool,
+          GenerateReportTool,
+          KbSearchTool,
+          RelayCredentialsTool,
+          RunScannerBatchTool,
+          PentestPlanTool,
+          // --- Custom/plugin tools ---
+          ...custom,
+        ]
+      }
+
+      const register = Effect.fn("ToolRegistry.register")(function* (tool: Tool.Info) {
+        const state = yield* InstanceState.get(cache)
+        const idx = state.custom.findIndex((t) => t.id === tool.id)
+        if (idx >= 0) {
+          state.custom.splice(idx, 1, tool)
+          return
+        }
+        state.custom.push(tool)
+      })
+
+      const ids = Effect.fn("ToolRegistry.ids")(function* () {
+        const state = yield* InstanceState.get(cache)
+        const tools = yield* Effect.promise(() => all(state.custom))
+        return tools.map((t) => t.id)
+      })
+
+      const tools = Effect.fn("ToolRegistry.tools")(function* (
+        model: { providerID: ProviderID; modelID: ModelID },
+        agent?: Agent.Info,
+      ) {
+        const state = yield* InstanceState.get(cache)
+        const allTools = yield* Effect.promise(() => all(state.custom))
+        return yield* Effect.promise(() =>
+          Promise.all(
+            allTools
+              .filter((tool) => {
+                // Enable websearch for zen users OR via enable flag
+                if (tool.id === "websearch") {
+                  return model.providerID === ProviderID.numasec || Flag.NUMASEC_ENABLE_EXA
+                }
+
+                return true
+              })
+              .map(async (tool) => {
+                using _ = log.time(tool.id)
+                const next = await tool.init({ agent })
+                const output = {
+                  description: next.description,
+                  parameters: next.parameters,
+                }
+                await Plugin.trigger("tool.definition", { toolID: tool.id }, output)
+                return {
+                  id: tool.id,
+                  ...next,
+                  description: output.description,
+                  parameters: output.parameters,
+                }
+              }),
+          ),
+        )
+      })
+
+      return Service.of({ register, ids, tools })
+    }),
+  )
+
+  const { runPromise } = makeRuntime(Service, layer)
+
+  export async function register(tool: Tool.Info) {
+    return runPromise((svc) => svc.register(tool))
+  }
+
+  export async function ids() {
+    return runPromise((svc) => svc.ids())
+  }
+
+  export async function tools(
+    model: {
+      providerID: ProviderID
+      modelID: ModelID
+    },
+    agent?: Agent.Info,
+  ) {
+    return runPromise((svc) => svc.tools(model, agent))
+  }
+}

@@ -1,0 +1,8 @@
+Initialize a new penetration testing session. Must be called before saving findings.
+
+Parameters:
+- target_url (required): Primary target URL
+- session_name: Human-readable session name. Default: auto-generated.
+- scope: Scope definition — comma-separated allowed domains/IPs.
+
+Returns session_id and target profile for subsequent tool calls.

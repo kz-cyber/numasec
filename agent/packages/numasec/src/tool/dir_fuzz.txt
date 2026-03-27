@@ -1,0 +1,12 @@
+Brute-force directories and files on a web server.
+
+Parameters:
+- target (required): Target base URL
+- wordlist: Wordlist to use — "common", "medium", "large", or a custom path. Default: "common".
+- extensions: Comma-separated file extensions to append (e.g., "php,asp,jsp,html").
+- threads: Number of concurrent threads. Default: 10.
+- status_codes: Comma-separated status codes to consider as hits. Default: "200,201,204,301,302,307,401,403".
+- headers: JSON object of additional headers.
+- auth_token: Bearer token for authenticated fuzzing.
+
+Returns discovered directories and files with status codes and sizes.

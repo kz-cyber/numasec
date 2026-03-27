@@ -1,0 +1,12 @@
+Crawl a target website to discover endpoints, forms, and API routes.
+
+Parameters:
+- target (required): Target URL to crawl (e.g., "https://example.com")
+- max_depth: Maximum crawl depth. Default: 3.
+- max_pages: Maximum pages to crawl. Default: 100.
+- mode: Crawl mode — "html" for static HTML parsing, "spa" for JavaScript-rendered SPA crawling, "auto" to detect. Default: "auto".
+- openapi_url: URL to an OpenAPI/Swagger spec to import endpoints from.
+- headers: JSON object of additional headers to send.
+- auth_token: Bearer token for authenticated crawling.
+
+Returns discovered endpoints, forms, parameters, and API routes.

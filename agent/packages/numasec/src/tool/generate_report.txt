@@ -1,0 +1,8 @@
+Generate a security assessment report from saved findings.
+
+Parameters:
+- session_id (required): Session ID to generate report for
+- format: Report format — "sarif", "markdown", "html", "json". Default: "markdown".
+- include_evidence: Whether to include full evidence in report. Default: true.
+
+Returns the generated report content.
