@@ -37,9 +37,9 @@ description: ${description}
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
-          const build = await Agent.get("build")
-          const first = await SystemPrompt.skills(build!)
-          const second = await SystemPrompt.skills(build!)
+          const pentest = await Agent.get("pentest")
+          const first = await SystemPrompt.skills(pentest!)
+          const second = await SystemPrompt.skills(pentest!)
 
           expect(first).toBe(second)
 
