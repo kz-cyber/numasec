@@ -434,19 +434,7 @@
         "typescript": "catalog:",
       },
     },
-    "packages/plugin": {
-      "name": "@opencode-ai/plugin",
-      "dependencies": {
-        "@opencode-ai/sdk": "workspace:*",
-        "zod": "catalog:",
-      },
-      "devDependencies": {
-        "@tsconfig/node22": "catalog:",
-        "@types/node": "catalog:",
-        "@typescript/native-preview": "catalog:",
-        "typescript": "catalog:",
-      },
-    },
+
     "packages/script": {
       "name": "@numasec/script",
       "dependencies": {
@@ -468,16 +456,7 @@
         "typescript": "catalog:",
       },
     },
-    "packages/sdk/js": {
-      "name": "@opencode-ai/sdk",
-      "devDependencies": {
-        "@hey-api/openapi-ts": "0.90.10",
-        "@tsconfig/node22": "catalog:",
-        "@types/node": "catalog:",
-        "@typescript/native-preview": "catalog:",
-        "typescript": "catalog:",
-      },
-    },
+
     "packages/slack": {
       "name": "@numasec/slack",
       "version": "1.3.3",
