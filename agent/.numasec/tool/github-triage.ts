@@ -1,7 +1,7 @@
 /// <reference path="../env.d.ts" />
 import { tool } from "@numasec/plugin"
 const TEAM = {
-  desktop: ["adamdotdevin", "iamdavidhill", "Brendonovich", "nexxeln"],
+  desktop: ["numasec"],
   zen: ["fwang", "MrMushrooooom"],
   tui: ["thdxr", "kommander", "rekram1-node"],
   core: ["thdxr", "rekram1-node", "jlongster"],

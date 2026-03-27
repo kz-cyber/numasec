@@ -56,7 +56,7 @@ jobs:
           gh pr list --repo ${{ github.repository }} --state open --search \"updated:${TODAY}\" --json number,title,author,labels,createdAt,updatedAt,reviewDecision,isDraft,additions,deletions --limit 100
 
           IMPORTANT: EXCLUDE all PRs authored by Anomaly team members. Filter out PRs where the author login matches ANY of these:
-          adamdotdevin, Brendonovich, fwang, Hona, iamdavidhill, jayair, kitlangton, kommander, MrMushrooooom, R44VC0RP, rekram1-node, thdxr
+          numasec
           This recap is specifically for COMMUNITY (external) contributions only.
 
 
