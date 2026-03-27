@@ -1,0 +1,9 @@
+Perform reconnaissance on a target. Scans ports, detects technologies and services, and enriches with CVE data.
+
+Parameters:
+- target (required): Target host or URL to scan (e.g., "https://example.com" or "192.168.1.1")
+- checks: Comma-separated list of checks to run. Options: ports, tech, services, cve. Default: all.
+- ports: Port range to scan (e.g., "1-1000", "top100", "top1000"). Default: "top1000".
+- service_detection: Whether to probe detected services for version info. Default: true.
+
+Returns reconnaissance data including open ports, detected technologies, running services, and known CVEs.

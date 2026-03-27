@@ -1,0 +1,12 @@
+Test target endpoints for Cross-Site Scripting (XSS) vulnerabilities including reflected, stored, and DOM-based XSS.
+
+Parameters:
+- target (required): Target URL to test
+- method: HTTP method. Default: "GET".
+- params: JSON object of parameters to test.
+- data: Request body for POST requests.
+- headers: JSON object of additional headers.
+- auth_token: Bearer token for authenticated requests.
+- contexts: Comma-separated contexts to test. Options: html, attr, js, url. Default: all.
+
+Returns detected XSS vulnerabilities with evidence, payload, injection context, and severity.

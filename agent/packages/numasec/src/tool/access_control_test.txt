@@ -1,0 +1,12 @@
+Test for access control vulnerabilities including IDOR and privilege escalation.
+
+Parameters:
+- target (required): Target URL to test
+- method: HTTP method. Default: "GET".
+- params: JSON object of parameters to test.
+- headers: JSON object of additional headers.
+- auth_token: Bearer token for the current user.
+- alt_auth_token: Bearer token for a different user (for horizontal privesc testing).
+- id_params: Comma-separated parameter names that contain object IDs to test.
+
+Returns detected access control vulnerabilities with evidence and severity.

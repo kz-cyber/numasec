@@ -1,0 +1,12 @@
+Test for Server-Side Request Forgery (SSRF) vulnerabilities.
+
+Parameters:
+- target (required): Target URL to test
+- method: HTTP method. Default: "GET".
+- params: JSON object of parameters to test.
+- data: Request body for POST requests.
+- headers: JSON object of additional headers.
+- auth_token: Bearer token for authenticated requests.
+- callback_url: External callback URL for out-of-band SSRF detection.
+
+Returns detected SSRF vulnerabilities with evidence and severity.

@@ -1,0 +1,9 @@
+Analyze JavaScript files for security-relevant information including API keys, secrets, endpoints, and vulnerable patterns.
+
+Parameters:
+- target (required): Target URL or JavaScript file URL to analyze
+- headers: JSON object of additional headers.
+- auth_token: Bearer token for authenticated requests.
+- deep: Whether to follow and analyze imported scripts. Default: false.
+
+Returns discovered secrets, API endpoints, hardcoded credentials, and vulnerable code patterns.

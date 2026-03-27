@@ -1,0 +1,13 @@
+Test target endpoints for injection vulnerabilities including SQL injection, NoSQL injection, command injection, SSTI, and XXE.
+
+Parameters:
+- target (required): Target URL to test
+- method: HTTP method. Default: "GET".
+- params: JSON object of parameters to test.
+- data: Request body for POST/PUT requests.
+- headers: JSON object of additional headers.
+- tests: Comma-separated tests to run. Options: sqli, nosql, cmdi, ssti, xxe. Default: all.
+- auth_token: Bearer token for authenticated requests.
+- technique: Injection technique — "error", "union", "blind", "time", "auto". Default: "auto".
+
+Returns detected injection points with evidence, payload used, and severity.

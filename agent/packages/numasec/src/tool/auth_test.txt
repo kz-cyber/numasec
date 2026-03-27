@@ -1,0 +1,12 @@
+Test authentication mechanisms including JWT security, OAuth flows, and credential spraying.
+
+Parameters:
+- target (required): Target URL or authentication endpoint
+- tests: Comma-separated tests. Options: jwt, oauth, spray, session, default_creds. Default: all.
+- jwt_token: JWT token to analyze for vulnerabilities.
+- username_list: Newline-separated list of usernames for spray testing.
+- password_list: Newline-separated list of passwords for spray testing.
+- headers: JSON object of additional headers.
+- auth_token: Bearer token for authenticated requests.
+
+Returns detected authentication vulnerabilities with evidence and severity.
