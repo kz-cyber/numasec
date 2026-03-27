@@ -258,7 +258,10 @@ class PythonSQLiTester:
             return result
 
         async with httpx.AsyncClient(
-            timeout=self.timeout, follow_redirects=True, verify=False, headers=self._extra_headers,
+            timeout=self.timeout,
+            follow_redirects=True,
+            verify=False,
+            headers=self._extra_headers,
         ) as client:
             # Fetch baseline response for boolean/union comparison
             baseline = await self._get_baseline(client, url, method, body)
@@ -647,7 +650,14 @@ class PythonSQLiTester:
                 control_payload = payload.replace("5", "0").replace("'0:0:0'", "'0:0:0'")
                 ctrl_start = time.monotonic()
                 ctrl_resp = await self._send_with_payload(
-                    client, url, param, control_payload, location, method, body, content_type,
+                    client,
+                    url,
+                    param,
+                    control_payload,
+                    location,
+                    method,
+                    body,
+                    content_type,
                 )
                 ctrl_elapsed = time.monotonic() - ctrl_start
 
@@ -819,10 +829,7 @@ class PythonSQLiTester:
                                 location="HEADER",
                                 technique="error_based",
                                 dbms=dbms,
-                                evidence=(
-                                    f"SQL error triggered via {header_name} header. "
-                                    f"Pattern: {sig}"
-                                ),
+                                evidence=(f"SQL error triggered via {header_name} header. Pattern: {sig}"),
                                 payload=payload,
                                 confidence=0.8,
                             )

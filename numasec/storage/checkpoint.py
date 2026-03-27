@@ -273,7 +273,10 @@ class CheckpointStore:
         return hashlib.sha256(raw.encode()).hexdigest()
 
     async def cache_get(
-        self, tool: str, target: str, params: dict[str, Any],
+        self,
+        tool: str,
+        target: str,
+        params: dict[str, Any],
     ) -> str | None:
         """Return cached tool result if it exists and has not expired."""
         key = self._cache_key(tool, target, params)
@@ -291,7 +294,8 @@ class CheckpointStore:
             age = (datetime.now(UTC) - created).total_seconds()
             if age > row[2]:
                 await db.execute(
-                    "DELETE FROM tool_cache WHERE cache_key = ?", (key,),
+                    "DELETE FROM tool_cache WHERE cache_key = ?",
+                    (key,),
                 )
                 await db.commit()
                 return None
@@ -333,7 +337,8 @@ class CheckpointStore:
         try:
             if tool:
                 cursor = await db.execute(
-                    "DELETE FROM tool_cache WHERE tool_name = ?", (tool,),
+                    "DELETE FROM tool_cache WHERE tool_name = ?",
+                    (tool,),
                 )
             else:
                 cursor = await db.execute("DELETE FROM tool_cache")

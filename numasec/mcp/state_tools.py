@@ -37,8 +37,7 @@ def _check_session_rate(session_id: str) -> None:
     limiter = get_rate_limiter()
     if not limiter.check(session_id=session_id):
         raise RateLimitExceeded(
-            f"Rate limit exceeded for session '{session_id}'. "
-            "Too many concurrent calls — try again shortly."
+            f"Rate limit exceeded for session '{session_id}'. Too many concurrent calls — try again shortly."
         )
     limiter.acquire(session_id=session_id)
 
@@ -339,8 +338,8 @@ def register(mcp: Any) -> None:
             if fmt == "markdown":
                 from numasec.reporting.markdown import generate_markdown_report
 
-                report = generate_markdown_report(findings, target=target)
-                result_obj = {"format": "markdown", "findings_count": len(findings), "content": report}
+                md_report = generate_markdown_report(findings, target=target)
+                result_obj = {"format": "markdown", "findings_count": len(findings), "content": md_report}
                 if delta:
                     result_obj["delta"] = delta
                 return json.dumps(result_obj, indent=2, default=str)
@@ -475,7 +474,9 @@ def register(mcp: Any) -> None:
             ok_count = sum(1 for r in results if r["status"] == "ok")
             logger.info(
                 "Scanner batch complete: %d/%d succeeded in %.0fms",
-                ok_count, len(results), total_ms,
+                ok_count,
+                len(results),
+                total_ms,
             )
 
             return json.dumps(

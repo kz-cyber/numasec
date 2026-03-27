@@ -555,11 +555,7 @@ class GraphQLTester:
                 continue
 
             # Collect sensitive field names present on this type
-            sensitive_hits = [
-                f.get("name", "")
-                for f in fields
-                if f.get("name", "").lower() in _SENSITIVE_FIELD_NAMES
-            ]
+            sensitive_hits = [f.get("name", "") for f in fields if f.get("name", "").lower() in _SENSITIVE_FIELD_NAMES]
             if not sensitive_hits:
                 continue
 

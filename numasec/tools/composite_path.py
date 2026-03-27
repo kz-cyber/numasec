@@ -56,8 +56,8 @@ async def path_test(
         try:
             from numasec.scanners.xxe_tester import XxeTester
 
-            tester = XxeTester()
-            xxe_result = await tester.test(url, headers=extra_headers or None)
+            xxe_tester = XxeTester()
+            xxe_result = await xxe_tester.test(url, headers=extra_headers or None)
             result_dict = xxe_result.to_dict()
             results["xxe"] = result_dict
             results["vulnerabilities"].extend(result_dict.get("vulnerabilities", []))
@@ -68,8 +68,8 @@ async def path_test(
         try:
             from numasec.scanners.open_redirect_tester import OpenRedirectTester
 
-            tester = OpenRedirectTester()
-            redirect_result = await tester.test(url, headers=extra_headers or None)
+            redirect_tester = OpenRedirectTester()
+            redirect_result = await redirect_tester.test(url, headers=extra_headers or None)
             result_dict = redirect_result.to_dict()
             results["redirect"] = result_dict
             results["vulnerabilities"].extend(result_dict.get("vulnerabilities", []))
@@ -80,8 +80,8 @@ async def path_test(
         try:
             from numasec.scanners.host_header_tester import HostHeaderTester
 
-            tester = HostHeaderTester()
-            hh_result = await tester.test(url)
+            hh_tester = HostHeaderTester()
+            hh_result = await hh_tester.test(url)
             result_dict = hh_result.to_dict()
             results["host_header"] = result_dict
             results["vulnerabilities"].extend(result_dict.get("vulnerabilities", []))

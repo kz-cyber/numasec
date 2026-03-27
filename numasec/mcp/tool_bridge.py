@@ -146,8 +146,7 @@ def _register_one(
                         parsed["vulnerabilities"] = vulns[:5]
                         parsed["_truncated"] = True
                         parsed["_note"] = (
-                            f"Output truncated: showing 5 of {original_count} results "
-                            f"(original {len(output)} chars)"
+                            f"Output truncated: showing 5 of {original_count} results (original {len(output)} chars)"
                         )
                         output = json.dumps(parsed, indent=2, default=str)
                 except (json.JSONDecodeError, TypeError):

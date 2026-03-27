@@ -50,7 +50,9 @@ async def injection_test(
             from numasec.scanners.sqli_tester import PythonSQLiTester
 
             tester = PythonSQLiTester(extra_headers=extra_headers, waf_evasion=waf_evasion)
-            sqli_result = await tester.test(url, params=param_list, method=method, body=body_dict, content_type=content_type)
+            sqli_result = await tester.test(
+                url, params=param_list, method=method, body=body_dict, content_type=content_type
+            )
             result_dict = sqli_result.to_dict()
             results["sql"] = result_dict
             results["vulnerabilities"].extend(result_dict.get("vulnerabilities", []))
@@ -61,8 +63,8 @@ async def injection_test(
         try:
             from numasec.scanners.nosql_tester import NoSqlTester
 
-            tester = NoSqlTester(extra_headers=extra_headers)
-            nosql_result = await tester.test(url, method=method)
+            nosql_tester = NoSqlTester(extra_headers=extra_headers)
+            nosql_result = await nosql_tester.test(url, method=method)
             result_dict = nosql_result.to_dict()
             results["nosql"] = result_dict
             results["vulnerabilities"].extend(result_dict.get("vulnerabilities", []))
@@ -73,8 +75,8 @@ async def injection_test(
         try:
             from numasec.scanners.ssti_tester import SstiTester
 
-            tester = SstiTester(extra_headers=extra_headers, waf_evasion=waf_evasion)
-            ssti_result = await tester.test(url, params=param_list, method=method, body=body_dict)
+            ssti_tester = SstiTester(extra_headers=extra_headers, waf_evasion=waf_evasion)
+            ssti_result = await ssti_tester.test(url, params=param_list, method=method, body=body_dict)
             result_dict = ssti_result.to_dict()
             results["ssti"] = result_dict
             results["vulnerabilities"].extend(result_dict.get("vulnerabilities", []))
@@ -85,8 +87,8 @@ async def injection_test(
         try:
             from numasec.scanners.command_injection_tester import CommandInjectionTester
 
-            tester = CommandInjectionTester()
-            cmdi_result = await tester.test(url, params=param_list, method=method, body=body_dict)
+            cmdi_tester = CommandInjectionTester()
+            cmdi_result = await cmdi_tester.test(url, params=param_list, method=method, body=body_dict)
             result_dict = cmdi_result.to_dict()
             results["cmdi"] = result_dict
             results["vulnerabilities"].extend(result_dict.get("vulnerabilities", []))
@@ -97,8 +99,8 @@ async def injection_test(
         try:
             from numasec.scanners.graphql_tester import GraphQLTester
 
-            tester = GraphQLTester()
-            gql_result = await tester.test(url)
+            gql_tester = GraphQLTester()
+            gql_result = await gql_tester.test(url)
             result_dict = gql_result.to_dict()
             results["graphql"] = result_dict
             results["vulnerabilities"].extend(result_dict.get("vulnerabilities", []))
@@ -106,5 +108,7 @@ async def injection_test(
             results["graphql"] = {"error": str(exc)}
 
     total = len(results["vulnerabilities"])
-    results["summary"] = f"{total} injection {'vulnerability' if total == 1 else 'vulnerabilities'} found across {', '.join(sorted(type_set))}"
+    results["summary"] = (
+        f"{total} injection {'vulnerability' if total == 1 else 'vulnerabilities'} found across {', '.join(sorted(type_set))}"
+    )
     return wrap_result("injection_test", url, results, start_time=start)

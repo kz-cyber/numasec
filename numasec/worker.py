@@ -26,6 +26,7 @@ import json
 import logging
 import sys
 import traceback
+from collections.abc import Callable, Coroutine
 from typing import Any
 
 logger = logging.getLogger("numasec.worker")
@@ -39,6 +40,7 @@ def _get_registry():
     global _registry
     if _registry is None:
         from numasec.mcp._singletons import get_tool_registry
+
         _registry = get_tool_registry()
     return _registry
 
@@ -47,6 +49,7 @@ def _get_session_store():
     global _session_store
     if _session_store is None:
         from numasec.mcp._singletons import get_session_store
+
         _session_store = get_session_store()
     return _session_store
 
@@ -63,9 +66,9 @@ _PARAM_ALIASES: dict[str, str] = {
     "target": "url",
     "data": "body",
     "max_depth": "depth",
-    "tests": "types",       # injection_test: TS "tests" → Python "types"
-    "jwt_token": "token",   # auth_test: TS "jwt_token" → Python "token"
-    "cwe_id": "cwe",        # save_finding: TS "cwe_id" → Python "cwe"
+    "tests": "types",  # injection_test: TS "tests" → Python "types"
+    "jwt_token": "token",  # auth_test: TS "jwt_token" → Python "token"
+    "cwe_id": "cwe",  # save_finding: TS "cwe_id" → Python "cwe"
 }
 
 # Reverse aliases (url→target) for tools like recon that use "target".
@@ -129,6 +132,7 @@ def _normalise_params(tool_name: str, params: dict[str, Any]) -> dict[str, Any]:
 # State/intel tools are @mcp.tool closures inside register(), so we call
 # the underlying stores directly instead of importing the nested functions.
 # ---------------------------------------------------------------------------
+
 
 async def _handle_list_tools() -> dict[str, Any]:
     """Return available tools and their schemas."""
@@ -198,6 +202,7 @@ async def _handle_save_finding(params: dict) -> Any:
     )
 
     from numasec.standards import enrich_finding
+
     enrich_finding(finding)
 
     store = get_mcp_session_store()
@@ -249,9 +254,7 @@ async def _handle_get_findings(params: dict) -> Any:
         )
 
     filtered = (
-        [f for f in all_findings if f.severity.value == severity_filter.lower()]
-        if severity_filter
-        else all_findings
+        [f for f in all_findings if f.severity.value == severity_filter.lower()] if severity_filter else all_findings
     )
 
     severity_counts: dict[str, int] = {}
@@ -303,16 +306,23 @@ async def _handle_generate_report(params: dict) -> Any:
 
     if fmt == "sarif":
         from numasec.reporting.sarif import generate_sarif_report
+
         report = generate_sarif_report(findings)
-        return json.dumps({"format": "sarif", "findings_count": len(findings), "content": report}, indent=2, default=str)
+        return json.dumps(
+            {"format": "sarif", "findings_count": len(findings), "content": report}, indent=2, default=str
+        )
 
     if fmt in ("markdown", "html"):
         from numasec.reporting.markdown import generate_markdown_report
-        report = generate_markdown_report(findings, target=target)
-        return json.dumps({"format": "markdown", "findings_count": len(findings), "content": report}, indent=2, default=str)
+
+        md_report = generate_markdown_report(findings, target=target)
+        return json.dumps(
+            {"format": "markdown", "findings_count": len(findings), "content": md_report}, indent=2, default=str
+        )
 
     # Default: json
     from numasec.reporting import build_executive_summary
+
     return json.dumps(
         {
             "format": "json",
@@ -393,10 +403,7 @@ async def _handle_relay_credentials(params: dict) -> Any:
             "credential_type": credential_type,
             "source": source,
             "auth_header": auth_header,
-            "message": (
-                "Credential stored. Pass the auth_header to subsequent tool calls "
-                "for authenticated testing."
-            ),
+            "message": ("Credential stored. Pass the auth_header to subsequent tool calls for authenticated testing."),
         },
         indent=2,
     )
@@ -404,7 +411,7 @@ async def _handle_relay_credentials(params: dict) -> Any:
 
 async def _handle_kb_search(params: dict) -> Any:
     """Search the knowledge base."""
-    from numasec.knowledge.retriever import BM25Retriever
+    from numasec.knowledge.retriever import KnowledgeRetriever
 
     query = params.get("query", "")
     search_type = params.get("type", params.get("category", "search"))
@@ -413,12 +420,13 @@ async def _handle_kb_search(params: dict) -> Any:
     if search_type == "cwe":
         # CWE lookup
         from numasec.standards import get_cwe_info
+
         return json.dumps(get_cwe_info(query), indent=2, default=str)
 
     # General KB search
-    retriever = BM25Retriever()
+    retriever = KnowledgeRetriever()
     category = params.get("category", "")
-    results = retriever.search(query, top_k=top_k, category=category)
+    results = retriever.query(query, top_k=top_k, category=category)
     return json.dumps(
         {"query": query, "results": [r.to_dict() if hasattr(r, "to_dict") else str(r) for r in results]},
         indent=2,
@@ -429,6 +437,7 @@ async def _handle_kb_search(params: dict) -> Any:
 async def _handle_plan(params: dict) -> Any:
     """Get pentest plan / coverage."""
     from numasec.core.planner import DeterministicPlanner
+    from numasec.models.target import TargetProfile
 
     action = params.get("action", "status")
     target = params.get("target", "")
@@ -436,9 +445,10 @@ async def _handle_plan(params: dict) -> Any:
     scope = params.get("scope", "standard")
 
     planner = DeterministicPlanner()
+    profile = TargetProfile(target=target)
 
     if action in ("initial", "status"):
-        plan = planner.generate_plan(target, scope=scope)
+        plan = planner.create_plan(profile, scope=scope)
         return json.dumps(plan, indent=2, default=str)
 
     if action == "coverage_gaps":
@@ -453,17 +463,25 @@ async def _handle_plan(params: dict) -> Any:
 
         # Classify findings into OWASP categories via CWE mapping
         _cwe_to_owasp = {
-            "CWE-89": "A03_injection", "CWE-79": "A03_injection",
-            "CWE-611": "A03_injection", "CWE-94": "A03_injection",
-            "CWE-78": "A03_injection", "CWE-917": "A03_injection",
+            "CWE-89": "A03_injection",
+            "CWE-79": "A03_injection",
+            "CWE-611": "A03_injection",
+            "CWE-94": "A03_injection",
+            "CWE-78": "A03_injection",
+            "CWE-917": "A03_injection",
             "CWE-943": "A03_injection",
-            "CWE-352": "A01_access_control", "CWE-639": "A01_access_control",
+            "CWE-352": "A01_access_control",
+            "CWE-639": "A01_access_control",
             "CWE-284": "A01_access_control",
-            "CWE-287": "A07_auth_failures", "CWE-798": "A07_auth_failures",
-            "CWE-521": "A07_auth_failures", "CWE-522": "A02_crypto_failures",
-            "CWE-327": "A02_crypto_failures", "CWE-328": "A02_crypto_failures",
+            "CWE-287": "A07_auth_failures",
+            "CWE-798": "A07_auth_failures",
+            "CWE-521": "A07_auth_failures",
+            "CWE-522": "A02_crypto_failures",
+            "CWE-327": "A02_crypto_failures",
+            "CWE-328": "A02_crypto_failures",
             "CWE-918": "A10_ssrf",
-            "CWE-16": "A05_misconfiguration", "CWE-942": "A05_misconfiguration",
+            "CWE-16": "A05_misconfiguration",
+            "CWE-942": "A05_misconfiguration",
         }
         tested: set[str] = set()
         for f in findings:
@@ -486,31 +504,37 @@ async def _handle_plan(params: dict) -> Any:
             tools = OWASP_TOOL_MAP.get(cat, [])
             for t in tools:
                 if t not in ("http_request", "fetch_page"):
-                    gap_tasks.append({"tool": t, "url": target, "owasp_category": cat,
-                                      "owasp_label": _OWASP_LABELS.get(cat, cat)})
+                    gap_tasks.append(
+                        {"tool": t, "url": target, "owasp_category": cat, "owasp_label": _OWASP_LABELS.get(cat, cat)}
+                    )
                     break
 
-        return json.dumps({
-            "session_id": session_id, "target": target,
-            "coverage": {
-                "tested_categories": sorted(tested),
-                "untested_categories": untested,
-                "tested_count": len(tested),
-                "total_count": len(all_cats),
-                "coverage_pct": coverage_pct,
+        return json.dumps(
+            {
+                "session_id": session_id,
+                "target": target,
+                "coverage": {
+                    "tested_categories": sorted(tested),
+                    "untested_categories": untested,
+                    "tested_count": len(tested),
+                    "total_count": len(all_cats),
+                    "coverage_pct": coverage_pct,
+                },
+                "gap_tasks": gap_tasks,
             },
-            "gap_tasks": gap_tasks,
-        }, indent=2, default=str)
+            indent=2,
+            default=str,
+        )
 
     if action == "next":
-        plan = planner.generate_plan(target, scope=scope)
+        plan = planner.create_plan(profile, scope=scope)
         return json.dumps(plan, indent=2, default=str)
 
     return json.dumps({"error": f"Unknown plan action: {action}"}, indent=2)
 
 
 # Method dispatch table
-SPECIAL_METHODS = {
+SPECIAL_METHODS: dict[str, Callable[..., Coroutine[Any, Any, Any]]] = {
     "list_tools": _handle_list_tools,
     "create_session": _handle_create_session,
     "save_finding": _handle_save_finding,
@@ -523,39 +547,43 @@ SPECIAL_METHODS = {
 
 # Scanner tools whose results may contain auto-saveable vulnerabilities.
 _SCANNER_TOOLS = {
-    "injection_test", "xss_test", "auth_test", "access_control_test",
-    "ssrf_test", "path_test",
+    "injection_test",
+    "xss_test",
+    "auth_test",
+    "access_control_test",
+    "ssrf_test",
+    "path_test",
 }
 
 # Map vuln type → (default severity, CWE ID, title template)
 _VULN_TYPE_MAP: dict[str, tuple[str, str, str]] = {
-    "sql_injection":      ("high",     "CWE-89",  "SQL Injection in '{param}'"),
-    "nosql_injection":    ("high",     "CWE-943", "NoSQL Injection in '{param}'"),
-    "ssti":               ("high",     "CWE-94",  "Server-Side Template Injection in '{param}'"),
-    "command_injection":  ("critical", "CWE-78",  "OS Command Injection in '{param}'"),
-    "reflected":          ("medium",   "CWE-79",  "Reflected XSS in '{param}'"),
-    "stored":             ("high",     "CWE-79",  "Stored XSS in '{param}'"),
-    "dom_indicator":      ("medium",   "CWE-79",  "DOM-based XSS indicator in '{param}'"),
-    "xss":                ("medium",   "CWE-79",  "Cross-Site Scripting in '{param}'"),
-    "lfi":                ("high",     "CWE-22",  "Local File Inclusion via '{param}'"),
-    "open_redirect":      ("medium",   "CWE-601", "Open Redirect via '{param}'"),
-    "host_header":        ("medium",   "CWE-644", "Host Header Injection"),
-    "xxe":                ("high",     "CWE-611", "XML External Entity Injection"),
-    "ssrf":               ("high",     "CWE-918", "Server-Side Request Forgery via '{param}'"),
-    "idor":               ("high",     "CWE-639", "Insecure Direct Object Reference in '{param}'"),
-    "csrf":               ("medium",   "CWE-352", "Cross-Site Request Forgery"),
-    "missing_token":      ("medium",   "CWE-352", "Missing CSRF Token"),
-    "cors":               ("high",     "CWE-942", "CORS Misconfiguration"),
-    "reflected_origin":   ("critical", "CWE-942", "CORS Reflected Origin"),
-    "null_origin":        ("high",     "CWE-942", "CORS Null Origin Allowed"),
-    "wildcard":           ("medium",   "CWE-942", "CORS Wildcard Origin"),
-    "jwt_none_alg":       ("critical", "CWE-287", "JWT None Algorithm Bypass"),
-    "jwt_weak_secret":    ("high",     "CWE-287", "JWT Weak Secret"),
-    "jwt_exp_missing":    ("low",      "CWE-287", "JWT Missing Expiration"),
+    "sql_injection": ("high", "CWE-89", "SQL Injection in '{param}'"),
+    "nosql_injection": ("high", "CWE-943", "NoSQL Injection in '{param}'"),
+    "ssti": ("high", "CWE-94", "Server-Side Template Injection in '{param}'"),
+    "command_injection": ("critical", "CWE-78", "OS Command Injection in '{param}'"),
+    "reflected": ("medium", "CWE-79", "Reflected XSS in '{param}'"),
+    "stored": ("high", "CWE-79", "Stored XSS in '{param}'"),
+    "dom_indicator": ("medium", "CWE-79", "DOM-based XSS indicator in '{param}'"),
+    "xss": ("medium", "CWE-79", "Cross-Site Scripting in '{param}'"),
+    "lfi": ("high", "CWE-22", "Local File Inclusion via '{param}'"),
+    "open_redirect": ("medium", "CWE-601", "Open Redirect via '{param}'"),
+    "host_header": ("medium", "CWE-644", "Host Header Injection"),
+    "xxe": ("high", "CWE-611", "XML External Entity Injection"),
+    "ssrf": ("high", "CWE-918", "Server-Side Request Forgery via '{param}'"),
+    "idor": ("high", "CWE-639", "Insecure Direct Object Reference in '{param}'"),
+    "csrf": ("medium", "CWE-352", "Cross-Site Request Forgery"),
+    "missing_token": ("medium", "CWE-352", "Missing CSRF Token"),
+    "cors": ("high", "CWE-942", "CORS Misconfiguration"),
+    "reflected_origin": ("critical", "CWE-942", "CORS Reflected Origin"),
+    "null_origin": ("high", "CWE-942", "CORS Null Origin Allowed"),
+    "wildcard": ("medium", "CWE-942", "CORS Wildcard Origin"),
+    "jwt_none_alg": ("critical", "CWE-287", "JWT None Algorithm Bypass"),
+    "jwt_weak_secret": ("high", "CWE-287", "JWT Weak Secret"),
+    "jwt_exp_missing": ("low", "CWE-287", "JWT Missing Expiration"),
     "default_credentials": ("critical", "CWE-798", "Default Credentials"),
-    "password_spray":     ("high",     "CWE-521", "Weak Password (Spray)"),
-    "missing_rate_limit": ("medium",   "CWE-307", "Missing Rate Limiting"),
-    "oauth_open_redirect": ("high",    "CWE-601", "OAuth Open Redirect"),
+    "password_spray": ("high", "CWE-521", "Weak Password (Spray)"),
+    "missing_rate_limit": ("medium", "CWE-307", "Missing Rate Limiting"),
+    "oauth_open_redirect": ("high", "CWE-601", "OAuth Open Redirect"),
 }
 
 
@@ -601,13 +629,15 @@ async def _auto_save_findings(result: Any, tool_name: str) -> list[dict]:
         try:
             resp_json = await _handle_save_finding(params)
             resp = json.loads(resp_json)
-            saved.append({
-                "finding_id": resp.get("finding_id", ""),
-                "title": title,
-                "severity": severity,
-                "cwe": cwe,
-                "owasp_category": resp.get("enriched", {}).get("owasp_category", ""),
-            })
+            saved.append(
+                {
+                    "finding_id": resp.get("finding_id", ""),
+                    "title": title,
+                    "severity": severity,
+                    "cwe": cwe,
+                    "owasp_category": resp.get("enriched", {}).get("owasp_category", ""),
+                }
+            )
         except Exception as exc:
             logger.warning("Auto-save failed for '%s': %s", title, exc)
 
@@ -717,13 +747,15 @@ async def main() -> None:
             _write_json({"id": req_id, "result": result})
         except Exception as e:
             logger.error("error dispatching %s: %s", method, traceback.format_exc())
-            _write_json({
-                "id": req_id,
-                "error": {
-                    "message": str(e),
-                    "type": type(e).__name__,
-                },
-            })
+            _write_json(
+                {
+                    "id": req_id,
+                    "error": {
+                        "message": str(e),
+                        "type": type(e).__name__,
+                    },
+                }
+            )
 
 
 if __name__ == "__main__":

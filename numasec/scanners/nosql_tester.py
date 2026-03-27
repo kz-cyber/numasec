@@ -113,9 +113,7 @@ class NoSqlResult:
                 else "No NoSQL injection found"
             ),
             "next_steps": (
-                ["Test auth bypass via operator injection on login endpoint"]
-                if self.vulnerabilities
-                else []
+                ["Test auth bypass via operator injection on login endpoint"] if self.vulnerabilities else []
             ),
         }
 

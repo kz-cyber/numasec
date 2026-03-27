@@ -110,10 +110,7 @@ class YAMLScanner:
     ) -> dict[str, Any] | None:
         """Evaluate a single matcher against the response."""
         if match_type == "header_absent":
-            missing = [
-                h for h in matcher.get("headers", [])
-                if h.lower() not in {k.lower() for k in resp.headers}
-            ]
+            missing = [h for h in matcher.get("headers", []) if h.lower() not in {k.lower() for k in resp.headers}]
             if missing:
                 return {
                     "type": "header_absent",
@@ -243,7 +240,8 @@ def load_plugins(registry: Any, plugin_dir: str | Path | None = None) -> int:
             continue
         try:
             spec = importlib.util.spec_from_file_location(
-                f"numasec_plugin_{plugin_file.stem}", plugin_file,
+                f"numasec_plugin_{plugin_file.stem}",
+                plugin_file,
             )
             if spec is None or spec.loader is None:
                 continue

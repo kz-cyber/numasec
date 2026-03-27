@@ -544,7 +544,7 @@ class PythonSubdomainScanner:
                 except (
                     dns.asyncresolver.NXDOMAIN,
                     dns.asyncresolver.NoAnswer,
-                    dns.asyncresolver.NoNameservers,
+                    dns.resolver.NoNameservers,
                     dns.exception.Timeout,
                     dns.exception.DNSException,
                 ):

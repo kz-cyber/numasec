@@ -106,9 +106,7 @@ class SstiResult:
                 else "No SSTI found"
             ),
             "next_steps": (
-                ["Escalate to RCE using engine-specific payloads from kb_search"]
-                if self.vulnerabilities
-                else []
+                ["Escalate to RCE using engine-specific payloads from kb_search"] if self.vulnerabilities else []
             ),
         }
 
@@ -261,7 +259,13 @@ class SstiTester:
         """
         # Phase 1: fetch baseline response
         baseline_resp = await self._send_with_payload(
-            client, url, param, "secmcp_ssti_baseline_noop", location, method, body,
+            client,
+            url,
+            param,
+            "secmcp_ssti_baseline_noop",
+            location,
+            method,
+            body,
         )
         baseline_text = baseline_resp.text if baseline_resp else ""
 
@@ -307,7 +311,13 @@ class SstiTester:
                 confirmed_engine = engine
                 for d_probe, d_expected, d_engine in _DISAMBIG_PROBES:
                     d_resp = await self._send_with_payload(
-                        client, url, param, d_probe, location, method, body,
+                        client,
+                        url,
+                        param,
+                        d_probe,
+                        location,
+                        method,
+                        body,
                     )
                     if d_resp and d_expected in d_resp.text:
                         confirmed_engine = d_engine

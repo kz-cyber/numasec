@@ -281,9 +281,7 @@ class LfiTester:
         # Establish a control response for a file that should not exist
         base_url = url.rstrip("/")
         try:
-            control_resp = await client.get(
-                f"{base_url}/nonexistent_secmcp_probe_4f8a.md"
-            )
+            control_resp = await client.get(f"{base_url}/nonexistent_secmcp_probe_4f8a.md")
             control_status = control_resp.status_code
             control_len = len(control_resp.text)
         except httpx.HTTPError:
@@ -309,10 +307,7 @@ class LfiTester:
                     continue
 
                 # If control returned the same status & similar size → error page
-                if (
-                    control_status == test_resp.status_code
-                    and abs(control_len - len(test_resp.text)) < 50
-                ):
+                if control_status == test_resp.status_code and abs(control_len - len(test_resp.text)) < 50:
                     continue
 
                 logger.info(

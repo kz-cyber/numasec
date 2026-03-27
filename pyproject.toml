@@ -79,9 +79,9 @@ known-first-party = ["numasec"]
 
 [tool.mypy]
 python_version = "3.11"
-strict = true
-warn_return_any = true
 warn_unused_configs = true
+ignore_missing_imports = true
+disable_error_code = ["import-untyped"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

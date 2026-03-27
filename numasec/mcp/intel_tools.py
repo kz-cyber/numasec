@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 # ---- CWE lookup — delegates to the canonical CWE_DATABASE (87+ entries) ----
 
+
 def _lookup_cwe(cwe_id: str) -> dict[str, Any] | None:
     """Look up CWE info by ID, enriching with OWASP category.
 
@@ -351,7 +352,7 @@ async def _get_scan_plan(target: str, scope: str = "quick") -> str:
             "sqli_test on EVERY discovered endpoint (content_type='json' for JSON APIs, 'form' for HTML forms).",
             "sqli_test on the login endpoint specifically -- auth bypass SQLi (' OR 1=1--) must be tested explicitly.",
             "nosql_test on ALL endpoints accepting a JSON body -- test every discovered JSON endpoint:",
-            "  nosql_test on the login endpoint -- auth bypass via {\"email\":{\"$ne\":\"\"},\"password\":{\"$ne\":\"\"}}",
+            '  nosql_test on the login endpoint -- auth bypass via {"email":{"$ne":""},"password":{"$ne":""}}',
             "  nosql_test on search/filter endpoints -- query parameter injection",
             "  nosql_test on review/comment endpoints -- data injection",
             "  nosql_test on user/profile endpoints -- user data injection",
@@ -440,22 +441,22 @@ async def _get_scan_plan(target: str, scope: str = "quick") -> str:
             "These tests check for flaws that automated scanners typically miss:",
             "",
             "--- Price Manipulation ---",
-            "PUT on product/item update endpoints with {\"price\": -1} -- negative price",
-            "PUT on product/item update endpoints with {\"price\": 0} -- zero price",
-            "PUT on product/item update endpoints with {\"price\": 0.001} -- extremely low price",
+            'PUT on product/item update endpoints with {"price": -1} -- negative price',
+            'PUT on product/item update endpoints with {"price": 0} -- zero price',
+            'PUT on product/item update endpoints with {"price": 0.001} -- extremely low price',
             "",
             "--- Quantity Manipulation ---",
-            "PUT on cart/basket item endpoints with {\"quantity\": -1} -- negative quantity for credit",
-            "PUT on cart/basket item endpoints with {\"quantity\": 0} -- zero quantity",
-            "PUT on cart/basket item endpoints with {\"quantity\": 99999} -- excessive quantity",
+            'PUT on cart/basket item endpoints with {"quantity": -1} -- negative quantity for credit',
+            'PUT on cart/basket item endpoints with {"quantity": 0} -- zero quantity',
+            'PUT on cart/basket item endpoints with {"quantity": 99999} -- excessive quantity',
             "",
             "--- Workflow Bypass ---",
             "Test password change without current password (GET and POST variants)",
             "Test form submissions without CAPTCHA field or with invalid CAPTCHA values",
             "",
             "--- Role Escalation ---",
-            "PUT on user update endpoints with {\"role\": \"admin\"} -- direct role escalation",
-            "POST on user registration with {\"role\": \"admin\"} -- admin at signup",
+            'PUT on user update endpoints with {"role": "admin"} -- direct role escalation',
+            'POST on user registration with {"role": "admin"} -- admin at signup',
             "",
             "--- Forged Actions ---",
             "POST feedback/review endpoints with arbitrary user IDs -- post as another user",
@@ -478,7 +479,7 @@ async def _get_scan_plan(target: str, scope: str = "quick") -> str:
         "tips": [
             "Always use browser_navigate for SPAs before testing -- httpx won't render JS routes.",
             "When sqli_test reports 'auth_bypass': decode the JWT immediately and run post_auth_checklist.",
-            "Pass headers='{\"Authorization\": \"Bearer <token>\"}' to idor_test for authenticated IDOR checks.",
+            'Pass headers=\'{"Authorization": "Bearer <token>"}\' to idor_test for authenticated IDOR checks.',
             "If crawl_site returns few results on a known-complex app, switch to browser_crawl_site.",
             "Check response sizes: a 200 OK with tiny body may be an error page, not real data.",
             "nosql_test false positive filter: only flag if the injected response is DIFFERENT from the baseline -- do not flag if all responses return 'success'.",
@@ -878,7 +879,7 @@ async def _get_auth_retest_plan(target: str, token: str, token_type: str = "bear
         },
     ]
 
-    total_tasks = sum(len(t["tasks"]) for t in tiers)
+    total_tasks = sum(len(t["tasks"]) for t in tiers)  # type: ignore[arg-type, misc]
 
     return json.dumps(
         {
@@ -908,7 +909,13 @@ _CHAIN_RULES: list[dict[str, Any]] = [
             "for DBMS-specific payloads. Extract credentials via UNION SELECT, then relay_credentials "
             "and run auth_test + access_control_test with extracted token."
         ),
-        "next_tools": ["kb_search (DBMS-specific exploitation)", "http_request (UNION extraction)", "relay_credentials", "auth_test", "access_control_test"],
+        "next_tools": [
+            "kb_search (DBMS-specific exploitation)",
+            "http_request (UNION extraction)",
+            "relay_credentials",
+            "auth_test",
+            "access_control_test",
+        ],
         "priority": "P1",
     },
     {
@@ -975,7 +982,11 @@ _CHAIN_RULES: list[dict[str, Any]] = [
             "Use kb_search('command injection escalation') for bypass techniques and reverse shell payloads. "
             "Establish a reverse shell, then use kb_search('linux privilege escalation') for privesc."
         ),
-        "next_tools": ["kb_search (command injection)", "http_request (shell payload)", "kb_search (post-exploitation)"],
+        "next_tools": [
+            "kb_search (command injection)",
+            "http_request (shell payload)",
+            "kb_search (post-exploitation)",
+        ],
         "priority": "P1",
     },
     {
@@ -986,7 +997,12 @@ _CHAIN_RULES: list[dict[str, Any]] = [
             "Use kb_search('XSS session theft') for cookie exfiltration payloads. "
             "Inject session-stealing payload, then use stolen session for access_control_test."
         ),
-        "next_tools": ["kb_search (XSS exploitation)", "xss_test (session stealer)", "relay_credentials", "access_control_test"],
+        "next_tools": [
+            "kb_search (XSS exploitation)",
+            "xss_test (session stealer)",
+            "relay_credentials",
+            "access_control_test",
+        ],
         "priority": "P2",
     },
     {
@@ -1087,11 +1103,14 @@ async def _get_chain_opportunities(session_id: str) -> str:
         return json.dumps({"error": f"Session not found: {session_id}", "hint": "Call create_session first"}, indent=2)
 
     if not findings:
-        return json.dumps({
-            "session_id": session_id,
-            "opportunities": [],
-            "message": "No findings yet. Run vulnerability scanners first.",
-        }, indent=2)
+        return json.dumps(
+            {
+                "session_id": session_id,
+                "opportunities": [],
+                "message": "No findings yet. Run vulnerability scanners first.",
+            },
+            indent=2,
+        )
 
     opportunities: list[dict[str, Any]] = []
 
@@ -1114,15 +1133,17 @@ async def _get_chain_opportunities(session_id: str) -> str:
                 if conf < threshold:
                     continue
 
-            opportunities.append({
-                "chain_type": rule["finding_type"],
-                "trigger_finding": finding.title,
-                "trigger_finding_id": finding.id,
-                "trigger_confidence": conf,
-                "priority": rule["priority"],
-                "recommendation": rule["recommendation"],
-                "next_tools": rule["next_tools"],
-            })
+            opportunities.append(
+                {
+                    "chain_type": rule["finding_type"],
+                    "trigger_finding": finding.title,
+                    "trigger_finding_id": finding.id,
+                    "trigger_confidence": conf,
+                    "priority": rule["priority"],
+                    "recommendation": rule["recommendation"],
+                    "next_tools": rule["next_tools"],
+                }
+            )
             break  # One match per rule is enough
 
     # Sort by priority (P1 first)
@@ -1135,8 +1156,7 @@ async def _get_chain_opportunities(session_id: str) -> str:
             "opportunities_found": len(opportunities),
             "opportunities": opportunities,
             "message": (
-                f"Found {len(opportunities)} chain escalation opportunities. "
-                "Execute them in priority order (P1 first)."
+                f"Found {len(opportunities)} chain escalation opportunities. Execute them in priority order (P1 first)."
                 if opportunities
                 else "No chain opportunities found from current findings."
             ),

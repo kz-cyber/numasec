@@ -261,17 +261,19 @@ def register_prompts(mcp: Any) -> None:
         for i, phase in enumerate(phases, 1):
             sections.append(f"**Phase {i} -- {phase}**: {phase_details.get(phase, '')}")
 
-        sections.extend([
-            "",
-            "## Principles",
-            "",
-            "- All tools accept `headers` for authenticated testing -- pass auth tokens to every scanner",
-            "- OWASP Top 10 coverage mandatory -- `plan(action='coverage_gaps')` before reporting",
-            "- Adapt to target -- skip irrelevant tests, add relevant ones based on tech stack",
-            "- Findings auto-enrich with CWE, CVSS v3.1, OWASP category, ATT&CK technique",
-            "- Chain findings: SQLi->RCE, SSRF->cloud metadata, XXE->file read, LFI->log poisoning, SSTI->RCE",
-            "- Business logic: `kb_search(query='business logic')` for methodology -> `http_request` on discovered endpoints",
-        ])
+        sections.extend(
+            [
+                "",
+                "## Principles",
+                "",
+                "- All tools accept `headers` for authenticated testing -- pass auth tokens to every scanner",
+                "- OWASP Top 10 coverage mandatory -- `plan(action='coverage_gaps')` before reporting",
+                "- Adapt to target -- skip irrelevant tests, add relevant ones based on tech stack",
+                "- Findings auto-enrich with CWE, CVSS v3.1, OWASP category, ATT&CK technique",
+                "- Chain findings: SQLi->RCE, SSRF->cloud metadata, XXE->file read, LFI->log poisoning, SSTI->RCE",
+                "- Business logic: `kb_search(query='business logic')` for methodology -> `http_request` on discovered endpoints",
+            ]
+        )
 
         if notes:
             sections.extend(["", "## Notes", "", notes])

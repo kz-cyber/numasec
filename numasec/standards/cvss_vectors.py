@@ -227,14 +227,14 @@ CWE_VECTOR_MAP: dict[str, CVSSv31Vector] = {
     # CWE-1035 Using Components with Known Vulnerabilities → 7.5 (conservative)
     "CWE-1035": CVSSv31Vector(AV="N", AC="L", PR="N", UI="N", S="U", C="H", I="N", A="N"),
     # Additional vectors for expanded scanner coverage
-    "CWE-434": CVSSv31Vector(AV="N", AC="L", PR="N", UI="N", S="U", C="H", I="H", A="N"),   # File upload -> RCE
+    "CWE-434": CVSSv31Vector(AV="N", AC="L", PR="N", UI="N", S="U", C="H", I="H", A="N"),  # File upload -> RCE
     "CWE-1321": CVSSv31Vector(AV="N", AC="L", PR="N", UI="N", S="U", C="L", I="H", A="N"),  # Prototype pollution
     "CWE-1385": CVSSv31Vector(AV="N", AC="L", PR="N", UI="R", S="U", C="H", I="H", A="N"),  # WebSocket hijacking
-    "CWE-444": CVSSv31Vector(AV="N", AC="H", PR="N", UI="N", S="C", C="H", I="H", A="N"),   # HTTP smuggling
+    "CWE-444": CVSSv31Vector(AV="N", AC="H", PR="N", UI="N", S="C", C="H", I="H", A="N"),  # HTTP smuggling
     "CWE-1022": CVSSv31Vector(AV="N", AC="L", PR="N", UI="R", S="U", C="N", I="L", A="N"),  # Tabnabbing
-    "CWE-770": CVSSv31Vector(AV="N", AC="L", PR="N", UI="N", S="U", C="N", I="N", A="H"),   # Resource exhaustion
-    "CWE-400": CVSSv31Vector(AV="N", AC="L", PR="N", UI="N", S="U", C="N", I="N", A="H"),   # Resource consumption
-    "CWE-943": CVSSv31Vector(AV="N", AC="L", PR="N", UI="N", S="U", C="H", I="H", A="N"),   # NoSQL injection
+    "CWE-770": CVSSv31Vector(AV="N", AC="L", PR="N", UI="N", S="U", C="N", I="N", A="H"),  # Resource exhaustion
+    "CWE-400": CVSSv31Vector(AV="N", AC="L", PR="N", UI="N", S="U", C="N", I="N", A="H"),  # Resource consumption
+    "CWE-943": CVSSv31Vector(AV="N", AC="L", PR="N", UI="N", S="U", C="H", I="H", A="N"),  # NoSQL injection
 }
 
 
