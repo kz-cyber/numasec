@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "numasec"
-version = "1.0.0"
+version = "4.0.0"
 description = "AI-powered penetration testing via MCP — 21 security tools, PTES methodology, multi-provider"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Topic :: Security",
     "Programming Language :: Python :: 3.11",

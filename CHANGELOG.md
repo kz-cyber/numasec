@@ -2,6 +2,43 @@
 
 ---
 
+## [4.0.0] - 2026-03-27 — Agent Terminal + MCP Server
+
+Major release. numasec is now a full pentesting terminal (forked from the opencode agent, MIT)
+in addition to the original MCP server. Two ways to use it:
+
+- **Terminal** — an interactive AI pentesting session with hacker-green TUI, findings panel,
+  OWASP coverage bar, and session persistence
+- **MCP server** — 21 security tools exposed to any MCP-compatible host (GitHub Copilot,
+  Claude Desktop, Cursor)
+
+### Agent terminal
+
+- Interactive terminal UI with hacker-green palette and OWASP coverage bar
+- Live findings panel (severity counts + CWE roll-up) updated in real time
+- Python MCP bridge: TypeScript agent spawns and communicates with the Python scanner layer
+- Slash commands: `/target`, `/findings`, `/report`, `/coverage`, `/creds`, `/evidence`
+- 5 security skill files (PTES, OWASP Top 10, injection, auth, API security)
+- Scope enforcement: out-of-scope requests are blocked before execution
+- `plan_exit` flow: after recon, the AI asks whether to escalate to exploitation
+- Credential relay: discovered credentials feed into subsequent authenticated tests
+- `install.sh` — one-line installer (Bun + uv + Python env setup)
+
+### MCP server changes
+
+- Consolidated from 47 atomic tools to 21 composite tools — less noise, better LLM guidance
+- `run_scanner_batch` for parallel multi-scanner execution
+- `oob` tool for out-of-band detection (DNS/HTTP callback)
+- Knowledge base expanded to 34 templates (post-exploitation, protocol attacks, reverse shells)
+- Auto-enrichment pipeline: CWE → CVSS 3.1 → OWASP → MITRE ATT&CK on every finding
+
+### Tests
+
+- 924 tests passing (22 skipped, platform-specific)
+- Bridge integration tests for Python ↔ TypeScript tool contract
+
+---
+
 ## [1.0.0] - 2026-03-19 — Initial Internal Release
 
 MCP-only security testing server. 47 tools for Host LLMs (Claude Code, GitHub Copilot, Claude Desktop, Cursor).

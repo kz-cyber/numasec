@@ -20,8 +20,8 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install ruff
-      - run: ruff check src/
-      - run: ruff format --check src/
+      - run: ruff check numasec/
+      - run: ruff format --check numasec/
 
   python-typecheck:
     name: Python Type Check
@@ -32,7 +32,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e ".[all]"
-      - run: mypy src/
+      - run: mypy numasec/
 
   python-test:
     name: Python Tests
@@ -47,7 +47,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[all]"
       - run: pytest tests/ -v -m "not slow and not benchmark" --tb=short
-      - run: pytest --cov=src tests/ -m "not slow and not benchmark" --cov-report=term-missing
+      - run: pytest --cov=numasec tests/ -m "not slow and not benchmark" --cov-report=term-missing
         if: matrix.python-version == '3.11'
 
   ts-typecheck:
@@ -91,7 +91,7 @@ jobs:
       - run: |
           # Verify the Python MCP server starts and exposes tools
           python -c "
-          from security_mcp.mcp.server import create_mcp_server
+          from numasec.mcp.server import create_mcp_server
           mcp = create_mcp_server()
           print('MCP server created successfully')
           "
