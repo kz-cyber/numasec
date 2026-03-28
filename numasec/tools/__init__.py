@@ -572,6 +572,44 @@ def create_default_tool_registry() -> ToolRegistry:
             },
         )
 
+    # ------------------------------------------------------------------
+    # security_shell — unified external tool runner
+    # ------------------------------------------------------------------
+    from numasec.tools.security_shell import security_shell
+
+    registry.register(
+        "security_shell",
+        security_shell,
+        {
+            "name": "security_shell",
+            "description": (
+                "Run external security tools with structured output parsing. "
+                "Auto-detects installed tools (nmap, ffuf, subfinder, nuclei, sqlmap, gobuster, nikto, httpx)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tool": {
+                        "type": "string",
+                        "description": "Tool name: nmap, ffuf, subfinder, nuclei, sqlmap, gobuster, nikto, httpx",
+                    },
+                    "target": {"type": "string", "description": "Target URL or hostname"},
+                    "options": {
+                        "type": "string",
+                        "description": "Additional CLI options as string",
+                        "default": "",
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "description": "Command timeout in seconds",
+                        "default": 120,
+                    },
+                },
+                "required": ["tool", "target"],
+            },
+        },
+    )
+
     logger.info(
         "Tool registry created: %d tools (%d available for MCP)",
         len(registry._tools),
