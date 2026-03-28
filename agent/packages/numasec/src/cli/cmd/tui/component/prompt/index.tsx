@@ -58,7 +58,7 @@ export type PromptRef = {
 }
 
 const PLACEHOLDERS = ["Scan http://localhost:3000 for vulnerabilities", "Find SQL injection in the login endpoint", "Run a full pentest and generate a report"]
-const SHELL_PLACEHOLDERS = ["ls -la", "git status", "pwd"]
+const SHELL_PLACEHOLDERS = ["nmap -sV target.com", "curl -I https://app.example.com", "dig +short example.com"]
 
 export function Prompt(props: PromptProps) {
   let input: TextareaRenderable
