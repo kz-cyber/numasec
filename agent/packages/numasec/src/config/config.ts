@@ -235,6 +235,7 @@ export namespace Config {
       absolute: true,
       dot: true,
       symlink: true,
+      ignore: ["**/node_modules/**"],
     })) {
       const md = await ConfigMarkdown.parse(item).catch(async (err) => {
         const message = ConfigMarkdown.FrontmatterError.isInstance(err)

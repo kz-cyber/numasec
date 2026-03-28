@@ -434,7 +434,6 @@
         "typescript": "catalog:",
       },
     },
-
     "packages/script": {
       "name": "@numasec/script",
       "dependencies": {
@@ -456,7 +455,6 @@
         "typescript": "catalog:",
       },
     },
-
     "packages/slack": {
       "name": "@numasec/slack",
       "version": "1.3.3",
@@ -1447,9 +1445,7 @@
 
     "@openauthjs/openauth": ["@openauthjs/openauth@0.0.0-20250322224806", "", { "dependencies": { "@standard-schema/spec": "1.0.0-beta.3", "aws4fetch": "1.0.20", "jose": "5.9.6" }, "peerDependencies": { "arctic": "^2.2.2", "hono": "^4.0.0" } }, "sha512-p5IWSRXvABcwocH2dNI0w8c1QJelIOFulwhKk+aLLFfUbs8u1pr7kQbYe8yCSM2+bcLHiwbogpUQc2ovrGwCuw=="],
 
-    "@opencode-ai/plugin": ["@opencode-ai/plugin@workspace:packages/plugin"],
-
-    "@opencode-ai/sdk": ["@opencode-ai/sdk@workspace:packages/sdk/js"],
+    "@opencode-ai/plugin": ["@numasec/plugin@workspace:packages/plugin"],
 
     "@openrouter/ai-sdk-provider": ["@openrouter/ai-sdk-provider@1.5.4", "", { "dependencies": { "@openrouter/sdk": "^0.1.27" }, "peerDependencies": { "ai": "^5.0.0", "zod": "^3.24.1 || ^v4" } }, "sha512-xrSQPUIH8n9zuyYZR0XK7Ba0h2KsjJcMkxnwaYfmv13pKs3sDkjPzVPPhlhzqBGddHb5cFEwJ9VFuFeDcxCDSw=="],
 

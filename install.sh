@@ -1,11 +1,26 @@
 #!/usr/bin/env bash
 # numasec installer
 # Usage: curl -fsSL https://numasec.dev/install | bash
+# Local:  bash install.sh --local
 set -euo pipefail
 
-REPO="numasec/numasec"
+REPO="FrancescoStabile/numasec"
 INSTALL_DIR="${NUMASEC_INSTALL_DIR:-$HOME/.numasec}"
 BIN_DIR="${NUMASEC_BIN_DIR:-$HOME/.local/bin}"
+
+# If --local is passed (or script is run from inside the repo), skip cloning
+LOCAL_INSTALL=false
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo '')"
+for arg in "$@"; do
+  [[ "$arg" == "--local" ]] && LOCAL_INSTALL=true
+done
+# Auto-detect: if this script lives in a repo that already has the agent/ dir
+if [[ -z "${LOCAL_INSTALL+x}" ]] || $LOCAL_INSTALL || [[ -d "$SCRIPT_DIR/agent" ]]; then
+  if [[ -d "$SCRIPT_DIR/agent" ]]; then
+    LOCAL_INSTALL=true
+    LOCAL_SRC="$SCRIPT_DIR"
+  fi
+fi
 
 # Colors
 RED='\033[0;31m'
@@ -106,7 +121,16 @@ setup_python() {
 install_numasec() {
   info "Installing numasec to $INSTALL_DIR..."
 
-  if [[ -d "$INSTALL_DIR/.git" ]]; then
+  if $LOCAL_INSTALL && [[ -n "${LOCAL_SRC:-}" ]]; then
+    info "Local install mode: using $LOCAL_SRC"
+    if [[ "$(realpath "$LOCAL_SRC")" != "$(realpath "$INSTALL_DIR" 2>/dev/null || echo '')" ]]; then
+      rm -rf "$INSTALL_DIR"
+      ln -sfn "$(realpath "$LOCAL_SRC")" "$INSTALL_DIR"
+      info "Symlinked $LOCAL_SRC → $INSTALL_DIR"
+    else
+      info "Already at install dir, skipping symlink"
+    fi
+  elif [[ -d "$INSTALL_DIR/.git" ]]; then
     info "Updating existing installation..."
     cd "$INSTALL_DIR"
     git pull --ff-only 2>/dev/null || warn "Could not auto-update, continuing with existing version"
@@ -138,7 +162,8 @@ create_launcher() {
 set -euo pipefail
 NUMASEC_DIR="${NUMASEC_INSTALL_DIR:-$HOME/.numasec}"
 export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"
-exec bun run "$NUMASEC_DIR/agent/packages/numasec/src/index.ts" "$@"
+cd "$NUMASEC_DIR/agent/packages/numasec"
+exec bun run ./src/index.ts "$@"
 LAUNCHER
 
   chmod +x "$BIN_DIR/numasec"
