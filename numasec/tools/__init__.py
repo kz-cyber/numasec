@@ -714,6 +714,81 @@ def create_default_tool_registry() -> ToolRegistry:
         },
     )
 
+    # ------------------------------------------------------------------
+    # poc_validate — PoC validation of existing findings
+    # ------------------------------------------------------------------
+    from numasec.scanners.poc_validator import python_poc_validate
+
+    registry.register(
+        "poc_validate",
+        python_poc_validate,
+        {
+            "name": "poc_validate",
+            "description": (
+                "Validate existing security findings by re-testing with targeted exploit payloads. "
+                "Takes confirmed findings and attempts to reproduce the vulnerability, returning "
+                "validation status and confidence score per finding."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "findings": {
+                        "type": "string",
+                        "description": (
+                            "JSON array of finding dicts. Each should have: "
+                            "url, parameter, payload, cwe_id (e.g. CWE-89)."
+                        ),
+                    },
+                    "url": {
+                        "type": "string",
+                        "description": "Override URL applied to findings missing a url.",
+                        "default": "",
+                    },
+                    "timeout": {
+                        "type": "number",
+                        "description": "HTTP request timeout in seconds.",
+                        "default": 15.0,
+                    },
+                    "headers": {
+                        "type": "string",
+                        "description": "JSON string of extra HTTP headers.",
+                        "default": "{}",
+                    },
+                },
+                "required": ["findings"],
+            },
+        },
+    )
+
+    # ------------------------------------------------------------------
+    # burp_bridge — Burp Suite XML import/export
+    # ------------------------------------------------------------------
+    from numasec.tools.burp_bridge import python_burp_bridge
+
+    registry.register(
+        "burp_bridge",
+        python_burp_bridge,
+        {
+            "name": "burp_bridge",
+            "description": "Import/export Burp Suite XML findings and sitemaps",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["import_issues", "export_findings", "import_sitemap"],
+                    },
+                    "data": {"type": "string", "description": "XML content for import actions"},
+                    "findings": {
+                        "type": "string",
+                        "description": "JSON findings array for export action",
+                    },
+                },
+                "required": ["action"],
+            },
+        },
+    )
+
     logger.info(
         "Tool registry created: %d tools (%d available for MCP)",
         len(registry._tools),
