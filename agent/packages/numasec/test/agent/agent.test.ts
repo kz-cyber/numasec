@@ -705,13 +705,16 @@ test("defaultAgent throws when all primary agents are disabled", async () => {
       agent: {
         pentest: { disable: true },
         recon: { disable: true },
+        hunt: { disable: true },
+        review: { disable: true },
+        report: { disable: true },
       },
     },
   })
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
-      // pentest and recon are disabled, no primary visible agents remain
+      // all primary visible agents are disabled
       await expect(Agent.defaultAgent()).rejects.toThrow("no primary visible agent found")
     },
   })
