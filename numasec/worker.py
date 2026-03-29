@@ -302,6 +302,16 @@ async def _handle_generate_report(params: dict) -> Any:
     except KeyError:
         return json.dumps({"error": f"Session not found: {session_id}"}, indent=2)
 
+    # Auto-build attack chains before report generation
+    chains: dict[str, list[str]] = {}
+    try:
+        chains = await store.build_chains(session_id)
+        # Re-fetch findings with updated chain_ids
+        if chains:
+            findings = await store.get_findings(session_id)
+    except Exception as exc:
+        logger.warning("Auto build_chains failed: %s", exc)
+
     meta = await store.get_session(session_id)
     target = meta.get("target", "") if meta else ""
 
@@ -323,7 +333,9 @@ async def _handle_generate_report(params: dict) -> Any:
 
         report = generate_sarif_report(findings)
         return json.dumps(
-            {"format": "sarif", "findings_count": len(findings), "content": report}, indent=2, default=str
+            {"format": "sarif", "findings_count": len(findings), "chains": chains, "content": report},
+            indent=2,
+            default=str,
         )
 
     if fmt in ("markdown", "html"):
@@ -331,7 +343,9 @@ async def _handle_generate_report(params: dict) -> Any:
 
         md_report = generate_markdown_report(findings, target=target, tools_used=tools_used)
         return json.dumps(
-            {"format": "markdown", "findings_count": len(findings), "content": md_report}, indent=2, default=str
+            {"format": "markdown", "findings_count": len(findings), "chains": chains, "content": md_report},
+            indent=2,
+            default=str,
         )
 
     # Default: json
@@ -343,6 +357,7 @@ async def _handle_generate_report(params: dict) -> Any:
             "findings_count": len(findings),
             "session_id": session_id,
             "target": target,
+            "chains": chains,
             "executive_summary": build_executive_summary(findings, target=target, tools_used=tools_used),
             "findings": [
                 {
@@ -353,6 +368,7 @@ async def _handle_generate_report(params: dict) -> Any:
                     "cwe_id": f.cwe_id,
                     "evidence": f.evidence,
                     "description": f.description,
+                    "chain_id": getattr(f, "chain_id", ""),
                 }
                 for f in findings
             ],

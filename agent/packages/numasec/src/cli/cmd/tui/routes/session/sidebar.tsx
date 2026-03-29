@@ -135,7 +135,7 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
     return c.critical + c.high + c.medium + c.low + c.info
   })
 
-  // Derive attack chains from save_finding, build_chains, and get_findings tool results
+  // Derive attack chains from save_finding, build_chains, get_findings, and generate_report tool results
   const attackChains = createMemo(() => {
     const chains: Record<string, { titles: string[]; severity: string }> = {}
     const sevOrder = ["critical", "high", "medium", "low", "info"]
@@ -162,16 +162,37 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
           continue
         }
 
-        // Source 2: build_chains tool output
-        if (part.tool.includes("build_chains")) {
+        // Source 2: build_chains tool output OR generate_report with chains
+        if (part.tool.includes("build_chains") || part.tool.includes("generate_report")) {
           try {
             const data = JSON.parse(out)
+
+            // Extract chain_ids and titles from findings list (generate_report includes both)
+            const reportFindings = data.findings
+            if (Array.isArray(reportFindings)) {
+              for (const f of reportFindings) {
+                const chainId = f.chain_id
+                if (!chainId) continue
+                if (!chains[chainId]) chains[chainId] = { titles: [], severity: "info" }
+                const title = f.title || "Finding"
+                if (!chains[chainId].titles.includes(title)) chains[chainId].titles.push(title)
+                const sev = (f.severity || "").toLowerCase()
+                if (sevOrder.indexOf(sev) < sevOrder.indexOf(chains[chainId].severity)) {
+                  chains[chainId].severity = sev
+                }
+              }
+            }
+
+            // Fallback: build_chains returns {chains: {id: [findingIds]}} — use IDs only if no titles found
             const builtChains = data.chains
             if (builtChains && typeof builtChains === "object") {
               for (const [cid, fids] of Object.entries(builtChains)) {
                 if (!chains[cid]) chains[cid] = { titles: [], severity: "info" }
-                for (const fid of fids as string[]) {
-                  if (!chains[cid].titles.includes(fid)) chains[cid].titles.push(fid)
+                // Only add IDs if we don't already have titled findings for this chain
+                if (chains[cid].titles.length === 0) {
+                  for (const fid of fids as string[]) {
+                    if (!chains[cid].titles.includes(fid)) chains[cid].titles.push(fid)
+                  }
                 }
               }
             }
