@@ -652,7 +652,7 @@ _VULN_TYPE_MAP: dict[str, tuple[str, str, str]] = {
 }
 
 
-async def _auto_save_findings(result: Any, tool_name: str) -> list[dict]:
+async def _auto_save_findings(result: Any, tool_name: str, session_id: str) -> list[dict]:
     """Extract vulnerabilities from scanner results and auto-persist them.
 
     Returns list of saved finding summaries (for embedding in response).
@@ -680,7 +680,7 @@ async def _auto_save_findings(result: Any, tool_name: str) -> list[dict]:
         title = title_tpl.format(param=param or "endpoint", type=vtype)
 
         params: dict[str, Any] = {
-            "session_id": _active_session_id or "",
+            "session_id": session_id,
             "title": title,
             "severity": severity,
             "url": target_url,
@@ -713,7 +713,7 @@ async def _auto_save_findings(result: Any, tool_name: str) -> list[dict]:
     return saved
 
 
-# Track active session for auto-save
+# Track active session for auto-save (fallback for calls without explicit session_id)
 _active_session_id: str = ""
 
 
@@ -743,16 +743,17 @@ async def dispatch(method: str, params: dict) -> Any:
 
     normalised = _normalise_params(method, params)
 
-    # Also track session_id if passed to any tool
-    if "session_id" in normalised and normalised["session_id"]:
-        _active_session_id = normalised["session_id"]
+    # Resolve session_id for this specific call (not relying on global alone)
+    call_session_id = normalised.get("session_id", "") or params.get("session_id", "") or _active_session_id
+    if call_session_id:
+        _active_session_id = call_session_id
 
     result = await reg.call(method, **normalised)
 
     # Auto-save findings from scanner tools
-    if method in _SCANNER_TOOLS and _active_session_id:
+    if method in _SCANNER_TOOLS and call_session_id:
         try:
-            saved = await _auto_save_findings(result, method)
+            saved = await _auto_save_findings(result, method, call_session_id)
             if saved and isinstance(result, dict):
                 result["findings_auto_saved"] = saved
                 result["findings_auto_saved_count"] = len(saved)
