@@ -104,6 +104,17 @@ class YAMLScanner:
             "status_code": resp.status_code,
         }
 
+    # Maximum input length for regex matching (ReDoS protection)
+    _MAX_REGEX_INPUT = 100_000
+
+    def _safe_regex(self, pattern: str, text: str) -> re.Match[str] | None:
+        """Run re.search with error handling and input length cap."""
+        try:
+            return re.search(pattern, text[: self._MAX_REGEX_INPUT])
+        except re.error as exc:
+            logger.warning("Invalid regex '%s' in template %s: %s", pattern, self.id, exc)
+            return None
+
     def _evaluate_matcher(
         self,
         matcher: dict[str, Any],
@@ -126,7 +137,7 @@ class YAMLScanner:
             header = matcher.get("header", "")
             pattern = matcher.get("pattern", "")
             value = resp.headers.get(header, "")
-            if value and re.search(pattern, value):
+            if value and self._safe_regex(pattern, value):
                 return {
                     "type": "header_value",
                     "severity": self.severity,
@@ -137,7 +148,7 @@ class YAMLScanner:
 
         elif match_type == "body_regex":
             pattern = matcher.get("pattern", "")
-            match = re.search(pattern, resp.text)
+            match = self._safe_regex(pattern, resp.text)
             if match:
                 return {
                     "type": "body_regex",

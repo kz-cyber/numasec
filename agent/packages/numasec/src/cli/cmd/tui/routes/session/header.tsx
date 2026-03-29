@@ -98,6 +98,21 @@ export function Header() {
   const owaspCategories = [
     "A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10",
   ] as const
+
+  // Maps scanner tool names to OWASP categories they cover (mirrors numasec/core/coverage.py)
+  const toolToOwasp: Record<string, string[]> = {
+    access_control_test: ["A01"],
+    auth_test: ["A01", "A02", "A07"],
+    injection_test: ["A03", "A04"],
+    xss_test: ["A03"],
+    ssrf_test: ["A10"],
+    path_test: ["A03", "A10"],
+    recon: ["A05", "A06"],
+    crawl: ["A05"],
+    js_analyze: ["A05"],
+    dir_fuzz: ["A05"],
+  }
+
   const coverageInfo = createMemo(() => {
     const tested = new Set<string>()
     const vulnerable = new Set<string>()
@@ -132,7 +147,6 @@ export function Header() {
         if (part.tool.includes("plan")) {
           const matches = out.match(categoryRe)
           if (matches) matches.forEach((m) => tested.add(m))
-          // Mark categories that appear in "covered" context as tested
           try {
             const data = JSON.parse(out)
             const coveredList = data?.coverage?.covered_categories
@@ -141,7 +155,15 @@ export function Header() {
           continue
         }
 
-        // Source 4: auto-saved findings in scanner outputs
+        // Source 4: Any completed scanner tool marks its OWASP categories as tested
+        const toolName = part.tool.split("/").pop() ?? ""
+        for (const [key, cats] of Object.entries(toolToOwasp)) {
+          if (toolName.includes(key)) {
+            cats.forEach((c) => tested.add(c))
+          }
+        }
+
+        // Source 5: auto-saved findings in scanner outputs (these are vulnerabilities)
         try {
           const data = JSON.parse(out)
           const autoSaved = data.findings_auto_saved

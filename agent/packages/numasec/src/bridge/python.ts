@@ -7,7 +7,7 @@ import { ensurePythonEnv } from "./setup"
 const log = Log.create({ service: "python-bridge" })
 
 const HEALTH_INTERVAL_MS = 30_000
-const HEALTH_TIMEOUT_MS = 5_000
+const HEALTH_TIMEOUT_MS = 15_000
 const MAX_RESTARTS = 3
 const RESTART_WINDOW_MS = 60_000
 const RESTART_DELAY_MS = 1_000
@@ -304,7 +304,6 @@ export class PythonBridge {
     })
 
     setTimeout(async () => {
-      this.restarting = false
       this.startPromise = null
       try {
         await this.start()
@@ -314,6 +313,8 @@ export class PythonBridge {
         if (!this.degraded) {
           this.scheduleRestart()
         }
+      } finally {
+        this.restarting = false
       }
     }, RESTART_DELAY_MS)
   }

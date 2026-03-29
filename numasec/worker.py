@@ -762,14 +762,47 @@ async def dispatch(method: str, params: dict) -> Any:
     return result
 
 
+# Concurrency primitives
+_write_lock = asyncio.Lock()
+_semaphore = asyncio.Semaphore(5)
+
+
+async def _write_json_async(obj: dict) -> None:
+    """Write a JSON object to stdout, serialised with a lock."""
+    async with _write_lock:
+        sys.stdout.write(json.dumps(obj, default=str) + "\n")
+        sys.stdout.flush()
+
+
 def _write_json(obj: dict) -> None:
-    """Write a JSON object to stdout as a single line."""
+    """Write a JSON object to stdout as a single line (sync, for startup only)."""
     sys.stdout.write(json.dumps(obj, default=str) + "\n")
     sys.stdout.flush()
 
 
+async def _handle_request(req_id: str | None, method: str, params: dict) -> None:
+    """Dispatch a single request with concurrency control."""
+    async with _semaphore:
+        try:
+            result = await dispatch(method, params)
+            if not isinstance(result, (dict, list, str, int, float, bool, type(None))):
+                result = str(result)
+            await _write_json_async({"id": req_id, "result": result})
+        except Exception as e:
+            logger.error("error dispatching %s: %s", method, traceback.format_exc())
+            await _write_json_async(
+                {
+                    "id": req_id,
+                    "error": {
+                        "message": str(e),
+                        "type": type(e).__name__,
+                    },
+                }
+            )
+
+
 async def main() -> None:
-    """Main worker loop — read JSON-RPC requests, dispatch, respond."""
+    """Main worker loop — read JSON-RPC requests, dispatch concurrently."""
     # Configure logging to stderr so stdout stays clean for JSON-RPC
     logging.basicConfig(
         level=logging.INFO,
@@ -779,7 +812,7 @@ async def main() -> None:
 
     logger.info("numasec worker starting...")
 
-    # Signal readiness
+    # Signal readiness (sync write before any async tasks)
     _write_json({"ready": True})
 
     # Read stdin line by line
@@ -787,6 +820,8 @@ async def main() -> None:
     reader = asyncio.StreamReader()
     protocol = asyncio.StreamReaderProtocol(reader)
     await loop.connect_read_pipe(lambda: protocol, sys.stdin)
+
+    tasks: set[asyncio.Task[None]] = set()
 
     while True:
         line = await reader.readline()
@@ -808,23 +843,14 @@ async def main() -> None:
         method = request.get("method", "")
         params = request.get("params", {})
 
-        try:
-            result = await dispatch(method, params)
-            # Ensure result is JSON-serializable
-            if not isinstance(result, (dict, list, str, int, float, bool, type(None))):
-                result = str(result)
-            _write_json({"id": req_id, "result": result})
-        except Exception as e:
-            logger.error("error dispatching %s: %s", method, traceback.format_exc())
-            _write_json(
-                {
-                    "id": req_id,
-                    "error": {
-                        "message": str(e),
-                        "type": type(e).__name__,
-                    },
-                }
-            )
+        task = asyncio.create_task(_handle_request(req_id, method, params))
+        tasks.add(task)
+        task.add_done_callback(tasks.discard)
+
+    # Wait for in-flight tasks on shutdown
+    if tasks:
+        logger.info("waiting for %d in-flight tasks", len(tasks))
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 if __name__ == "__main__":

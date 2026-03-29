@@ -136,12 +136,10 @@ export function EvidenceBrowser(props: { sessionID: string; findingID?: string }
   const messages = createMemo(() => sync.data.message[props.sessionID] ?? [])
   const allFindings = createMemo(() => extractFindings(messages(), sync.data.part))
 
-  const initial = allFindings().find((f) => f.id === props.findingID)
-
-  // If a specific finding was requested, jump straight to detail view
-  if (props.findingID && initial) {
-    return <EvidenceDetail finding={initial} sessionID={props.sessionID} />
-  }
+  const initial = createMemo(() => {
+    if (!props.findingID) return undefined
+    return allFindings().find((f) => f.id === props.findingID)
+  })
 
   const options = createMemo((): DialogSelectOption<string>[] => {
     return allFindings().map((finding) => ({
@@ -161,22 +159,27 @@ export function EvidenceBrowser(props: { sessionID: string; findingID?: string }
 
   return (
     <Show
-      when={allFindings().length > 0}
-      fallback={
-        <box paddingLeft={2} paddingRight={2} gap={1} paddingBottom={1}>
-          <box flexDirection="row" justifyContent="space-between">
-            <text fg={theme.text} attributes={TextAttributes.BOLD}>
-              Evidence Browser
-            </text>
-            <text fg={theme.textMuted} onMouseUp={() => dialog.clear()}>
-              esc
-            </text>
-          </box>
-          <text fg={theme.textMuted}>No findings yet — use /target to start a scan</text>
-        </box>
-      }
+      when={!initial()}
+      fallback={<EvidenceDetail finding={initial()!} sessionID={props.sessionID} />}
     >
-      <DialogSelect title="Evidence Browser" options={options()} />
+      <Show
+        when={allFindings().length > 0}
+        fallback={
+          <box paddingLeft={2} paddingRight={2} gap={1} paddingBottom={1}>
+            <box flexDirection="row" justifyContent="space-between">
+              <text fg={theme.text} attributes={TextAttributes.BOLD}>
+                Evidence Browser
+              </text>
+              <text fg={theme.textMuted} onMouseUp={() => dialog.clear()}>
+                esc
+              </text>
+            </box>
+            <text fg={theme.textMuted}>No findings yet — use /target to start a scan</text>
+          </box>
+        }
+      >
+        <DialogSelect title="Evidence Browser" options={options()} />
+      </Show>
     </Show>
   )
 }

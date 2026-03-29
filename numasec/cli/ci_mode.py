@@ -246,6 +246,7 @@ async def run_ci_scan(
 
     findings: list[Finding] = []
     start = time.monotonic()
+    scan_complete = True
 
     for step in SCAN_STEPS:
         tool_name: str = step["tool"]
@@ -254,6 +255,7 @@ async def run_ci_scan(
         remaining = timeout - elapsed
         if remaining <= 0:
             logger.warning("Timeout reached, skipping remaining scan steps")
+            scan_complete = False
             break
 
         logger.info("Running %s …", tool_name)
@@ -264,6 +266,7 @@ async def run_ci_scan(
             )
         except TimeoutError:
             logger.warning("Timeout during %s — partial results will be used", tool_name)
+            scan_complete = False
             break
         except Exception:
             logger.exception("Error running %s", tool_name)
@@ -278,6 +281,10 @@ async def run_ci_scan(
     if not output.endswith("\n"):
         sys.stdout.write("\n")
     sys.stdout.flush()
+
+    if not scan_complete:
+        logger.warning("⚠ Scan incomplete due to timeout — results may have false negatives")
+        sys.stderr.write("WARNING: Scan timed out before all checks completed. Results are partial.\n")
 
     above = [f for f in findings if _meets_threshold(f, threshold)]
     if above:

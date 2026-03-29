@@ -69,16 +69,22 @@ def cmd_install(args: argparse.Namespace) -> int:
 
 def _install_from_url(url: str, dest: Path) -> int:
     """Download a YAML template from a URL."""
+    import os
+
     try:
         import httpx
 
-        resp = httpx.get(url, follow_redirects=True, timeout=30)
-        resp.raise_for_status()
+        proxy = os.environ.get("NUMASEC_PROXY")
+        with httpx.Client(proxy=proxy, verify=False, follow_redirects=True, timeout=30) as client:
+            resp = client.get(url)
+            resp.raise_for_status()
     except Exception as exc:
         print(f"Error downloading {url}: {exc}", file=sys.stderr)
         return 2
 
     filename = Path(urlparse(url).path).name
+    if not filename or filename == "/":
+        filename = "template"
     if not filename.endswith((".yaml", ".yml")):
         filename += ".yaml"
 
