@@ -7,7 +7,7 @@ determine which OWASP categories have been tested.
 from __future__ import annotations
 
 # Maps OWASP categories to the tools that can test them.
-# Includes both composite tools (dispatched by worker) and individual scanners.
+# Includes both composite tools (dispatched by tool_bridge) and individual scanners.
 OWASP_TOOL_MAP: dict[str, list[str]] = {
     "A01_access_control": ["idor_test", "auth_test", "csrf_test", "access_control_test"],
     "A02_crypto_failures": ["auth_test", "http_request"],

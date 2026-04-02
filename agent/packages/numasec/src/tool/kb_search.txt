@@ -1,8 +1,0 @@
-Search the security knowledge base for attack patterns, detection methods, exploitation techniques, and remediation guidance.
-
-Parameters:
-- query (required): Search query (e.g., "SQL injection UNION technique", "JWT none algorithm", "SSRF cloud metadata")
-- category: Filter by category — "detection", "exploitation", "post_exploitation", "remediation", "payloads", "protocols", "chains"
-- top_k: Number of results to return. Default: 5.
-
-Returns relevant knowledge base entries with techniques, payloads, and guidance.

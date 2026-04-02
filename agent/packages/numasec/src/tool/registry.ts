@@ -12,28 +12,9 @@ import { WebSearchTool } from "./websearch"
 import { InvalidTool } from "./invalid"
 import { SkillTool } from "./skill"
 
-// --- Security tools (via Python bridge) ---
-import { ReconTool } from "./recon"
-import { CrawlTool } from "./crawl"
-import { InjectionTestTool } from "./injection_test"
-import { XssTestTool } from "./xss_test"
-import { SsrfTestTool } from "./ssrf_test"
-import { AuthTestTool } from "./auth_test"
-import { AccessControlTestTool } from "./access_control_test"
-import { PathTestTool } from "./path_test"
-import { DirFuzzTool } from "./dir_fuzz"
-import { JsAnalyzeTool } from "./js_analyze"
-import { BrowserTool } from "./browser_tool"
-import { OobTool } from "./oob"
-import { HttpRequestTool } from "./http_request"
-import { SaveFindingTool } from "./save_finding"
-import { GetFindingsTool } from "./get_findings"
-import { GenerateReportTool } from "./generate_report"
-import { KbSearchTool } from "./kb_search"
-import { CreateSessionTool } from "./create_session"
-import { RelayCredentialsTool } from "./relay_credentials"
-import { RunScannerBatchTool } from "./run_scanner_batch"
-import { PentestPlanTool } from "./pentest_plan"
+// Security tools are no longer imported here — they are discovered
+// dynamically via MCP protocol from the internal Python MCP server.
+// See bridge/internal.ts for the registration logic.
 
 import type { Agent } from "../agent/agent"
 import { Tool } from "./tool"
@@ -139,7 +120,7 @@ export namespace ToolRegistry {
         return [
           InvalidTool,
           ...(question ? [QuestionTool] : []),
-          // --- Kept generic tools ---
+          // --- Generic tools ---
           BashTool,
           ReadTool,
           GlobTool,
@@ -150,29 +131,8 @@ export namespace ToolRegistry {
           WebSearchTool,
           SkillTool,
           ...(cfg.experimental?.batch_tool === true ? [BatchTool] : []),
-          // --- Security scanning tools (via Python bridge) ---
-          ReconTool,
-          CrawlTool,
-          InjectionTestTool,
-          XssTestTool,
-          SsrfTestTool,
-          AuthTestTool,
-          AccessControlTestTool,
-          PathTestTool,
-          DirFuzzTool,
-          JsAnalyzeTool,
-          BrowserTool,
-          OobTool,
-          HttpRequestTool,
-          // --- Security state tools (via Python bridge) ---
-          CreateSessionTool,
-          SaveFindingTool,
-          GetFindingsTool,
-          GenerateReportTool,
-          KbSearchTool,
-          RelayCredentialsTool,
-          RunScannerBatchTool,
-          PentestPlanTool,
+          // Security tools are discovered via MCP from the internal Python server.
+          // They appear in the MCP tools loop in session/prompt.ts, not here.
           // --- Custom/plugin tools ---
           ...custom,
         ]

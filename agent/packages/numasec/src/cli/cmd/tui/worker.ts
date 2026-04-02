@@ -136,6 +136,9 @@ export const rpc = {
   },
   async server(input: { port: number; hostname: string; mdns?: boolean; cors?: string[] }) {
     if (server) await server.stop(true)
+    // Register internal Python MCP server so security tools are available via MCP discovery
+    const { registerInternalServer } = await import("@/bridge/internal")
+    await registerInternalServer()
     server = await Server.listen(input)
     return { url: server.url.toString() }
   },
@@ -158,6 +161,8 @@ export const rpc = {
     Log.Default.info("worker shutting down")
     if (eventStream.abort) eventStream.abort.abort()
     await Instance.disposeAll()
+    const { shutdownInternalServer } = await import("@/bridge/internal")
+    await shutdownInternalServer()
     if (server) await server.stop(true)
   },
 }

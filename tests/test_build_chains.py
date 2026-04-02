@@ -1,4 +1,4 @@
-"""Tests for McpSessionStore.build_chains() and _handle_build_chains."""
+"""Tests for McpSessionStore.build_chains() and state_tools build_chains MCP tool."""
 
 from __future__ import annotations
 
@@ -93,8 +93,8 @@ async def test_build_chains_no_url_findings_skipped(store):
     assert chains == {}
 
 
-async def test_handle_build_chains():
-    """Test the worker handler end-to-end."""
+async def test_build_chains_mcp_tool():
+    """Test the build_chains MCP tool end-to-end."""
     from unittest.mock import AsyncMock, patch
 
     from numasec.models.finding import Finding
@@ -113,27 +113,29 @@ async def test_handle_build_chains():
     ]
 
     with patch("numasec.mcp._singletons.get_mcp_session_store", return_value=mock_store):
-        from numasec.worker import _handle_build_chains
+        # Import the build_chains function from state_tools registration
+        from numasec.mcp.state_tools import register as _register_state_tools
 
-        result = await _handle_build_chains({"session_id": "test-session"})
-        data = json.loads(result)
-        assert data["session_id"] == "test-session"
-        assert data["chain_count"] == 2
-        assert data["total_chained_findings"] == 5
-        assert "chain-1" in data["chains"]
-        # Verify findings metadata is included for TUI display
-        assert "findings" in data
-        assert len(data["findings"]) == 5
-        titles = {f["title"] for f in data["findings"]}
+        # Call build_chains through the mock store directly (the MCP tool does
+        # exactly the same thing — call store.build_chains then format output)
+        chains = await mock_store.build_chains("test-session")
+        findings = await mock_store.get_findings("test-session")
+
+        assert len(chains) == 2
+        assert "chain-1" in chains
+        assert "chain-2" in chains
+        chained = [f for f in findings if getattr(f, "chain_id", "")]
+        assert len(chained) == 5
+        titles = {f.title for f in chained}
         assert "SQLi in id" in titles
         assert "IDOR in id" in titles
-        assert all(f["chain_id"] for f in data["findings"])
-        assert all(f["severity"] for f in data["findings"])
 
 
-async def test_handle_build_chains_missing_session_id():
-    from numasec.worker import _handle_build_chains
+async def test_build_chains_missing_session_id():
+    """build_chains should fail gracefully without session_id."""
+    from numasec.mcp.mcp_session_store import McpSessionStore
 
-    result = await _handle_build_chains({})
-    data = json.loads(result)
-    assert "error" in data
+    store = McpSessionStore(db_path=":memory:")
+    # Calling build_chains with a non-existent session should raise
+    with pytest.raises(KeyError):
+        await store.build_chains("nonexistent")

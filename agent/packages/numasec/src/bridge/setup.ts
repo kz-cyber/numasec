@@ -82,7 +82,7 @@ async function syncVenv(uvPath: string, projectRoot: string): Promise<string> {
 
   log.info("creating venv and installing dependencies...")
   try {
-    execSync(`${uvPath} sync --project ${projectRoot}`, {
+    execSync(`${uvPath} sync --project ${projectRoot} --extra mcp`, {
       cwd: projectRoot,
       stdio: "pipe",
       timeout: 300_000, // 5 min for first install
