@@ -10,6 +10,7 @@
 import { MCP } from "@/mcp"
 import { ensurePythonEnv } from "./setup"
 import { Log } from "@/util/log"
+import { Instance } from "@/project/instance"
 import type { Config } from "@/config/config"
 
 const log = Log.create({ service: "bridge.internal" })
@@ -25,6 +26,7 @@ let restartTimestamps: number[] = []
 let degraded = false
 let serverConfig: Config.Mcp | undefined
 let registered = false
+let instanceDir: string | undefined
 
 export function isDegraded(): boolean {
   return degraded
@@ -42,6 +44,9 @@ export async function registerInternalServer(): Promise<void> {
   if (registered) return
 
   try {
+    // Store Instance directory for health monitor restarts (which run outside Instance.provide)
+    instanceDir = Instance.directory
+
     const env = await ensurePythonEnv()
     log.info("python env ready", { python: env.pythonPath, root: env.projectRoot })
 
@@ -62,7 +67,10 @@ export async function registerInternalServer(): Promise<void> {
     if (internalStatus?.status === "connected") {
       log.info("internal MCP server connected")
       registered = true
-      startHealthMonitor()
+      // Health monitor disabled: MCP.status() returns stale state when called
+      // from setInterval (outside the original Instance/Effect context), causing
+      // false "not connected" reports and unnecessary restart cycles.
+      // TODO: re-enable once InstanceState scoping is resolved for out-of-band checks.
     } else {
       log.error("internal MCP server failed to connect", { status: internalStatus })
     }
@@ -93,16 +101,23 @@ function startHealthMonitor(): void {
   if (healthTimer) clearInterval(healthTimer)
 
   healthTimer = setInterval(async () => {
-    if (degraded) return
+    if (degraded || !instanceDir) return
 
     try {
-      const statuses = await MCP.status()
-      const internal = statuses[SERVER_NAME]
+      // Health check runs from setInterval (no active Instance context),
+      // so wrap in Instance.provide for MCP.status() to access state.
+      await Instance.provide({
+        directory: instanceDir,
+        fn: async () => {
+          const statuses = await MCP.status()
+          const internal = statuses[SERVER_NAME]
 
-      if (!internal || internal.status !== "connected") {
-        log.warn("internal MCP server not connected, attempting restart", { status: internal })
-        await attemptRestart()
-      }
+          if (!internal || internal.status !== "connected") {
+            log.warn("internal MCP server not connected, attempting restart", { status: internal })
+            await attemptRestart()
+          }
+        },
+      })
     } catch (error) {
       log.warn("health check failed", { error: String(error) })
     }
@@ -131,22 +146,28 @@ async function attemptRestart(): Promise<void> {
     // ignore disconnect errors
   }
 
-  if (!serverConfig) return
+  if (!serverConfig || !instanceDir) return
 
   try {
-    const result = await MCP.add(SERVER_NAME, serverConfig)
-    const rawStatus = result.status
-    const internalStatus = "status" in rawStatus && typeof rawStatus.status === "string"
-      ? rawStatus as MCP.Status
-      : (rawStatus as Record<string, MCP.Status>)[SERVER_NAME]
+    // Wrap in Instance.provide — health monitor runs from setInterval (no active context)
+    await Instance.provide({
+      directory: instanceDir,
+      fn: async () => {
+        const result = await MCP.add(SERVER_NAME, serverConfig!)
+        const rawStatus = result.status
+        const internalStatus = "status" in rawStatus && typeof rawStatus.status === "string"
+          ? rawStatus as MCP.Status
+          : (rawStatus as Record<string, MCP.Status>)[SERVER_NAME]
 
-    if (internalStatus?.status === "connected") {
-      log.info("internal MCP server reconnected")
-      registered = true
-    } else {
-      log.error("reconnection failed", { status: internalStatus })
-      registered = false
-    }
+        if (internalStatus?.status === "connected") {
+          log.info("internal MCP server reconnected")
+          registered = true
+        } else {
+          log.error("reconnection failed", { status: internalStatus })
+          registered = false
+        }
+      },
+    })
   } catch (error) {
     log.error("restart failed", { error: String(error) })
     registered = false
