@@ -275,6 +275,7 @@ async def _handle_get_findings(params: dict) -> Any:
                     "cwe_id": f.cwe_id,
                     "evidence": (f.evidence or "")[:500],
                     "confidence": f.confidence,
+                    "chain_id": getattr(f, "chain_id", ""),
                 }
                 for f in filtered
             ],
@@ -328,12 +329,25 @@ async def _handle_generate_report(params: dict) -> Any:
         if tool:
             tools_used.append(tool)
 
+    # Chained findings summary for TUI sidebar chain display
+    _chained_findings = [
+        {
+            "id": f.id,
+            "title": f.title,
+            "severity": f.severity.value if hasattr(f.severity, "value") else str(f.severity),
+            "url": f.url,
+            "chain_id": getattr(f, "chain_id", ""),
+        }
+        for f in findings
+        if getattr(f, "chain_id", "")
+    ] if chains else []
+
     if fmt == "sarif":
         from numasec.reporting.sarif import generate_sarif_report
 
         report = generate_sarif_report(findings)
         return json.dumps(
-            {"format": "sarif", "findings_count": len(findings), "chains": chains, "content": report},
+            {"format": "sarif", "findings_count": len(findings), "chains": chains, "findings": _chained_findings, "content": report},
             indent=2,
             default=str,
         )
@@ -343,7 +357,7 @@ async def _handle_generate_report(params: dict) -> Any:
 
         md_report = generate_markdown_report(findings, target=target, tools_used=tools_used)
         return json.dumps(
-            {"format": "markdown", "findings_count": len(findings), "chains": chains, "content": md_report},
+            {"format": "markdown", "findings_count": len(findings), "chains": chains, "findings": _chained_findings, "content": md_report},
             indent=2,
             default=str,
         )
@@ -599,12 +613,32 @@ async def _handle_build_chains(params: dict) -> Any:
     except KeyError:
         return json.dumps({"error": f"Session not found: {session_id}"}, indent=2)
 
+    # Include finding metadata so TUI can display titles instead of IDs
+    chained_findings: list[dict] = []
+    if chains:
+        try:
+            all_findings = await store.get_findings(session_id)
+            chained_findings = [
+                {
+                    "id": f.id,
+                    "title": f.title,
+                    "severity": f.severity.value if hasattr(f.severity, "value") else str(f.severity),
+                    "url": f.url,
+                    "chain_id": getattr(f, "chain_id", ""),
+                }
+                for f in all_findings
+                if getattr(f, "chain_id", "")
+            ]
+        except Exception:
+            pass
+
     return json.dumps(
         {
             "session_id": session_id,
             "chains": chains,
             "chain_count": len(chains),
             "total_chained_findings": sum(len(v) for v in chains.values()),
+            "findings": chained_findings,
         },
         indent=2,
     )

@@ -97,11 +97,20 @@ async def test_handle_build_chains():
     """Test the worker handler end-to-end."""
     from unittest.mock import AsyncMock, patch
 
+    from numasec.models.finding import Finding
+
     mock_store = AsyncMock()
     mock_store.build_chains.return_value = {
         "chain-1": ["SSEC-AAA", "SSEC-BBB"],
         "chain-2": ["SSEC-CCC", "SSEC-DDD", "SSEC-EEE"],
     }
+    mock_store.get_findings.return_value = [
+        Finding(id="SSEC-AAA", title="SQLi in id", severity="high", url="https://example.com/api", chain_id="chain-1"),
+        Finding(id="SSEC-BBB", title="IDOR in id", severity="medium", url="https://example.com/api", chain_id="chain-1"),
+        Finding(id="SSEC-CCC", title="XSS in search", severity="high", url="https://example.com/search", chain_id="chain-2"),
+        Finding(id="SSEC-DDD", title="CSRF", severity="medium", url="https://example.com/search", chain_id="chain-2"),
+        Finding(id="SSEC-EEE", title="Open Redirect", severity="low", url="https://example.com/search", chain_id="chain-2"),
+    ]
 
     with patch("numasec.mcp._singletons.get_mcp_session_store", return_value=mock_store):
         from numasec.worker import _handle_build_chains
@@ -112,6 +121,14 @@ async def test_handle_build_chains():
         assert data["chain_count"] == 2
         assert data["total_chained_findings"] == 5
         assert "chain-1" in data["chains"]
+        # Verify findings metadata is included for TUI display
+        assert "findings" in data
+        assert len(data["findings"]) == 5
+        titles = {f["title"] for f in data["findings"]}
+        assert "SQLi in id" in titles
+        assert "IDOR in id" in titles
+        assert all(f["chain_id"] for f in data["findings"])
+        assert all(f["severity"] for f in data["findings"])
 
 
 async def test_handle_build_chains_missing_session_id():

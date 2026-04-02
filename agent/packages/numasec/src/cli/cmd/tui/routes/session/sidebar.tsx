@@ -137,7 +137,7 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
 
   // Derive attack chains from save_finding, build_chains, get_findings, and generate_report tool results
   const attackChains = createMemo(() => {
-    const chains: Record<string, { titles: string[]; severity: string }> = {}
+    const chains: Record<string, { items: Array<{title: string; sev: string}>; severity: string }> = {}
     const sevOrder = ["critical", "high", "medium", "low", "info"]
     for (const msg of messages()) {
       const parts = sync.data.part[msg.id] ?? []
@@ -151,9 +151,10 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
             const data = JSON.parse(out)
             const chainId = data.chain_id || data.finding?.chain_id
             if (!chainId) continue
-            if (!chains[chainId]) chains[chainId] = { titles: [], severity: "info" }
+            if (!chains[chainId]) chains[chainId] = { items: [], severity: "info" }
             const title = data.title || data.finding?.title || "Finding"
-            if (!chains[chainId].titles.includes(title)) chains[chainId].titles.push(title)
+            const itemSev = (data.severity || data.finding?.severity || "info").toLowerCase()
+            if (!chains[chainId].items.some(x => x.title === title)) chains[chainId].items.push({ title, sev: itemSev })
             const sev = (data.severity || "").toLowerCase()
             if (sevOrder.indexOf(sev) < sevOrder.indexOf(chains[chainId].severity)) {
               chains[chainId].severity = sev
@@ -173,9 +174,10 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
               for (const f of reportFindings) {
                 const chainId = f.chain_id
                 if (!chainId) continue
-                if (!chains[chainId]) chains[chainId] = { titles: [], severity: "info" }
+                if (!chains[chainId]) chains[chainId] = { items: [], severity: "info" }
                 const title = f.title || "Finding"
-                if (!chains[chainId].titles.includes(title)) chains[chainId].titles.push(title)
+                const itemSev = (f.severity || "info").toLowerCase()
+                if (!chains[chainId].items.some(x => x.title === title)) chains[chainId].items.push({ title, sev: itemSev })
                 const sev = (f.severity || "").toLowerCase()
                 if (sevOrder.indexOf(sev) < sevOrder.indexOf(chains[chainId].severity)) {
                   chains[chainId].severity = sev
@@ -187,11 +189,11 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
             const builtChains = data.chains
             if (builtChains && typeof builtChains === "object") {
               for (const [cid, fids] of Object.entries(builtChains)) {
-                if (!chains[cid]) chains[cid] = { titles: [], severity: "info" }
+                if (!chains[cid]) chains[cid] = { items: [], severity: "info" }
                 // Only add IDs if we don't already have titled findings for this chain
-                if (chains[cid].titles.length === 0) {
+                if (chains[cid].items.length === 0) {
                   for (const fid of fids as string[]) {
-                    if (!chains[cid].titles.includes(fid)) chains[cid].titles.push(fid)
+                    if (!chains[cid].items.some(x => x.title === fid)) chains[cid].items.push({ title: fid, sev: "info" })
                   }
                 }
               }
@@ -209,9 +211,10 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
             for (const f of list) {
               const chainId = f.chain_id
               if (!chainId) continue
-              if (!chains[chainId]) chains[chainId] = { titles: [], severity: "info" }
+              if (!chains[chainId]) chains[chainId] = { items: [], severity: "info" }
               const title = f.title || "Finding"
-              if (!chains[chainId].titles.includes(title)) chains[chainId].titles.push(title)
+              const itemSev = (f.severity || "info").toLowerCase()
+              if (!chains[chainId].items.some(x => x.title === title)) chains[chainId].items.push({ title, sev: itemSev })
               const sev = (f.severity || "").toLowerCase()
               if (sevOrder.indexOf(sev) < sevOrder.indexOf(chains[chainId].severity)) {
                 chains[chainId].severity = sev
@@ -222,7 +225,7 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
         }
       }
     }
-    return Object.entries(chains).filter(([_, c]) => c.titles.length > 1)
+    return Object.entries(chains).filter(([_, c]) => c.items.length > 1)
   })
 
   // Derive target URL from recon/create_session tool inputs
@@ -429,15 +432,17 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                 </box>
                 <Show when={expanded.chains}>
                   <For each={attackChains()}>
-                    {([chainId, chain]) => (
+                    {([_, chain]) => (
                       <box paddingLeft={1}>
                         <text fg={chain.severity === "critical" || chain.severity === "high" ? theme.error : theme.warning} wrapMode="word">
-                          ⛓ {chainId}
+                          ⛓ {chain.items.slice(0, 2).map(x => x.title).join(" → ")}
                         </text>
-                        <For each={chain.titles}>
-                          {(title, i) => (
-                            <text fg={theme.textMuted} wrapMode="word">
-                              {i() < chain.titles.length - 1 ? "├─ " : "└─ "}{title}
+                        <For each={chain.items}>
+                          {(item, i) => (
+                            <text wrapMode="word">
+                              <span style={{ fg: theme.textMuted }}>{i() < chain.items.length - 1 ? "├─ " : "└─ "}</span>
+                              <span style={{ fg: item.sev === "critical" || item.sev === "high" ? theme.error : item.sev === "medium" ? theme.warning : theme.success }}>●</span>
+                              <span style={{ fg: theme.text }}> {item.title}</span>
                             </text>
                           )}
                         </For>
