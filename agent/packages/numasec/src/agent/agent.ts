@@ -9,6 +9,13 @@ import { Auth } from "../auth"
 import { ProviderTransform } from "../provider/transform"
 
 import PROMPT_GENERATE from "./generate.txt"
+import PROMPT_PENTEST from "./prompt/pentest.txt"
+import PROMPT_RECON from "./prompt/recon.txt"
+import PROMPT_HUNT from "./prompt/hunt.txt"
+import PROMPT_REVIEW from "./prompt/review.txt"
+import PROMPT_REPORT from "./prompt/report.txt"
+import PROMPT_SCANNER from "./prompt/scanner.txt"
+import PROMPT_ANALYST from "./prompt/analyst.txt"
 import PROMPT_COMPACTION from "./prompt/compaction.txt"
 import PROMPT_EXPLORE from "./prompt/explore.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
@@ -108,6 +115,8 @@ export namespace Agent {
               name: "pentest",
               description: "Default penetration testing agent. Follows PTES methodology with full tool access.",
               options: {},
+              prompt: PROMPT_PENTEST,
+              color: "primary",
               permission: Permission.merge(
                 defaults,
                 Permission.fromConfig({
@@ -132,6 +141,8 @@ export namespace Agent {
               name: "recon",
               description: "Reconnaissance-only mode. Scanning and analysis without exploitation payloads.",
               options: {},
+              prompt: PROMPT_RECON,
+              color: "info",
               permission: Permission.merge(
                 defaults,
                 Permission.fromConfig({
@@ -144,6 +155,100 @@ export namespace Agent {
                     "curl -I *": "allow",
                     "curl -sI *": "allow",
                   },
+                }),
+                user,
+              ),
+              mode: "primary",
+              native: true,
+            },
+            hunt: {
+              name: "hunt",
+              description: "Vulnerability hunting mode. Systematic OWASP Top 10 testing with aggressive scanning and exploitation.",
+              options: {},
+              prompt: PROMPT_HUNT,
+              color: "error",
+              permission: Permission.merge(
+                defaults,
+                Permission.fromConfig({
+                  question: "allow",
+                  bash: {
+                    "*": "ask",
+                    "curl *": "allow",
+                    "nmap *": "allow",
+                    "nuclei *": "allow",
+                    "sqlmap *": "ask",
+                    "nikto *": "allow",
+                    "ffuf *": "allow",
+                    "gobuster *": "allow",
+                    "wfuzz *": "allow",
+                    "hydra *": "ask",
+                  },
+                }),
+                user,
+              ),
+              mode: "primary",
+              native: true,
+            },
+            review: {
+              name: "review",
+              description: "Secure code review mode. Analyzes source code for security vulnerabilities — injection sinks, auth bypasses, crypto misuse, hardcoded secrets.",
+              options: {},
+              prompt: PROMPT_REVIEW,
+              color: "warning",
+              permission: Permission.merge(
+                defaults,
+                Permission.fromConfig({
+                  question: "allow",
+                  bash: {
+                    "*": "deny",
+                    "git *": "allow",
+                  },
+                  injection_test: "deny",
+                  xss_test: "deny",
+                  ssrf_test: "deny",
+                  auth_test: "deny",
+                  access_control_test: "deny",
+                  path_test: "deny",
+                  dir_fuzz: "deny",
+                  recon: "deny",
+                  crawl: "deny",
+                  browser: "deny",
+                  oob: "deny",
+                  http_request: "deny",
+                  run_scanner_batch: "deny",
+                  create_session: "deny",
+                  save_finding: "deny",
+                  relay_credentials: "deny",
+                }),
+                user,
+              ),
+              mode: "primary",
+              native: true,
+            },
+            report: {
+              name: "report",
+              description: "Report generation mode. Build and refine security reports, validate findings, write remediation guidance.",
+              options: {},
+              prompt: PROMPT_REPORT,
+              color: "success",
+              permission: Permission.merge(
+                defaults,
+                Permission.fromConfig({
+                  question: "allow",
+                  bash: "deny",
+                  injection_test: "deny",
+                  xss_test: "deny",
+                  ssrf_test: "deny",
+                  auth_test: "deny",
+                  access_control_test: "deny",
+                  path_test: "deny",
+                  dir_fuzz: "deny",
+                  recon: "deny",
+                  crawl: "deny",
+                  browser: "deny",
+                  oob: "deny",
+                  run_scanner_batch: "deny",
+                  relay_credentials: "deny",
                 }),
                 user,
               ),
@@ -167,9 +272,11 @@ export namespace Agent {
             scanner: {
               name: "scanner",
               description: `Security scanner agent. Runs automated vulnerability scans on specific endpoints. Use for batch testing injection, XSS, SSRF, auth, and access control vulnerabilities.`,
+              prompt: PROMPT_SCANNER,
               permission: Permission.merge(
                 defaults,
                 Permission.fromConfig({
+                  question: "deny",
                   todowrite: "deny",
                 }),
                 user,
@@ -181,10 +288,12 @@ export namespace Agent {
             analyst: {
               name: "analyst",
               description: `Security analyst agent. Reviews scan results, eliminates false positives, correlates findings, and identifies attack chains. Use after scanning to validate results.`,
+              prompt: PROMPT_ANALYST,
               permission: Permission.merge(
                 defaults,
                 Permission.fromConfig({
                   bash: "deny",
+                  question: "deny",
                   todowrite: "deny",
                 }),
                 user,

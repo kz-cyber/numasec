@@ -104,7 +104,7 @@ export const dict = {
   "dialog.provider.numasec.tagline": "Reliable optimized models",
   "dialog.provider.numasecGo.tagline": "Low cost subscription for everyone",
   "dialog.provider.anthropic.note": "Direct access to Claude models, including Pro and Max",
-  "dialog.provider.copilot.note": "AI models for coding assistance via GitHub Copilot",
+  "dialog.provider.copilot.note": "AI models for security analysis via GitHub Copilot",
   "dialog.provider.openai.note": "GPT models for fast, capable general AI tasks",
   "dialog.provider.google.note": "Gemini models for fast, structured responses",
   "dialog.provider.openrouter.note": "Access all supported models from one provider",
@@ -135,7 +135,7 @@ export const dict = {
   "provider.connect.apiKey.placeholder": "API key",
   "provider.connect.apiKey.required": "API key is required",
   "provider.connect.numasecZen.line1":
-    "Numasec Zen gives you access to a curated set of reliable optimized models for coding agents.",
+    "Numasec Zen gives you access to a curated set of reliable optimized models for security agents.",
   "provider.connect.numasecZen.line2":
     "With a single API key you'll get access to models such as Claude, GPT, Gemini, GLM and more.",
   "provider.connect.numasecZen.visit.prefix": "Visit ",
@@ -515,9 +515,9 @@ export const dict = {
   "notification.session.error.title": "Session error",
   "notification.session.error.fallbackDescription": "An error occurred",
 
-  "home.recentProjects": "Recent projects",
-  "home.empty.title": "No recent projects",
-  "home.empty.description": "Get started by opening a local project",
+  "home.recentProjects": "Recent sessions",
+  "home.empty.title": "No recent sessions",
+  "home.empty.description": "Get started by setting a target",
 
   "session.tab.session": "Session",
   "session.tab.review": "Review",
@@ -678,7 +678,7 @@ export const dict = {
   "sidebar.project.viewAllSessions": "View all sessions",
   "sidebar.project.clearNotifications": "Clear notifications",
   "sidebar.empty.title": "No projects open",
-  "sidebar.empty.description": "Open a project to get started",
+  "sidebar.empty.description": "Set a target to get started",
 
   "debugBar.ariaLabel": "Development performance diagnostics",
   "debugBar.na": "n/a",

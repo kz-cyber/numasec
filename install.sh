@@ -113,7 +113,7 @@ setup_python() {
   cd "$INSTALL_DIR"
 
   # Sync Python dependencies
-  uv sync 2>&1 | tail -5
+  uv sync --extra mcp 2>&1 | tail -5
   ok "Python environment ready"
 }
 

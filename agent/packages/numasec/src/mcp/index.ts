@@ -210,6 +210,7 @@ export namespace MCP {
     status: Record<string, Status>
     clients: Record<string, MCPClient>
     defs: Record<string, MCPToolDef[]>
+    configs: Record<string, Config.Mcp>
   }
 
   export interface Interface {
@@ -485,6 +486,7 @@ export namespace MCP {
             status: {},
             clients: {},
             defs: {},
+            configs: {},
           }
 
           yield* Effect.forEach(
@@ -570,6 +572,7 @@ export namespace MCP {
 
       const createAndStore = Effect.fn("MCP.createAndStore")(function* (name: string, mcp: Config.Mcp) {
         const s = yield* InstanceState.get(cache)
+        s.configs[name] = mcp
         const result = yield* create(name, mcp)
 
         s.status[name] = result.status
@@ -625,7 +628,8 @@ export namespace MCP {
           ([clientName, client]) =>
             Effect.gen(function* () {
               const mcpConfig = config[clientName]
-              const entry = mcpConfig && isMcpConfigured(mcpConfig) ? mcpConfig : undefined
+              const storedConfig = s.configs[clientName]
+              const entry = (mcpConfig && isMcpConfigured(mcpConfig) ? mcpConfig : undefined) ?? storedConfig
 
               const listed = s.defs[clientName]
               if (!listed) {
@@ -634,8 +638,10 @@ export namespace MCP {
               }
 
               const timeout = entry?.timeout ?? defaultTimeout
+              const isInternal = clientName === "__internal__"
               for (const mcpTool of listed) {
-                result[sanitize(clientName) + "_" + sanitize(mcpTool.name)] = convertMcpTool(mcpTool, client, timeout)
+                const key = isInternal ? sanitize(mcpTool.name) : sanitize(clientName) + "_" + sanitize(mcpTool.name)
+                result[key] = convertMcpTool(mcpTool, client, timeout)
               }
             }),
           { concurrency: "unbounded" },

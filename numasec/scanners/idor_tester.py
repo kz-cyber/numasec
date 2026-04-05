@@ -24,6 +24,8 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
+from numasec.core.http import create_client
+
 logger = logging.getLogger("numasec.scanners.idor_tester")
 
 # Regex for path segments that look like numeric IDs
@@ -139,10 +141,8 @@ class IDORTester:
             result.duration_ms = (time.monotonic() - start) * 1000
             return result
 
-        async with httpx.AsyncClient(
+        async with create_client(
             timeout=self.timeout,
-            follow_redirects=True,
-            verify=False,
             headers=headers or {},
         ) as client:
             for id_location, original_id, build_url_fn in test_cases:
@@ -310,7 +310,7 @@ async def python_idor_test(
         import contextlib
 
         with contextlib.suppress(json.JSONDecodeError):
-            parsed_headers = json.loads(headers)
+            parsed_headers = headers if isinstance(headers, dict) else json.loads(headers)
 
     tester = IDORTester()
     result = await tester.test(url, headers=parsed_headers)

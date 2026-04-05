@@ -439,7 +439,82 @@ def create_default_tool_registry() -> ToolRegistry:
     )
 
     # ------------------------------------------------------------------
-    # 12. browser — unified navigate/click/fill/screenshot
+    # 11b. upload_test — file upload vulnerability testing
+    # ------------------------------------------------------------------
+    from numasec.scanners.upload_tester import python_upload_test
+
+    registry.register(
+        "upload_test",
+        python_upload_test,
+        {
+            "name": "upload_test",
+            "description": (
+                "Test for file upload vulnerabilities: unrestricted type, MIME bypass, "
+                "double extension, null byte injection, SVG XSS, polyglot files, and "
+                "Content-Type mismatch. Auto-discovers file upload forms."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "Target URL (page with upload form or direct endpoint)"},
+                    "field_name": {
+                        "type": "string",
+                        "description": "Explicit file field name. Auto-detected from HTML if omitted",
+                    },
+                    "headers": {"type": "string", "description": "JSON string of HTTP headers for auth testing"},
+                },
+                "required": ["url"],
+            },
+        },
+    )
+
+    # ------------------------------------------------------------------
+    # 12. race_test — race condition (TOCTOU) detection
+    # ------------------------------------------------------------------
+    from numasec.scanners.race_tester import python_race_test
+
+    registry.register(
+        "race_test",
+        python_race_test,
+        {
+            "name": "race_test",
+            "description": (
+                "Test for race condition (TOCTOU) vulnerabilities by sending concurrent "
+                "identical requests. Detects limit bypass, state inconsistency, and "
+                "duplicate action issues."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "Target endpoint URL to test"},
+                    "method": {
+                        "type": "string",
+                        "enum": ["GET", "POST"],
+                        "default": "POST",
+                        "description": "HTTP method",
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "JSON-encoded request body for POST requests",
+                        "default": "",
+                    },
+                    "concurrency": {
+                        "type": "integer",
+                        "description": "Number of simultaneous requests (default 20)",
+                        "default": 20,
+                    },
+                    "headers": {
+                        "type": "string",
+                        "description": "JSON string of extra HTTP headers",
+                    },
+                },
+                "required": ["url"],
+            },
+        },
+    )
+
+    # ------------------------------------------------------------------
+    # 13. browser — unified navigate/click/fill/screenshot/evaluate
     # ------------------------------------------------------------------
     from numasec.tools.composite_browser import browser
 
@@ -450,19 +525,23 @@ def create_default_tool_registry() -> ToolRegistry:
             "name": "browser",
             "description": (
                 "Interact with a headless browser: navigate to URL, click elements, "
-                "fill form fields, or take screenshots. For SPA testing and DOM interaction."
+                "fill form fields, take screenshots, or evaluate JavaScript. "
+                "For SPA testing and DOM interaction."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "action": {
                         "type": "string",
-                        "enum": ["navigate", "click", "fill", "screenshot"],
+                        "enum": ["navigate", "click", "fill", "screenshot", "evaluate"],
                         "description": "Browser action to perform",
                     },
                     "url": {"type": "string", "description": "URL for navigate action"},
                     "selector": {"type": "string", "description": "CSS/text selector for click/fill"},
-                    "value": {"type": "string", "description": "Value to type for fill action"},
+                    "value": {
+                        "type": "string",
+                        "description": "Value to type (fill) or JavaScript code (evaluate)",
+                    },
                     "wait_for": {
                         "type": "string",
                         "enum": ["load", "domcontentloaded", "networkidle"],
@@ -475,7 +554,7 @@ def create_default_tool_registry() -> ToolRegistry:
     )
 
     # ------------------------------------------------------------------
-    # 13. oob — Out-of-Band setup/poll
+    # 14. oob — Out-of-Band setup/poll
     # ------------------------------------------------------------------
     from numasec.tools.composite_oob import oob
 
@@ -506,7 +585,7 @@ def create_default_tool_registry() -> ToolRegistry:
     )
 
     # ------------------------------------------------------------------
-    # 14. run_command (internal, excluded from MCP by default)
+    # 15. run_command (internal, excluded from MCP by default)
     # ------------------------------------------------------------------
     registry.register(
         "run_command",
@@ -521,6 +600,35 @@ def create_default_tool_registry() -> ToolRegistry:
                     "timeout": {"type": "integer", "default": 300},
                 },
                 "required": ["command"],
+            },
+        },
+    )
+
+    # ------------------------------------------------------------------
+    # 16. smuggling_test — HTTP request smuggling (standalone)
+    # ------------------------------------------------------------------
+    from numasec.scanners.smuggling_tester import python_smuggling_test
+
+    registry.register(
+        "smuggling_test",
+        python_smuggling_test,
+        {
+            "name": "smuggling_test",
+            "description": (
+                "Test for HTTP request smuggling vulnerabilities (CL.TE, TE.CL, TE.TE). "
+                "Uses safe timing-based detection to identify header processing "
+                "disagreements between front-end and back-end servers."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "Target URL to test"},
+                    "headers": {
+                        "type": "string",
+                        "description": "JSON string of HTTP headers for authenticated testing",
+                    },
+                },
+                "required": ["url"],
             },
         },
     )
@@ -572,9 +680,160 @@ def create_default_tool_registry() -> ToolRegistry:
             },
         )
 
+    # ------------------------------------------------------------------
+    # security_shell — unified external tool runner
+    # ------------------------------------------------------------------
+    from numasec.tools.security_shell import security_shell
+
+    registry.register(
+        "security_shell",
+        security_shell,
+        {
+            "name": "security_shell",
+            "description": (
+                "Run external security tools with structured output parsing. "
+                "Auto-detects installed tools (nmap, ffuf, subfinder, nuclei, sqlmap, gobuster, nikto, httpx)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tool": {
+                        "type": "string",
+                        "description": "Tool name: nmap, ffuf, subfinder, nuclei, sqlmap, gobuster, nikto, httpx",
+                    },
+                    "target": {"type": "string", "description": "Target URL or hostname"},
+                    "options": {
+                        "type": "string",
+                        "description": "Additional CLI options as string",
+                        "default": "",
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "description": "Command timeout in seconds",
+                        "default": 120,
+                    },
+                },
+                "required": ["tool", "target"],
+            },
+        },
+    )
+
+    # ------------------------------------------------------------------
+    # poc_validate — PoC validation of existing findings
+    # ------------------------------------------------------------------
+    from numasec.scanners.poc_validator import python_poc_validate
+
+    registry.register(
+        "poc_validate",
+        python_poc_validate,
+        {
+            "name": "poc_validate",
+            "description": (
+                "Validate existing security findings by re-testing with targeted exploit payloads. "
+                "Takes confirmed findings and attempts to reproduce the vulnerability, returning "
+                "validation status and confidence score per finding."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "findings": {
+                        "type": "string",
+                        "description": (
+                            "JSON array of finding dicts. Each should have: "
+                            "url, parameter, payload, cwe_id (e.g. CWE-89)."
+                        ),
+                    },
+                    "url": {
+                        "type": "string",
+                        "description": "Override URL applied to findings missing a url.",
+                        "default": "",
+                    },
+                    "timeout": {
+                        "type": "number",
+                        "description": "HTTP request timeout in seconds.",
+                        "default": 15.0,
+                    },
+                    "headers": {
+                        "type": "string",
+                        "description": "JSON string of extra HTTP headers.",
+                        "default": "{}",
+                    },
+                },
+                "required": ["findings"],
+            },
+        },
+    )
+
+    # ------------------------------------------------------------------
+    # burp_bridge — Burp Suite XML import/export
+    # ------------------------------------------------------------------
+    from numasec.tools.burp_bridge import python_burp_bridge
+
+    registry.register(
+        "burp_bridge",
+        python_burp_bridge,
+        {
+            "name": "burp_bridge",
+            "description": "Import/export Burp Suite XML findings and sitemaps",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["import_issues", "export_findings", "import_sitemap"],
+                    },
+                    "data": {"type": "string", "description": "XML content for import actions"},
+                    "findings": {
+                        "type": "string",
+                        "description": "JSON findings array for export action",
+                    },
+                },
+                "required": ["action"],
+            },
+        },
+    )
+
     logger.info(
         "Tool registry created: %d tools (%d available for MCP)",
         len(registry._tools),
         len([t for t in registry._tools if t != "run_command"]),
     )
+
+    # ------------------------------------------------------------------
+    # Load external plugins and community templates
+    # ------------------------------------------------------------------
+    from numasec.scanners._plugin import load_plugins, load_yaml_scanners
+
+    plugin_count = load_plugins(registry)
+    if plugin_count:
+        logger.info("Loaded %d external plugins", plugin_count)
+
+    # Load community templates from bundled + user directories
+    from pathlib import Path
+
+    template_dirs = [
+        Path(__file__).resolve().parent.parent.parent / "community-templates",
+        Path.home() / ".numasec" / "templates",
+        Path.home() / ".numasec" / "plugins",
+    ]
+    for tdir in template_dirs:
+        scanners = load_yaml_scanners(tdir)
+        for scanner in scanners:
+            registry.register(
+                f"template_{scanner.id}",
+                scanner.scan,
+                schema={
+                    "name": f"template_{scanner.id}",
+                    "description": f"[Template] {scanner.name}",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "base_url": {"type": "string", "description": "Target URL"},
+                            "timeout": {"type": "number", "default": 10.0},
+                        },
+                        "required": ["base_url"],
+                    },
+                },
+            )
+
     return registry

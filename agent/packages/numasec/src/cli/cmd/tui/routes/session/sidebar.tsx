@@ -135,31 +135,97 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
     return c.critical + c.high + c.medium + c.low + c.info
   })
 
-  // Derive attack chains from save_finding tool results with chain_id
+  // Derive attack chains from save_finding, build_chains, get_findings, and generate_report tool results
   const attackChains = createMemo(() => {
-    const chains: Record<string, { titles: string[]; severity: string }> = {}
+    const chains: Record<string, { items: Array<{title: string; sev: string}>; severity: string }> = {}
+    const sevOrder = ["critical", "high", "medium", "low", "info"]
     for (const msg of messages()) {
       const parts = sync.data.part[msg.id] ?? []
       for (const part of parts) {
         if (part.type !== "tool" || part.state.status !== "completed") continue
-        if (!part.tool.includes("save_finding")) continue
         const out = (part.state as { output?: string }).output ?? ""
-        try {
-          const data = JSON.parse(out)
-          const chainId = data.chain_id || data.finding?.chain_id
-          if (!chainId) continue
-          if (!chains[chainId]) chains[chainId] = { titles: [], severity: "info" }
-          const title = data.title || data.finding?.title || "Finding"
-          chains[chainId].titles.push(title)
-          const sev = (data.severity || "").toLowerCase()
-          const sevOrder = ["critical", "high", "medium", "low", "info"]
-          if (sevOrder.indexOf(sev) < sevOrder.indexOf(chains[chainId].severity)) {
-            chains[chainId].severity = sev
-          }
-        } catch { /* skip */ }
+
+        // Source 1: save_finding with chain_id
+        if (part.tool.includes("save_finding")) {
+          try {
+            const data = JSON.parse(out)
+            const chainId = data.chain_id || data.finding?.chain_id
+            if (!chainId) continue
+            if (!chains[chainId]) chains[chainId] = { items: [], severity: "info" }
+            const title = data.title || data.finding?.title || "Finding"
+            const itemSev = (data.severity || data.finding?.severity || "info").toLowerCase()
+            if (!chains[chainId].items.some(x => x.title === title)) chains[chainId].items.push({ title, sev: itemSev })
+            const sev = (data.severity || "").toLowerCase()
+            if (sevOrder.indexOf(sev) < sevOrder.indexOf(chains[chainId].severity)) {
+              chains[chainId].severity = sev
+            }
+          } catch { /* skip */ }
+          continue
+        }
+
+        // Source 2: build_chains tool output OR generate_report with chains
+        if (part.tool.includes("build_chains") || part.tool.includes("generate_report")) {
+          try {
+            const data = JSON.parse(out)
+
+            // Extract chain_ids and titles from findings list (generate_report includes both)
+            const reportFindings = data.findings
+            if (Array.isArray(reportFindings)) {
+              for (const f of reportFindings) {
+                const chainId = f.chain_id
+                if (!chainId) continue
+                if (!chains[chainId]) chains[chainId] = { items: [], severity: "info" }
+                const title = f.title || "Finding"
+                const itemSev = (f.severity || "info").toLowerCase()
+                if (!chains[chainId].items.some(x => x.title === title)) chains[chainId].items.push({ title, sev: itemSev })
+                const sev = (f.severity || "").toLowerCase()
+                if (sevOrder.indexOf(sev) < sevOrder.indexOf(chains[chainId].severity)) {
+                  chains[chainId].severity = sev
+                }
+              }
+            }
+
+            // Fallback: build_chains returns {chains: {id: [findingIds]}} — use IDs only if no titles found
+            const builtChains = data.chains
+            if (builtChains && typeof builtChains === "object") {
+              for (const [cid, fids] of Object.entries(builtChains)) {
+                if (!chains[cid]) chains[cid] = { items: [], severity: "info" }
+                // Only add IDs if we don't already have titled findings for this chain
+                if (chains[cid].items.length === 0) {
+                  for (const fid of fids as string[]) {
+                    if (!chains[cid].items.some(x => x.title === fid)) chains[cid].items.push({ title: fid, sev: "info" })
+                  }
+                }
+              }
+            }
+          } catch { /* skip */ }
+          continue
+        }
+
+        // Source 3: get_findings output with chain_id on individual findings
+        if (part.tool.includes("get_findings")) {
+          try {
+            const data = JSON.parse(out)
+            const list = data.findings
+            if (!Array.isArray(list)) continue
+            for (const f of list) {
+              const chainId = f.chain_id
+              if (!chainId) continue
+              if (!chains[chainId]) chains[chainId] = { items: [], severity: "info" }
+              const title = f.title || "Finding"
+              const itemSev = (f.severity || "info").toLowerCase()
+              if (!chains[chainId].items.some(x => x.title === title)) chains[chainId].items.push({ title, sev: itemSev })
+              const sev = (f.severity || "").toLowerCase()
+              if (sevOrder.indexOf(sev) < sevOrder.indexOf(chains[chainId].severity)) {
+                chains[chainId].severity = sev
+              }
+            }
+          } catch { /* skip */ }
+          continue
+        }
       }
     }
-    return Object.entries(chains).filter(([_, c]) => c.titles.length > 1)
+    return Object.entries(chains).filter(([_, c]) => c.items.length > 1)
   })
 
   // Derive target URL from recon/create_session tool inputs
@@ -366,15 +432,17 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                 </box>
                 <Show when={expanded.chains}>
                   <For each={attackChains()}>
-                    {([chainId, chain]) => (
+                    {([_, chain]) => (
                       <box paddingLeft={1}>
                         <text fg={chain.severity === "critical" || chain.severity === "high" ? theme.error : theme.warning} wrapMode="word">
-                          ⛓ {chainId}
+                          ⛓ {chain.items.slice(0, 2).map(x => x.title).join(" → ")}
                         </text>
-                        <For each={chain.titles}>
-                          {(title, i) => (
-                            <text fg={theme.textMuted} wrapMode="word">
-                              {i() < chain.titles.length - 1 ? "├─ " : "└─ "}{title}
+                        <For each={chain.items}>
+                          {(item, i) => (
+                            <text wrapMode="word">
+                              <span style={{ fg: theme.textMuted }}>{i() < chain.items.length - 1 ? "├─ " : "└─ "}</span>
+                              <span style={{ fg: item.sev === "critical" || item.sev === "high" ? theme.error : item.sev === "medium" ? theme.warning : theme.success }}>●</span>
+                              <span style={{ fg: theme.text }}> {item.title}</span>
                             </text>
                           )}
                         </For>

@@ -568,3 +568,59 @@ def register(mcp: Any) -> None:
             )
         finally:
             _release_session_rate(session_id)
+
+    @mcp.tool(
+        name="build_chains",
+        description=(
+            "Auto-detect and assign attack chains across session findings. "
+            "Groups related findings into chains based on URL, CWE, and attack patterns. "
+            "Returns chain assignments with finding metadata."
+        ),
+    )
+    async def build_chains(
+        session_id: str,
+    ) -> str:
+        """Build attack chains from session findings.
+
+        Args:
+            session_id: Session ID from create_session (required).
+        """
+        from numasec.mcp._singletons import get_mcp_session_store
+
+        if not session_id:
+            return json.dumps({"error": "session_id is required"}, indent=2)
+
+        store = get_mcp_session_store()
+        try:
+            chains = await store.build_chains(session_id)
+        except KeyError:
+            return json.dumps({"error": f"Session not found: {session_id}"}, indent=2)
+
+        chained_findings: list[dict] = []
+        if chains:
+            try:
+                all_findings = await store.get_findings(session_id)
+                chained_findings = [
+                    {
+                        "id": f.id,
+                        "title": f.title,
+                        "severity": f.severity.value if hasattr(f.severity, "value") else str(f.severity),
+                        "url": f.url,
+                        "chain_id": getattr(f, "chain_id", ""),
+                    }
+                    for f in all_findings
+                    if getattr(f, "chain_id", "")
+                ]
+            except Exception:
+                pass
+
+        return json.dumps(
+            {
+                "session_id": session_id,
+                "chains": chains,
+                "chain_count": len(chains),
+                "total_chained_findings": sum(len(v) for v in chains.values()),
+                "findings": chained_findings,
+            },
+            indent=2,
+        )

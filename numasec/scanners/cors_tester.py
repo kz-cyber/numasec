@@ -21,6 +21,8 @@ from urllib.parse import urlparse
 
 import httpx
 
+from numasec.core.http import create_client
+
 logger = logging.getLogger("numasec.scanners.cors_tester")
 
 # Test origins to probe CORS policy
@@ -129,10 +131,8 @@ class CorsTester:
             f"https://evil{parsed.netloc}",  # prefix bypass
         ]
 
-        async with httpx.AsyncClient(
+        async with create_client(
             timeout=self.timeout,
-            follow_redirects=True,
-            verify=False,
         ) as client:
             for origin in test_origins:
                 try:
@@ -238,7 +238,7 @@ async def python_cors_test(url: str, headers: str = "") -> str:
     Returns:
         JSON string with ``CorsResult`` data.
     """
-    extra_headers = json.loads(headers) if headers else {}
+    extra_headers = headers if isinstance(headers, dict) else (json.loads(headers) if headers else {})
     tester = CorsTester(extra_headers=extra_headers)
     result = await tester.test(url)
     return json.dumps(result.to_dict(), indent=2)

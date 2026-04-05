@@ -29,6 +29,8 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
+from numasec.core.http import create_client
+
 logger = logging.getLogger("numasec.scanners.nosql_tester")
 
 # ---------------------------------------------------------------------------
@@ -157,10 +159,8 @@ class NoSqlTester:
         parsed = urlparse(url)
         params = parse_qs(parsed.query, keep_blank_values=True)
 
-        async with httpx.AsyncClient(
+        async with create_client(
             timeout=self.timeout,
-            follow_redirects=True,
-            verify=False,
             headers=self._extra_headers,
         ) as client:
             if not params:
@@ -400,7 +400,7 @@ async def python_nosql_test(url: str, method: str = "GET", headers: str = "") ->
     Returns:
         JSON string with ``NoSqlResult`` data.
     """
-    extra_headers = json.loads(headers) if headers else {}
+    extra_headers = headers if isinstance(headers, dict) else (json.loads(headers) if headers else {})
     tester = NoSqlTester(extra_headers=extra_headers)
     result = await tester.test(url, method=method)
     return json.dumps(result.to_dict(), indent=2)

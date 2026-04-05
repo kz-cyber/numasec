@@ -19,6 +19,8 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
+from numasec.core.http import create_client
+
 logger = logging.getLogger("numasec.scanners.sqli_tester")
 
 # ---------------------------------------------------------------------------
@@ -257,10 +259,8 @@ class PythonSQLiTester:
             result.duration_ms = (time.monotonic() - start) * 1000
             return result
 
-        async with httpx.AsyncClient(
+        async with create_client(
             timeout=self.timeout,
-            follow_redirects=True,
-            verify=False,
             headers=self._extra_headers,
         ) as client:
             # Fetch baseline response for boolean/union comparison
@@ -872,7 +872,7 @@ async def python_sqli_test(
         JSON string with ``SQLiResult`` data.
     """
     param_list = params.split(",") if params else None
-    extra_headers: dict[str, str] = json.loads(headers) if headers else {}
+    extra_headers: dict[str, str] = headers if isinstance(headers, dict) else (json.loads(headers) if headers else {})
 
     # Normalize content_type: accept both short ("json") and MIME ("application/json") forms
     ct = content_type.lower().strip()

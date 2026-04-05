@@ -22,6 +22,8 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
+from numasec.core.http import create_client
+
 logger = logging.getLogger("numasec.scanners.xss_tester")
 
 # ---------------------------------------------------------------------------
@@ -186,10 +188,8 @@ class PythonXSSTester:
         test_params = self._detect_params(url, params, method, body)
         result.params_tested = len(test_params)
 
-        async with httpx.AsyncClient(
+        async with create_client(
             timeout=self.timeout,
-            follow_redirects=True,
-            verify=False,
             headers=self._extra_headers,
         ) as client:
             # Phase 1+2: Reflected XSS testing per parameter
@@ -265,7 +265,14 @@ class PythonXSSTester:
                 params.append((p, "POST"))
 
         if explicit_params:
+            # Filter to only explicit params if they exist in detected params
+            existing = {p for p, _ in params}
             params = [(p, loc) for p, loc in params if p in explicit_params]
+            # Add explicit params not found in URL/body as GET params
+            for ep in explicit_params:
+                if ep not in existing:
+                    loc = "POST" if method.upper() == "POST" else "GET"
+                    params.append((ep, loc))
 
         return params
 
@@ -749,7 +756,7 @@ async def python_xss_test(
         JSON string with ``XSSResult`` data.
     """
     param_list: list[str] | None = params.split(",") if params else None
-    extra_headers: dict[str, str] = json.loads(headers) if headers else {}
+    extra_headers: dict[str, str] = headers if isinstance(headers, dict) else (json.loads(headers) if headers else {})
 
     # Auto-detect params from URL fragment for SPAs (e.g., /#/search?q=test)
     parsed = urlparse(url)

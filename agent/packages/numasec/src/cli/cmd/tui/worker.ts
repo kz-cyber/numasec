@@ -110,6 +110,26 @@ const startEventStream = (input: { directory: string; workspaceID?: string }) =>
 
 startEventStream({ directory: process.cwd() })
 
+// Register internal Python MCP server for security tools.
+// Fire-and-forget: runs inside Instance.provide so connectLocal() can access Instance.directory.
+// The startEventStream above creates and caches the Instance; we reuse it here.
+;(async () => {
+  try {
+    await Instance.provide({
+      directory: process.cwd(),
+      init: InstanceBootstrap,
+      fn: async () => {
+        const { registerInternalServer } = await import("@/bridge/internal")
+        await registerInternalServer()
+      },
+    })
+  } catch (error) {
+    Log.Default.error("failed to register internal MCP server", {
+      error: error instanceof Error ? error.message : error,
+    })
+  }
+})()
+
 export const rpc = {
   async fetch(input: { url: string; method: string; headers: Record<string, string>; body?: string }) {
     const headers = { ...input.headers }
@@ -136,6 +156,15 @@ export const rpc = {
   },
   async server(input: { port: number; hostname: string; mdns?: boolean; cors?: string[] }) {
     if (server) await server.stop(true)
+    // Register internal Python MCP server inside Instance context
+    // (connectLocal needs Instance.directory for cwd)
+    await Instance.provide({
+      directory: process.cwd(),
+      fn: async () => {
+        const { registerInternalServer } = await import("@/bridge/internal")
+        await registerInternalServer()
+      },
+    })
     server = await Server.listen(input)
     return { url: server.url.toString() }
   },
@@ -158,6 +187,8 @@ export const rpc = {
     Log.Default.info("worker shutting down")
     if (eventStream.abort) eventStream.abort.abort()
     await Instance.disposeAll()
+    const { shutdownInternalServer } = await import("@/bridge/internal")
+    await shutdownInternalServer()
     if (server) await server.stop(true)
   },
 }
