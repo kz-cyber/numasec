@@ -25,7 +25,7 @@ let healthTimer: ReturnType<typeof setInterval> | undefined
 let restartTimestamps: number[] = []
 let degraded = false
 let serverConfig: Config.Mcp | undefined
-let registered = false
+let registrationPromise: Promise<void> | undefined
 let instanceDir: string | undefined
 
 export function isDegraded(): boolean {
@@ -33,18 +33,25 @@ export function isDegraded(): boolean {
 }
 
 export function isRegistered(): boolean {
-  return registered
+  return registrationPromise !== undefined
 }
 
 /**
  * Register the Python MCP server as the internal scanner backend.
  * Called lazily on first security tool call or at app startup.
+ * Safe to call multiple times — subsequent calls await the first registration.
  */
 export async function registerInternalServer(): Promise<void> {
-  if (registered) return
+  if (registrationPromise) return registrationPromise
+  registrationPromise = doRegisterInternalServer()
+  return registrationPromise.catch((error) => {
+    registrationPromise = undefined
+    throw error
+  })
+}
 
+async function doRegisterInternalServer(): Promise<void> {
   try {
-    // Store Instance directory for health monitor restarts (which run outside Instance.provide)
     instanceDir = Instance.directory
 
     const env = await ensurePythonEnv()
@@ -59,23 +66,20 @@ export async function registerInternalServer(): Promise<void> {
 
     const result = await MCP.add(SERVER_NAME, serverConfig)
     const rawStatus = result.status
-    // status can be Record<string, Status> or Status directly
     const internalStatus = "status" in rawStatus && typeof rawStatus.status === "string"
       ? rawStatus as MCP.Status
       : (rawStatus as Record<string, MCP.Status>)[SERVER_NAME]
 
     if (internalStatus?.status === "connected") {
       log.info("internal MCP server connected")
-      registered = true
-      // Health monitor disabled: MCP.status() returns stale state when called
-      // from setInterval (outside the original Instance/Effect context), causing
-      // false "not connected" reports and unnecessary restart cycles.
-      // TODO: re-enable once InstanceState scoping is resolved for out-of-band checks.
     } else {
       log.error("internal MCP server failed to connect", { status: internalStatus })
+      registrationPromise = undefined
     }
   } catch (error) {
     log.error("failed to register internal MCP server", { error: String(error) })
+    registrationPromise = undefined
+    throw error
   }
 }
 
@@ -87,13 +91,13 @@ export async function shutdownInternalServer(): Promise<void> {
     clearInterval(healthTimer)
     healthTimer = undefined
   }
-  if (registered) {
+  if (registrationPromise) {
     try {
       await MCP.disconnect(SERVER_NAME)
     } catch {
       // ignore
     }
-    registered = false
+    registrationPromise = undefined
   }
 }
 
@@ -148,8 +152,10 @@ async function attemptRestart(): Promise<void> {
 
   if (!serverConfig || !instanceDir) return
 
+  // Reset registration so a fresh attempt can proceed
+  registrationPromise = undefined
+
   try {
-    // Wrap in Instance.provide — health monitor runs from setInterval (no active context)
     await Instance.provide({
       directory: instanceDir,
       fn: async () => {
@@ -161,15 +167,13 @@ async function attemptRestart(): Promise<void> {
 
         if (internalStatus?.status === "connected") {
           log.info("internal MCP server reconnected")
-          registered = true
+          registrationPromise = Promise.resolve()
         } else {
           log.error("reconnection failed", { status: internalStatus })
-          registered = false
         }
       },
     })
   } catch (error) {
     log.error("restart failed", { error: String(error) })
-    registered = false
   }
 }
