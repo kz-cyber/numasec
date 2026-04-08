@@ -49,7 +49,7 @@ Claude Code writes code. Copilot reviews it. Cursor helps you navigate it. But w
 
 numasec is that agent.
 
-- **Built for security from the ground up.** Not a wrapper around ChatGPT. 33 security tools, 34 attack templates, a deterministic planner based on the [CHECKMATE](https://arxiv.org/abs/2310.05758) paper. The AI coordinates and analyzes. It doesn't hallucinate the methodology.
+- **Built for security from the ground up.** Not a wrapper around ChatGPT. 33 security tools, 34 attack templates, a deterministic planner based on the [CHECKMATE](https://arxiv.org/abs/2512.11143) paper. The AI coordinates and analyzes. It doesn't hallucinate the methodology.
 - **MCP-native.** Ships with 33 built-in security tools and connects to any MCP server. Add your own tools, same protocol Claude Code and Cursor use for extensibility.
 - **Attack chains, not isolated findings.** Leaked API key in JS → SSRF → cloud metadata → account takeover. Documented with full evidence.
 - **Benchmarked and reproducible.** 96% recall on Juice Shop. 100% on DVWA. Full coverage on WebGoat. Better than most manual security assessments. [Run them yourself.](tests/benchmarks/)
