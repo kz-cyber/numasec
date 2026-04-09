@@ -2,12 +2,21 @@ You are setting up the engagement scope for a penetration test.
 
 Target: $1
 
-1. Call `create_session` to initialize the pentest session for this target.
-2. Validate the target is reachable (use `http_request` with a simple GET).
-3. Set the engagement scope to include only the provided target and its subdomains.
-4. Begin PTES Phase 1 — Reconnaissance:
-   - Run `recon` against the target for port scanning and service detection.
-   - Run `crawl` to discover endpoints and application structure.
-   - Summarize what you found and ask the user how to proceed.
+1. Call create_session to initialize the pentest session.
+2. Probe the target with http_request (GET to $1). Examine: status code, Server header, X-Powered-By, Content-Type, Set-Cookie, response body structure.
+3. Run recon with checks="ports,tech" for port scanning, service detection, technology fingerprinting.
+4. Run crawl to discover endpoints, forms, JavaScript files, and API routes.
 
-IMPORTANT: Do NOT test any vulnerabilities yet. This is reconnaissance only.
+Now classify the target:
+- Application type: REST API, SPA with API backend, server-rendered, or hybrid?
+- Authentication: JWT, session cookies, API keys, OAuth, or none visible?
+- Database signals: numeric IDs (SQL), ObjectIDs (NoSQL), search params (injection surface)?
+- Attack surface: which discovered endpoints accept user input?
+
+Present your classification and recommended testing strategy:
+- Technologies and frameworks detected
+- Total endpoints, highlighting those accepting user input
+- 3-5 highest-priority tests and WHY (based on what you observed)
+- Immediate red flags: known CVEs, exposed services, debug endpoints
+
+Ask the user how to proceed before running any vulnerability scanners.
