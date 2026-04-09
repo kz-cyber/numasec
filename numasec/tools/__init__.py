@@ -185,6 +185,11 @@ def create_default_tool_registry() -> ToolRegistry:
                     },
                     "headers": {"type": "string", "description": "JSON string of HTTP headers for auth testing"},
                     "waf_evasion": {"type": "boolean", "description": "Enable WAF bypass encoding", "default": False},
+                    "oob": {
+                        "type": "boolean",
+                        "description": "Enable Out-of-Band blind vulnerability detection via interactsh callbacks",
+                        "default": False,
+                    },
                 },
                 "required": ["url"],
             },
@@ -213,6 +218,7 @@ def create_default_tool_registry() -> ToolRegistry:
                     "params": {"type": "string", "description": "Comma-separated param names. Auto-detect if omitted"},
                     "method": {"type": "string", "enum": ["GET", "POST"], "default": "GET"},
                     "headers": {"type": "string", "description": "JSON string of HTTP headers for auth testing"},
+                    "waf_evasion": {"type": "boolean", "description": "Enable WAF bypass encoding for payloads", "default": False},
                 },
                 "required": ["url"],
             },
@@ -350,6 +356,11 @@ def create_default_tool_registry() -> ToolRegistry:
                     "method": {"type": "string", "enum": ["GET", "POST"], "default": "GET"},
                     "headers": {"type": "string", "description": "JSON string of HTTP headers for auth testing"},
                     "waf_evasion": {"type": "boolean", "description": "Enable WAF bypass encoding", "default": False},
+                    "oob": {
+                        "type": "boolean",
+                        "description": "Enable Out-of-Band blind XXE detection via interactsh callbacks",
+                        "default": False,
+                    },
                 },
                 "required": ["url"],
             },
@@ -789,6 +800,65 @@ def create_default_tool_registry() -> ToolRegistry:
                     },
                 },
                 "required": ["action"],
+            },
+        },
+    )
+
+    # ------------------------------------------------------------------
+    # CRLF Injection Scanner
+    # ------------------------------------------------------------------
+    from numasec.scanners.crlf_tester import python_crlf_test
+
+    registry.register(
+        "crlf_test",
+        python_crlf_test,
+        {
+            "name": "crlf_test",
+            "description": "Test for CRLF injection (header injection / response splitting). Injects CRLF sequences into query/POST parameters and headers to detect HTTP response splitting.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "Target URL with query parameters to test"},
+                    "params": {
+                        "type": "string",
+                        "description": "Comma-separated parameter names (auto-detect if omitted)",
+                    },
+                    "method": {"type": "string", "enum": ["GET", "POST"], "default": "GET"},
+                    "body": {
+                        "type": "string",
+                        "description": "Request body for POST requests (JSON string)",
+                    },
+                    "headers": {
+                        "type": "string",
+                        "description": "JSON string of extra HTTP headers for auth testing",
+                    },
+                },
+                "required": ["url"],
+            },
+        },
+    )
+
+    # ------------------------------------------------------------------
+    # Python-native vulnerability scanner (KB templates)
+    # ------------------------------------------------------------------
+    from numasec.scanners.vuln_scanner import python_vuln_scan
+
+    registry.register(
+        "vuln_scan",
+        python_vuln_scan,
+        {
+            "name": "vuln_scan",
+            "description": "Python-native vulnerability scanner using KB templates. Detects missing security headers, technologies, error patterns (info disclosure), response differences, and timing behaviors.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "Target URL to scan"},
+                    "checks": {
+                        "type": "string",
+                        "description": "Comma-separated: headers, technologies, response_match, response_diff, time_based, boolean_based. Default: all passive checks.",
+                    },
+                },
+                "required": ["url"],
             },
         },
     )
