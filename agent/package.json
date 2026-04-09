@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "bun run --cwd packages/numasec --conditions=browser src/index.ts",
     "dev:web": "bun --cwd packages/app dev",
+    "build": "bun run --cwd packages/numasec build",
     "dev:console": "ulimit -n 10240 2>/dev/null; bun run --cwd packages/console/app dev",
     "dev:storybook": "bun --cwd packages/storybook storybook",
     "typecheck": "bun turbo typecheck",
