@@ -161,7 +161,10 @@ def create_default_tool_registry() -> ToolRegistry:
             "description": (
                 "Test for injection vulnerabilities: SQL injection, NoSQL injection, "
                 "Server-Side Template Injection (SSTI), OS Command Injection, and "
-                "GraphQL security issues. Specify types to test."
+                "GraphQL security issues. Specify types to test. "
+                "Most effective on endpoints accepting user input in query params or "
+                "request body. Key signals: search parameters, numeric IDs, form "
+                "submissions to API backends."
             ),
             "parameters": {
                 "type": "object",
@@ -209,7 +212,9 @@ def create_default_tool_registry() -> ToolRegistry:
             "description": (
                 "Test for Cross-Site Scripting (XSS): reflected XSS via canary "
                 "injection and payload escalation, plus DOM XSS indicators "
-                "(dangerous sinks and sources in JavaScript)."
+                "(dangerous sinks and sources in JavaScript). "
+                "Most effective on endpoints returning HTML that reflect user input. "
+                "Low value on pure JSON API responses."
             ),
             "parameters": {
                 "type": "object",
@@ -242,7 +247,9 @@ def create_default_tool_registry() -> ToolRegistry:
             "description": (
                 "Test for access control issues: IDOR (Insecure Direct Object Reference), "
                 "CSRF (Cross-Site Request Forgery), and CORS misconfiguration. "
-                "Specify checks to run."
+                "Specify checks to run. "
+                "IDOR most effective on endpoints with sequential numeric IDs. "
+                "CSRF only matters on state-changing operations (POST/PUT/DELETE)."
             ),
             "parameters": {
                 "type": "object",
@@ -320,7 +327,9 @@ def create_default_tool_registry() -> ToolRegistry:
             "description": (
                 "Test for Server-Side Request Forgery (SSRF). Injects internal and "
                 "cloud metadata URLs into query params. Auto-injects SSRF param names "
-                "(url, uri, path, dest, callback) even without existing params."
+                "(url, uri, path, dest, callback) even without existing params. "
+                "Most effective on endpoints with URL, redirect, callback, or webhook parameters. "
+                "For blind SSRF (no reflected data), pair with oob tool for callback detection."
             ),
             "parameters": {
                 "type": "object",
@@ -345,7 +354,10 @@ def create_default_tool_registry() -> ToolRegistry:
             "name": "path_test",
             "description": (
                 "Test for path traversal (LFI), XXE injection, open redirect, "
-                "and host header injection. Specify checks to run."
+                "and host header injection. Specify checks to run. "
+                "LFI effective on endpoints with file/path/template params. "
+                "XXE requires XML input (for blind XXE, pair with oob tool). "
+                "Open redirect on redirect/next/url params."
             ),
             "parameters": {
                 "type": "object",
@@ -466,7 +478,8 @@ def create_default_tool_registry() -> ToolRegistry:
             "description": (
                 "Test for file upload vulnerabilities: unrestricted type, MIME bypass, "
                 "double extension, null byte injection, SVG XSS, polyglot files, and "
-                "Content-Type mismatch. Auto-discovers file upload forms."
+                "Content-Type mismatch. Auto-discovers file upload forms. "
+                "Successful upload bypass can lead to remote code execution."
             ),
             "parameters": {
                 "type": "object",
@@ -496,7 +509,9 @@ def create_default_tool_registry() -> ToolRegistry:
             "description": (
                 "Test for race condition (TOCTOU) vulnerabilities by sending concurrent "
                 "identical requests. Detects limit bypass, state inconsistency, and "
-                "duplicate action issues."
+                "duplicate action issues. "
+                "Most effective on state-changing endpoints: coupon redemption, "
+                "balance transfers, voting, account creation."
             ),
             "parameters": {
                 "type": "object",
@@ -579,9 +594,11 @@ def create_default_tool_registry() -> ToolRegistry:
         {
             "name": "oob",
             "description": (
-                "Out-of-Band blind vulnerability detection via interactsh. "
-                "Setup: creates a callback listener domain. Poll: checks for "
-                "DNS/HTTP/SMTP callbacks. Confirms blind SSRF, XXE, XSS, SQLi."
+                "Out-of-Band blind vulnerability detection via interactsh callback server. "
+                "Use AFTER reflection-based tests (ssrf_test, injection_test, path_test) "
+                "return no evidence — a callback proves the vulnerability is blind but exploitable. "
+                "Workflow: setup → inject callback domain in SSRF/XXE/SQLi payloads → poll for DNS/HTTP callbacks. "
+                "Confirms blind SSRF, XXE, XSS, SQLi."
             ),
             "parameters": {
                 "type": "object",
