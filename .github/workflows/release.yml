@@ -14,37 +14,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.11"
-      - run: pip install -e ".[all]"
-      - run: ruff check numasec/
-      - run: pytest tests/ -v -m "not slow and not benchmark" --tb=short
       - run: bun install --frozen-lockfile
         working-directory: agent
       - run: bun run typecheck
         working-directory: agent/packages/numasec
-
-  publish-pypi:
-    name: Publish to PyPI
-    needs: validate
-    runs-on: ubuntu-latest
-    environment: release
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: pip install build
-      - run: python -m build
-      - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          skip-existing: true
+      - run: bun test --timeout 30000
+        working-directory: agent/packages/numasec
 
   build-agent:
     name: Build Agent Binary
@@ -97,7 +75,7 @@ jobs:
 
   github-release:
     name: Create GitHub Release
-    needs: [publish-pypi, build-agent]
+    needs: [build-agent]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

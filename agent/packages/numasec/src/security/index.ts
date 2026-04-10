@@ -41,6 +41,11 @@ export { enrichFinding, generateFindingId, normalizeSeverity } from "./enrichmen
 export { getCweInfo } from "./enrichment/cwe-map"
 export { calculateBaseScore } from "./enrichment/cvss-calculator"
 export { getOwaspCategory } from "./enrichment/owasp-map"
+export { getNextActions } from "./enrichment/next-actions"
+
+// Chain builder
+export { buildChainGroups } from "./chain-builder"
+export type { ChainGroup } from "./chain-builder"
 
 // Knowledge base
 export { buildRetriever, KnowledgeRetriever } from "./kb/retriever"

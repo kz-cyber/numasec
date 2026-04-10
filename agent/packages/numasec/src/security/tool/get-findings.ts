@@ -8,6 +8,7 @@ import z from "zod"
 import { Tool } from "../../tool/tool"
 import { Database, eq, and } from "../../storage/db"
 import { FindingTable } from "../security.sql"
+import { getNextActions } from "../enrichment/next-actions"
 
 const DESCRIPTION = `Retrieve saved security findings for the current session.
 Use this to review what has been found so far, check for gaps, and plan next steps.
@@ -55,6 +56,12 @@ export const GetFindingsTool = Tool.define("get_findings", {
       parts.push(`   ID: ${f.id} | URL: ${f.url}`)
       if (f.cwe_id) parts.push(`   CWE: ${f.cwe_id} | CVSS: ${f.cvss_score?.toFixed(1) ?? "?"} | OWASP: ${f.owasp_category}`)
       if (f.chain_id) parts.push(`   Chain: ${f.chain_id}`)
+
+      const actions = getNextActions(f.cwe_id, f.title)
+      if (actions.length > 0) {
+        parts.push(`   Next: ${actions[0]}`)
+      }
+
       parts.push("")
     }
 

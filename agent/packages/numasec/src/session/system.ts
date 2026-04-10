@@ -14,6 +14,7 @@ import type { Provider } from "@/provider/provider"
 import type { Agent } from "@/agent/agent"
 import { Permission } from "@/permission"
 import { Skill } from "@/skill"
+import { detectEnvironment } from "@/security/env/detect"
 
 export namespace SystemPrompt {
   export function provider(model: Provider.Model) {
@@ -33,6 +34,9 @@ export namespace SystemPrompt {
 
   export async function environment(model: Provider.Model) {
     const project = Instance.project
+    const env = detectEnvironment()
+    const available = env.tools.filter((t) => t.available).map((t) => t.name)
+    const unavailable = env.tools.filter((t) => !t.available).map((t) => t.name)
     return [
       [
         `You are powered by the model named ${model.api.id}. The exact model ID is ${model.providerID}/${model.api.id}`,
@@ -43,10 +47,14 @@ export namespace SystemPrompt {
         `  Today's date: ${new Date().toDateString()}`,
         `  Mode: penetration testing`,
         `  Engine: numasec native security scanner engine (TypeScript)`,
-        `  Knowledge base: 35 YAML templates (detection, exploitation, post-exploitation, remediation)`,
-        `  Scanner count: 19 security tools`,
+        `  Knowledge base: 35+ YAML templates (detection, exploitation, post-exploitation, remediation, methodology, tools)`,
+        `  Scanner count: 21 security tools`,
+        available.length > 0 ? `  External tools available: ${available.join(", ")}` : `  External tools: none detected`,
+        unavailable.length > 0 ? `  External tools NOT installed: ${unavailable.join(", ")}` : "",
         `</env>`,
-      ].join("\n"),
+      ]
+        .filter(Boolean)
+        .join("\n"),
     ]
   }
 

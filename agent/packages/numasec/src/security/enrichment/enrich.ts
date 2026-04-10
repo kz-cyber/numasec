@@ -15,6 +15,7 @@ import { getCweInfo } from "./cwe-map"
 import { cvssFromCwe, cvssFromSeverity, formatVectorString, deriveVectorFromCwe, calculateBaseScore } from "./cvss-calculator"
 import { getOwaspCategory } from "./owasp-map"
 import { getAttackTechnique } from "./attack-map"
+import { getNextActions } from "./next-actions"
 import type { FindingID } from "../security.sql"
 import { createHash } from "crypto"
 
@@ -54,6 +55,7 @@ export interface EnrichedFinding extends FindingInput {
   owaspCategory: string
   attackTechnique: string
   confidence: number
+  nextActions: string[]
 }
 
 /** Normalize severity aliases to canonical values. */
@@ -84,6 +86,7 @@ export function enrichFinding(input: FindingInput): EnrichedFinding {
     owaspCategory: input.owaspCategory ?? "",
     attackTechnique: input.attackTechnique ?? "",
     confidence: input.confidence ?? 0.5,
+    nextActions: [],
   }
 
   // Step 1: CWE inference from title + description
@@ -118,6 +121,9 @@ export function enrichFinding(input: FindingInput): EnrichedFinding {
       finding.attackTechnique = `${technique.techniqueId} - ${technique.techniqueName}`
     }
   }
+
+  // Step 5: Deterministic next-action suggestions
+  finding.nextActions = getNextActions(finding.cweId, finding.title)
 
   return finding
 }

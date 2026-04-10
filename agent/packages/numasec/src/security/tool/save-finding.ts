@@ -99,6 +99,14 @@ export const SaveFindingTool = Tool.define("save_finding", {
       `ATT&CK: ${enrichment.attackTechnique ?? "N/A"}`,
     ]
 
+    if (enrichment.nextActions.length > 0) {
+      lines.push(``)
+      lines.push(`Next steps:`)
+      for (const action of enrichment.nextActions) {
+        lines.push(`  → ${action}`)
+      }
+    }
+
     return {
       title: `✓ Saved: ${params.title} (${severity})`,
       metadata: {

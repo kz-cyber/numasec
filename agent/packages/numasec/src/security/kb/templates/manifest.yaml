@@ -73,4 +73,25 @@ categories:
     templates:
       - protocols/protocol-network-attacks.yaml
 
-total_templates: 34
+  methodology:
+    description: Penetration testing playbooks guiding structured assessment workflows
+    templates:
+      - methodology/web_app_assessment.yaml
+      - methodology/api_assessment.yaml
+      - methodology/auth_assessment.yaml
+      - methodology/chain_building.yaml
+      - methodology/follow_through.yaml
+
+  tools:
+    description: Tool usage guides for external security tools invoked via shell
+    templates:
+      - tools/nmap.yaml
+      - tools/sqlmap.yaml
+      - tools/nuclei.yaml
+      - tools/ffuf.yaml
+      - tools/hydra.yaml
+      - tools/nikto.yaml
+      - tools/wpscan.yaml
+      - tools/gobuster.yaml
+
+total_templates: 47

@@ -9,6 +9,7 @@ import { Tool } from "../../tool/tool"
 import { Database, eq } from "../../storage/db"
 import { FindingTable, TargetTable } from "../security.sql"
 import { generateSarif, generateMarkdown, generateHtml, calculateRiskScore } from "../report/generators"
+import { buildChainGroups } from "../chain-builder"
 
 const DESCRIPTION = `Generate a security assessment report from saved findings.
 Formats: sarif (for CI/CD), markdown (for documentation), html (self-contained visual report).
@@ -51,17 +52,20 @@ export const GenerateReportTool = Tool.define("generate_report", {
       findings[0]?.url ??
       "unknown"
 
+    // Build attack chains for narrative sections
+    const chains = buildChainGroups(findings)
+
     let report: string
     switch (params.format) {
       case "sarif":
-        report = generateSarif(findings, targetUrl)
+        report = generateSarif(findings, targetUrl, chains)
         break
       case "html":
-        report = generateHtml(findings, targetUrl)
+        report = generateHtml(findings, targetUrl, chains)
         break
       case "markdown":
       default:
-        report = generateMarkdown(findings, targetUrl)
+        report = generateMarkdown(findings, targetUrl, chains)
         break
     }
 

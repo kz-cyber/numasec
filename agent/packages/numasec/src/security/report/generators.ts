@@ -1,8 +1,12 @@
 /**
- * Report generators: SARIF 2.1.0, HTML, Markdown
+ * Report generators: SARIF 2.1.0, HTML (self-contained), Markdown
+ *
+ * All generators accept optional attack chains for narrative sections
+ * and remediation roadmaps (PRD §8.2).
  */
 
-import { type FindingTable } from "../security.sql"
+import type { FindingTable } from "../security.sql"
+import type { ChainGroup } from "../chain-builder"
 
 type Finding = typeof FindingTable.$inferSelect
 
@@ -16,7 +20,7 @@ interface SarifResult {
   properties?: Record<string, any>
 }
 
-export function generateSarif(findings: Finding[], targetUrl: string): string {
+export function generateSarif(findings: Finding[], targetUrl: string, chains?: ChainGroup[]): string {
   const severityToLevel: Record<string, string> = {
     critical: "error",
     high: "error",
@@ -54,8 +58,24 @@ export function generateSarif(findings: Finding[], targetUrl: string): string {
       parameter: f.parameter || undefined,
       payload: f.payload || undefined,
       remediation: f.remediation_summary || undefined,
+      chainId: f.chain_id || undefined,
     },
   }))
+
+  const invocationProperties: Record<string, any> = {
+    target: targetUrl,
+    timestamp: new Date().toISOString(),
+  }
+
+  if (chains && chains.length > 0) {
+    invocationProperties.attackChains = chains.map((c) => ({
+      id: c.id,
+      title: c.title,
+      severity: c.severity,
+      impact: c.impact,
+      findingIds: c.findings.map((f) => f.id),
+    }))
+  }
 
   const sarif = {
     $schema: "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
@@ -71,15 +91,7 @@ export function generateSarif(findings: Finding[], targetUrl: string): string {
           },
         },
         results,
-        invocations: [
-          {
-            executionSuccessful: true,
-            properties: {
-              target: targetUrl,
-              timestamp: new Date().toISOString(),
-            },
-          },
-        ],
+        invocations: [{ executionSuccessful: true, properties: invocationProperties }],
       },
     ],
   }
@@ -89,7 +101,7 @@ export function generateSarif(findings: Finding[], targetUrl: string): string {
 
 // ── Markdown Report ──────────────────────────────────────────
 
-export function generateMarkdown(findings: Finding[], targetUrl: string): string {
+export function generateMarkdown(findings: Finding[], targetUrl: string, chains?: ChainGroup[]): string {
   const lines: string[] = []
   const now = new Date().toISOString().split("T")[0]
 
@@ -117,6 +129,25 @@ export function generateMarkdown(findings: Finding[], targetUrl: string): string
   }
   lines.push(``)
 
+  // Attack Paths (from chains)
+  if (chains && chains.length > 0) {
+    lines.push(`## Attack Paths`)
+    lines.push(``)
+    for (const chain of chains) {
+      const icon = chain.severity === "critical" ? "🔴" : chain.severity === "high" ? "🟠" : "🟡"
+      lines.push(`### ${icon} ${chain.id}: ${chain.title}`)
+      lines.push(``)
+      lines.push(`**Severity:** ${chain.severity.toUpperCase()} | **Impact:** ${chain.impact}`)
+      lines.push(``)
+      for (let i = 0; i < chain.findings.length; i++) {
+        const f = chain.findings[i]
+        lines.push(`${i + 1}. **${f.title}** (${f.severity.toUpperCase()})`)
+        lines.push(`   ${f.url} ${f.parameter ? `→ \`${f.parameter}\`` : ""}`)
+      }
+      lines.push(``)
+    }
+  }
+
   // OWASP coverage
   const owaspCategories = new Set(findings.map((f) => f.owasp_category).filter(Boolean))
   if (owaspCategories.size > 0) {
@@ -133,11 +164,9 @@ export function generateMarkdown(findings: Finding[], targetUrl: string): string
   lines.push(`## Findings`)
   lines.push(``)
 
-  const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 }
-  const sorted = [...findings].sort((a, b) => (severityOrder[a.severity] ?? 5) - (severityOrder[b.severity] ?? 5))
-
+  const sorted = sortBySeverity(findings)
   for (const f of sorted) {
-    const icon = f.severity === "critical" ? "🔴" : f.severity === "high" ? "🟠" : f.severity === "medium" ? "🟡" : f.severity === "low" ? "🟢" : "⚪"
+    const icon = severityIcon(f.severity)
     lines.push(`### ${icon} ${f.title}`)
     lines.push(``)
     lines.push(`| Field | Value |`)
@@ -181,52 +210,63 @@ export function generateMarkdown(findings: Finding[], targetUrl: string): string
     lines.push(``)
   }
 
+  // Remediation Roadmap
+  lines.push(generateRemediationRoadmap(sorted))
+
   return lines.join("\n")
 }
 
-// ── HTML Report ──────────────────────────────────────────────
+// ── HTML Report (self-contained) ──────────────────────────────
 
-export function generateHtml(findings: Finding[], targetUrl: string): string {
+const INLINE_CSS = `*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f8f9fa;color:#212529;line-height:1.6;padding:2rem 1rem}.container{max-width:960px;margin:0 auto}.row{display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem}.col-4{flex:0 0 calc(33.333% - .67rem)}.col-8{flex:0 0 calc(66.667% - .33rem)}.card{background:#fff;border:1px solid #dee2e6;border-radius:.375rem}.card-body{padding:1rem}.text-center{text-align:center}.badge{display:inline-block;padding:.2em .5em;font-size:.75rem;font-weight:700;color:#fff;border-radius:.25rem;margin-right:.25rem}.lead{font-size:1.05rem;color:#6c757d;margin-bottom:1rem}.text-success{color:#198754}code{background:#e9ecef;padding:.1em .25em;border-radius:.2rem;font-size:.875em}pre{background:#212529;color:#f8f9fa;padding:.75rem;border-radius:.375rem;overflow:auto;max-height:300px;margin:.5rem 0}pre code{background:transparent;padding:0}details{margin:.5rem 0}summary{cursor:pointer;font-weight:600}h1{font-size:1.75rem;margin-bottom:.25rem}h2{font-size:1.4rem;margin:1.5rem 0 .75rem;border-bottom:2px solid #dee2e6;padding-bottom:.25rem}h3{font-size:1.15rem;margin:1rem 0 .5rem}h5{font-size:1rem;margin-bottom:.4rem}p{margin:.25rem 0}strong{font-weight:600}.finding{background:#fff;border:1px solid #dee2e6;border-radius:.375rem;border-left:4px solid;padding:1rem;margin-bottom:1rem}.chain-card{background:#fff;border:1px solid #dee2e6;border-radius:.375rem;padding:1rem;margin-bottom:.75rem}.chain-step{padding:.25rem 0 .25rem 1rem;border-left:2px solid #dee2e6;margin:.25rem 0}.risk-score{font-size:3rem;font-weight:bold}.roadmap-item{padding:.5rem 0;border-bottom:1px solid #f0f0f0}@media(max-width:768px){.col-4,.col-8{flex:0 0 100%}}`
+
+export function generateHtml(findings: Finding[], targetUrl: string, chains?: ChainGroup[]): string {
   const now = new Date().toISOString().split("T")[0]
   const riskScore = calculateRiskScore(findings)
   const counts: Record<string, number> = {}
   for (const f of findings) counts[f.severity] = (counts[f.severity] ?? 0) + 1
 
-  const severityColors: Record<string, string> = {
-    critical: "#dc3545",
-    high: "#fd7e14",
-    medium: "#ffc107",
-    low: "#28a745",
-    info: "#6c757d",
+  const sorted = sortBySeverity(findings)
+
+  const severityBadges = ["critical", "high", "medium", "low", "info"]
+    .filter((s) => counts[s])
+    .map((s) => `<span class="badge" style="background:${SEV_COLORS[s]}">${counts[s]} ${s}</span>`)
+    .join("")
+
+  // Attack chains HTML
+  let chainsHtml = ""
+  if (chains && chains.length > 0) {
+    const chainCards = chains
+      .map((c) => {
+        const steps = c.findings
+          .map((f) => `<div class="chain-step"><strong>${esc(f.title)}</strong> <span class="badge" style="background:${SEV_COLORS[f.severity]}">${f.severity}</span><br><code>${esc(f.url)}</code></div>`)
+          .join("")
+        return `<div class="chain-card"><h3>${esc(c.id)}: ${esc(c.title)}</h3><p><strong>Severity:</strong> ${c.severity.toUpperCase()} | <strong>Impact:</strong> ${esc(c.impact)}</p>${steps}</div>`
+      })
+      .join("")
+    chainsHtml = `<h2>⛓ Attack Paths</h2>${chainCards}`
   }
 
-  const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 }
-  const sorted = [...findings].sort((a, b) => (severityOrder[a.severity] ?? 5) - (severityOrder[b.severity] ?? 5))
-
+  // Finding cards
   const findingCards = sorted
     .map(
       (f) => `
-    <div class="card mb-3 border-start border-4" style="border-color: ${severityColors[f.severity] ?? "#999"} !important">
-      <div class="card-body">
-        <h5 class="card-title">${esc(f.title)}</h5>
-        <span class="badge" style="background:${severityColors[f.severity]}">${f.severity.toUpperCase()}</span>
-        <span class="badge bg-secondary">${esc(f.id)}</span>
-        ${f.cwe_id ? `<span class="badge bg-info">${esc(f.cwe_id)}</span>` : ""}
-        ${f.cvss_score ? `<span class="badge bg-dark">CVSS ${f.cvss_score.toFixed(1)}</span>` : ""}
-        <p class="mt-2"><strong>URL:</strong> <code>${esc(f.url)}</code> ${f.method ? `(${f.method})` : ""} ${f.parameter ? `param: <code>${esc(f.parameter)}</code>` : ""}</p>
-        ${f.description ? `<p>${esc(f.description)}</p>` : ""}
-        ${f.payload ? `<p><strong>Payload:</strong> <code>${esc(f.payload)}</code></p>` : ""}
-        ${f.evidence ? `<details><summary>Evidence</summary><pre class="bg-dark text-light p-2 rounded">${esc(f.evidence)}</pre></details>` : ""}
-        ${f.remediation_summary ? `<p class="text-success"><strong>Remediation:</strong> ${esc(f.remediation_summary)}</p>` : ""}
-      </div>
+    <div class="finding" style="border-left-color:${SEV_COLORS[f.severity] ?? "#999"}">
+      <h5>${esc(f.title)}</h5>
+      <span class="badge" style="background:${SEV_COLORS[f.severity]}">${f.severity.toUpperCase()}</span>
+      <span class="badge" style="background:#6c757d">${esc(f.id)}</span>
+      ${f.cwe_id ? `<span class="badge" style="background:#0dcaf0;color:#000">${esc(f.cwe_id)}</span>` : ""}
+      ${f.cvss_score ? `<span class="badge" style="background:#212529">CVSS ${f.cvss_score.toFixed(1)}</span>` : ""}
+      <p style="margin-top:.5rem"><strong>URL:</strong> <code>${esc(f.url)}</code> ${f.method ? `(${f.method})` : ""} ${f.parameter ? `param: <code>${esc(f.parameter)}</code>` : ""}</p>
+      ${f.description ? `<p>${esc(f.description)}</p>` : ""}
+      ${f.payload ? `<p><strong>Payload:</strong> <code>${esc(f.payload)}</code></p>` : ""}
+      ${f.evidence ? `<details><summary>Evidence</summary><pre><code>${esc(f.evidence)}</code></pre></details>` : ""}
+      ${f.remediation_summary ? `<p class="text-success"><strong>Remediation:</strong> ${esc(f.remediation_summary)}</p>` : ""}
     </div>`,
     )
     .join("\n")
 
-  const severityBadges = ["critical", "high", "medium", "low", "info"]
-    .filter((s) => counts[s])
-    .map((s) => `<span class="badge me-1" style="background:${severityColors[s]}">${counts[s]} ${s}</span>`)
-    .join("")
+  const roadmapHtml = generateHtmlRemediation(sorted)
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -234,24 +274,23 @@ export function generateHtml(findings: Finding[], targetUrl: string): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Security Assessment — ${esc(targetUrl)}</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>body { background: #f8f9fa; } .risk-score { font-size: 3rem; font-weight: bold; } pre { max-height: 300px; overflow: auto; }</style>
+  <style>${INLINE_CSS}</style>
 </head>
 <body>
-  <div class="container py-4">
+  <div class="container">
     <h1>🛡️ Security Assessment Report</h1>
     <p class="lead">Target: <strong>${esc(targetUrl)}</strong> | Date: ${now} | numasec v5.0.0</p>
 
-    <div class="row mb-4">
-      <div class="col-md-4">
-        <div class="card text-center">
-          <div class="card-body">
-            <div class="risk-score" style="color: ${riskScore > 70 ? "#dc3545" : riskScore > 40 ? "#ffc107" : "#28a745"}">${riskScore}</div>
-            <p class="card-text">Risk Score / 100</p>
+    <div class="row">
+      <div class="col-4">
+        <div class="card">
+          <div class="card-body text-center">
+            <div class="risk-score" style="color:${riskScore > 70 ? "#dc3545" : riskScore > 40 ? "#ffc107" : "#28a745"}">${riskScore}</div>
+            <p>Risk Score / 100</p>
           </div>
         </div>
       </div>
-      <div class="col-md-8">
+      <div class="col-8">
         <div class="card">
           <div class="card-body">
             <h5>Summary</h5>
@@ -261,14 +300,36 @@ export function generateHtml(findings: Finding[], targetUrl: string): string {
       </div>
     </div>
 
+    ${chainsHtml}
+
     <h2>Findings</h2>
     ${findingCards}
+
+    ${roadmapHtml}
   </div>
 </body>
 </html>`
 }
 
 // ── Helpers ──────────────────────────────────────────────────
+
+const SEV_COLORS: Record<string, string> = {
+  critical: "#dc3545",
+  high: "#fd7e14",
+  medium: "#ffc107",
+  low: "#28a745",
+  info: "#6c757d",
+}
+
+const SEVERITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 }
+
+function sortBySeverity(findings: Finding[]): Finding[] {
+  return [...findings].sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 5) - (SEVERITY_ORDER[b.severity] ?? 5))
+}
+
+function severityIcon(sev: string): string {
+  return sev === "critical" ? "🔴" : sev === "high" ? "🟠" : sev === "medium" ? "🟡" : sev === "low" ? "🟢" : "⚪"
+}
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
@@ -281,4 +342,55 @@ export function calculateRiskScore(findings: Finding[]): number {
     score += (weights[f.severity] ?? 1) * f.confidence
   }
   return Math.min(100, Math.round(score))
+}
+
+/** Generate Markdown remediation roadmap grouped by severity. */
+function generateRemediationRoadmap(sorted: Finding[]): string {
+  const lines: string[] = [`## Remediation Roadmap`, ``]
+  const seen = new Set<string>()
+
+  for (const sev of ["critical", "high", "medium", "low"] as const) {
+    const group = sorted.filter((f) => f.severity === sev && f.remediation_summary)
+    if (group.length === 0) continue
+
+    const icon = severityIcon(sev)
+    lines.push(`### ${icon} ${sev.charAt(0).toUpperCase() + sev.slice(1)} Priority`)
+    lines.push(``)
+
+    let idx = 0
+    for (const f of group) {
+      const key = f.remediation_summary.toLowerCase().trim()
+      if (seen.has(key)) continue
+      seen.add(key)
+      idx++
+      lines.push(`${idx}. **${f.title}** — ${f.remediation_summary}`)
+    }
+    lines.push(``)
+  }
+
+  if (seen.size === 0) {
+    lines.push(`_No specific remediation guidance was provided for the findings. Review each finding individually._`)
+    lines.push(``)
+  }
+
+  return lines.join("\n")
+}
+
+/** Generate HTML remediation roadmap. */
+function generateHtmlRemediation(sorted: Finding[]): string {
+  const items: string[] = []
+  const seen = new Set<string>()
+
+  for (const sev of ["critical", "high", "medium", "low"] as const) {
+    const group = sorted.filter((f) => f.severity === sev && f.remediation_summary)
+    for (const f of group) {
+      const key = f.remediation_summary.toLowerCase().trim()
+      if (seen.has(key)) continue
+      seen.add(key)
+      items.push(`<div class="roadmap-item"><span class="badge" style="background:${SEV_COLORS[sev]}">${sev}</span> <strong>${esc(f.title)}</strong> — ${esc(f.remediation_summary)}</div>`)
+    }
+  }
+
+  if (items.length === 0) return ""
+  return `<h2>📋 Remediation Roadmap</h2>${items.join("")}`
 }
