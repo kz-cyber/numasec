@@ -6,11 +6,13 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/FrancescoStabile/numasec/stargazers"><img src="https://img.shields.io/github/stars/FrancescoStabile/numasec?style=flat-square&color=DC143C" alt="GitHub Stars" /></a>
   <a href="#why-numasec"><img src="https://img.shields.io/badge/AI%20Pentesting-Platform-DC143C?style=flat-square" alt="AI Pentesting Platform" /></a>
   <a href="https://hub.docker.com/r/francescosta/numasec"><img src="https://img.shields.io/docker/pulls/francescosta/numasec?style=flat-square" alt="Docker Pulls" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License" /></a>
   <a href="https://github.com/FrancescoStabile/numasec/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/FrancescoStabile/numasec/ci.yml?branch=main&style=flat-square&label=build" alt="Build" /></a>
   <a href="https://github.com/FrancescoStabile/numasec/releases/latest"><img src="https://img.shields.io/github/v/release/FrancescoStabile/numasec?style=flat-square&label=release" alt="Release" /></a>
+  <a href="https://pypi.org/project/numasec/"><img src="https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square" alt="Python 3.11+" /></a>
 </p>
 
 <p align="center">
@@ -19,8 +21,32 @@
 
 ---
 
+## Table of Contents
+
+- [Quickstart](#quickstart)
+- [Why numasec](#why-numasec)
+- [What it finds](#what-it-finds)
+- [How it works](#how-it-works)
+- [LLM Providers](#llm-providers)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Development](#development)
+- [Contributing](#contributing)
+
+---
+
 ## Quickstart
 
+```bash
+docker run -it francescosta/numasec
+```
+
+That's it. Full TUI + all security tools. Multi-arch (amd64, arm64).
+
+<details>
+<summary>From source or pip</summary>
+
+**From source:**
 ```bash
 git clone https://github.com/FrancescoStabile/numasec.git
 cd numasec && pip install -e ".[all]"
@@ -28,20 +54,27 @@ cd agent && bun install && bun run build
 numasec
 ```
 
-Or with Docker:
+**pip** (downloads TUI binary on first run):
 ```bash
-docker run -it francescosta/numasec
+pip install numasec
+numasec
 ```
 
-Pick your LLM provider, type `pentest https://yourapp.com`, and it starts. Automated penetration testing against any web application. Works with any model: DeepSeek, Claude, GPT, Ollama, or any OpenAI-compatible endpoint.
+</details>
+
+Pick your LLM provider, type `pentest https://yourapp.com`, and it starts.
 
 ---
 
 ## Why numasec
 
-Claude Code writes code. Copilot reviews it. Cursor helps you navigate it. But when it comes to web application security, finding vulnerabilities, testing authentication, chaining exploits, there's no AI agent built for that.
+Coding has Claude Code, Copilot, Cursor. Security has nothing.
 
-numasec is that agent.
+Every other domain got its AI agent. Security didn't. So I built one.
+
+<p align="center">
+  <img src="docs/pentest-demo.gif" alt="numasec running a pentest" width="900" />
+</p>
 
 - **Built for security from the ground up.** Not a wrapper around ChatGPT. 21+ security tools, 34 attack templates, a deterministic planner based on the [CHECKMATE](https://arxiv.org/abs/2512.11143) paper. The AI coordinates and analyzes. It doesn't hallucinate the methodology.
 - **MCP-native.** Ships with 21+ built-in security tools and connects to any MCP server. Add your own tools, same protocol Claude Code and Cursor use for extensibility.
@@ -53,6 +86,16 @@ numasec is that agent.
 | OWASP Juice Shop v17 | 25/26 ground-truth vulns | **96% recall** |
 | DVWA | 7/7 vulnerability categories | **100%** |
 | WebGoat | 20+ vulnerabilities across all modules | **Full coverage** |
+
+---
+
+<p align="center">
+  <a href="https://github.com/FrancescoStabile/numasec/stargazers">
+    <img src="https://img.shields.io/github/stars/FrancescoStabile/numasec?style=social" alt="GitHub Stars" />
+  </a>
+  <br/>
+  <sub>If numasec is useful to you, a star helps more people find it.</sub>
+</p>
 
 ---
 
@@ -102,39 +145,40 @@ numasec is that agent.
 
 Every finding includes **CWE ID**, **CVSS 3.1 score**, **OWASP Top 10 category**, **MITRE ATT&CK technique**, and **remediation steps**. Auto-generated, validated by the analyst agent before entering the report. Built for bug bounty hunters, security engineers, and red teams.
 
+<p align="center">
+  <img src="docs/attack-chain.gif" alt="numasec attack chain findings" width="900" />
+</p>
+
 ---
 
 ## How it works
 
-```
-pentest https://app.com
-        │
-        ▼
-┌───────────────────────────────────────────────┐
-│  Deterministic Planner                        │
-│  34 templates · PTES methodology              │
-│  Selects tests based on fingerprinted tech    │
-└───────────────────┬───────────────────────────┘
-                    ▼
-┌───────────────────────────────────────────────┐
-│  21+ Security Tools                           │
-│  SQLi · XSS · SSRF · Auth · IDOR · CSRF       │
-│  Smuggling · Race · Upload · SSTI · ...       │
-└───────────────────┬───────────────────────────┘
-                    ▼
-┌───────────────────────────────────────────────┐
-│  Findings                                     │
-│  Auto-enriched: CWE → CVSS → OWASP → ATT&CK   │
-│  Deduplicated · Chained · Scored              │
-└───────────────────┬───────────────────────────┘
-                    ▼
-┌───────────────────────────────────────────────┐
-│  Report                                       │
-│  SARIF · HTML · Markdown · JSON               │
-└───────────────────────────────────────────────┘
+```mermaid
+graph TD
+    A["pentest https://app.com"] --> B
+
+    B["🗺️ Deterministic Planner\n34 templates · PTES methodology\nSelects tests based on fingerprinted tech"]
+    B --> C
+
+    C["🔧 21+ Security Tools\nSQLi · XSS · SSRF · Auth · IDOR · CSRF\nSmuggling · Race · Upload · SSTI · OOB · ..."]
+    C --> D
+
+    D["🔍 Findings\nAuto-enriched: CWE → CVSS → OWASP → ATT&CK\nDeduplicated · Chained · Scored"]
+    D --> E
+
+    E["📄 Report\nSARIF · HTML · Markdown · JSON"]
+
+    style B fill:#1a1a2e,color:#e0e0e0,stroke:#DC143C
+    style C fill:#1a1a2e,color:#e0e0e0,stroke:#DC143C
+    style D fill:#1a1a2e,color:#e0e0e0,stroke:#DC143C
+    style E fill:#1a1a2e,color:#e0e0e0,stroke:#DC143C
 ```
 
 Reports include executive summary, risk score (0-100), OWASP coverage matrix, attack chain documentation, and per-finding remediation. SARIF plugs into GitHub Code Scanning and GitLab SAST. Use it as a DAST step in your CI/CD pipeline.
+
+<p align="center">
+  <img src="docs/report-demo.gif" alt="numasec report output" width="900" />
+</p>
 
 ---
 
@@ -160,7 +204,13 @@ Anthropic · OpenAI · Google Gemini · AWS Bedrock · Azure OpenAI · Mistral �
 
 ## Installation
 
-### From source (recommended)
+### Docker (recommended)
+
+```bash
+docker run -it francescosta/numasec
+```
+
+### From source
 
 ```bash
 git clone https://github.com/FrancescoStabile/numasec.git
@@ -168,14 +218,6 @@ cd numasec
 pip install -e ".[all]"    # Python backend
 cd agent && bun install && bun run build  # TUI
 ```
-
-### Docker
-
-```bash
-docker run -it francescosta/numasec
-```
-
-Full TUI + all security tools. Multi-arch (amd64, arm64).
 
 ### pip
 
@@ -261,3 +303,4 @@ Issues, PRs, and tool templates are welcome.
 </p>
 
 <p align="center"><a href="LICENSE">MIT License</a></p>
+
