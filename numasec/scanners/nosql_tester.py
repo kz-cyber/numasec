@@ -405,7 +405,7 @@ class NoSqlTester:
 
         # Strategy 2: All-fields operator injection (auth bypass style)
         if not body:
-            multi_field_payloads = [
+            multi_field_payloads: list[tuple[str, dict[str, Any]]] = [
                 ("username $ne", {"username": {"$ne": ""}, "password": {"$ne": ""}}),
                 ("user $ne", {"user": {"$ne": ""}, "pass": {"$ne": ""}}),
                 ('{"$in": [...]}', {"email": {"$in": ["admin", "root"]}, "password": {"$ne": ""}}),
