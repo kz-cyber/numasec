@@ -294,17 +294,61 @@ export const VULN_CWE_MAP: Record<string, { id: string; name: string }> = {
   "request smuggling": { id: "CWE-444", name: "HTTP Request Smuggling" },
   "prototype pollution": { id: "CWE-1321", name: "Prototype Pollution" },
   "websocket hijacking": { id: "CWE-1385", name: "WebSocket Hijacking" },
+  "sensitive information": { id: "CWE-200", name: "Information Exposure" },
+  "information leak": { id: "CWE-200", name: "Information Exposure" },
+  "data leak": { id: "CWE-200", name: "Information Exposure" },
 }
 
 /**
+ * Generic fallback keywords — only checked when no specific keyword matches.
+ * Catches broad patterns like "X Exposed" or "Data Leak" that don't
+ * contain a specific vulnerability type name.
+ */
+export const GENERIC_CWE_MAP: Record<string, { id: string; name: string }> = {
+  "leakage": { id: "CWE-200", name: "Information Exposure" },
+  "exposed": { id: "CWE-200", name: "Information Exposure" },
+  "leak": { id: "CWE-200", name: "Information Exposure" },
+}
+
+// Precomputed sorted keyword arrays (longest first = most specific wins)
+const SORTED_SPECIFIC = Object.entries(VULN_CWE_MAP)
+  .sort((a, b) => b[0].length - a[0].length)
+
+const SORTED_GENERIC = Object.entries(GENERIC_CWE_MAP)
+  .sort((a, b) => b[0].length - a[0].length)
+
+/**
  * Infer CWE from a finding's title and description.
- * Searches keywords in the combined text, returns first match.
+ *
+ * Matching strategy (3-pass, first match wins):
+ * 1. Specific keywords in title (highest confidence)
+ * 2. Generic keywords in title
+ * 3. Specific keywords in description (skip generic — too noisy)
+ *
+ * Within each pass, keywords are tried longest-first so that specific
+ * phrases ("server-side template injection") win over shorter substrings.
  */
 export function getCweInfo(title: string, description = ""): { id: string; name: string } | undefined {
-  const text = `${title} ${description}`.toLowerCase()
-  for (const [keyword, info] of Object.entries(VULN_CWE_MAP)) {
-    if (text.includes(keyword)) return info
+  const t = title.toLowerCase()
+
+  // Pass 1: specific keywords in title
+  for (const [keyword, info] of SORTED_SPECIFIC) {
+    if (t.includes(keyword)) return info
   }
+
+  // Pass 2: generic keywords in title
+  for (const [keyword, info] of SORTED_GENERIC) {
+    if (t.includes(keyword)) return info
+  }
+
+  // Pass 3: specific keywords in description only
+  if (description) {
+    const d = description.toLowerCase()
+    for (const [keyword, info] of SORTED_SPECIFIC) {
+      if (d.includes(keyword)) return info
+    }
+  }
+
   return undefined
 }
 

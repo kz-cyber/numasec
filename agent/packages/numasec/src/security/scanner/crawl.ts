@@ -24,6 +24,7 @@ export interface FormInfo {
 }
 
 const TECH_SIGNATURES: [RegExp, string][] = [
+  // Server-side — header-based detection (pattern includes header context)
   [/x-powered-by:\s*express/i, "Express"],
   [/x-powered-by:\s*php/i, "PHP"],
   [/server:\s*nginx/i, "Nginx"],
@@ -31,15 +32,17 @@ const TECH_SIGNATURES: [RegExp, string][] = [
   [/server:\s*cloudflare/i, "Cloudflare"],
   [/x-aspnet-version/i, "ASP.NET"],
   [/x-drupal/i, "Drupal"],
-  [/wp-content/i, "WordPress"],
-  [/django/i, "Django"],
-  [/flask/i, "Flask"],
-  [/laravel/i, "Laravel"],
-  [/next\.js/i, "Next.js"],
-  [/nuxt/i, "Nuxt"],
-  [/react/i, "React"],
-  [/angular/i, "Angular"],
-  [/vue/i, "Vue.js"],
+  [/wp-content|wp-includes/i, "WordPress"],
+  [/x-powered-by:.*django|csrfmiddlewaretoken/i, "Django"],
+  [/x-powered-by:.*(?:flask|werkzeug)/i, "Flask"],
+  [/x-powered-by:.*laravel|laravel_session/i, "Laravel"],
+  // Client-side — specific HTML/JS markers (not just framework name)
+  [/__NEXT_DATA__|_next\//i, "Next.js"],
+  [/__NUXT__|_nuxt\//i, "Nuxt"],
+  [/data-reactroot|react-dom/i, "React"],
+  [/ng-version|ng-app|angular\.(?:min\.)?js/i, "Angular"],
+  [/data-v-[a-f0-9]|vue\.(?:min\.)?js|__vue__/i, "Vue.js"],
+  // API indicators
   [/graphql/i, "GraphQL"],
   [/swagger|openapi/i, "OpenAPI"],
 ]
