@@ -34,8 +34,8 @@ function makeFinding(overrides: Partial<Finding> = {}): Finding {
     related_finding_ids: overrides.related_finding_ids ?? null,
     tool_used: overrides.tool_used ?? "injection_test",
     remediation_summary: overrides.remediation_summary ?? "Use parameterized queries",
-    created_at: overrides.created_at ?? Date.now(),
-    updated_at: null,
+    time_created: Date.now(),
+    time_updated: Date.now(),
   } as Finding
 }
 

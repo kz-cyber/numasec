@@ -96,9 +96,34 @@ async function collectRemovalTargets(args: UninstallArgs, method: Installation.M
   ]
 
   const shellConfig = method === "curl" ? await getShellConfigFile() : null
-  const binary = method === "curl" ? process.execPath : null
+
+  // Find all numasec binaries/symlinks in common PATH locations
+  const binary = await findBinaryToRemove(method)
 
   return { directories, shellConfig, binary }
+}
+
+async function findBinaryToRemove(method: Installation.Method): Promise<string | null> {
+  if (method === "curl") return process.execPath
+
+  // Search common locations for numasec binaries or symlinks
+  const home = os.homedir()
+  const candidates = [
+    path.join(home, ".local", "bin", "numasec"),
+    path.join(home, ".numasec", "bin", "numasec"),
+    path.join(home, ".bun", "bin", "numasec"),
+  ]
+
+  for (const candidate of candidates) {
+    try {
+      const stat = await fs.lstat(candidate)
+      if (stat.isFile() || stat.isSymbolicLink()) return candidate
+    } catch {
+      // not found
+    }
+  }
+
+  return null
 }
 
 async function showRemovalSummary(targets: RemovalTargets, method: Installation.Method) {
@@ -209,14 +234,14 @@ async function executeUninstall(method: Installation.Method, targets: RemovalTar
     }
   }
 
-  if (method === "curl" && targets.binary) {
-    UI.empty()
-    prompts.log.message("To finish removing the binary, run:")
-    prompts.log.info(`  rm "${targets.binary}"`)
-
-    const binDir = path.dirname(targets.binary)
-    if (binDir.includes(".numasec")) {
-      prompts.log.info(`  rmdir "${binDir}" 2>/dev/null`)
+  if (targets.binary) {
+    spinner.start("Removing binary...")
+    const err = await fs.rm(targets.binary, { force: true }).catch((e) => e)
+    if (err) {
+      spinner.stop("Failed to remove binary", 1)
+      errors.push(`Binary: ${err.message}`)
+    } else {
+      spinner.stop(`Removed binary: ${shortenPath(targets.binary)}`)
     }
   }
 

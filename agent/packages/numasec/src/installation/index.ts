@@ -5,6 +5,8 @@ import { makeRuntime } from "@/effect/run-service"
 import { withTransientReadRetry } from "@/util/effect-http-client"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import path from "path"
+import os from "os"
+import fs from "fs/promises"
 import z from "zod"
 import { BusEvent } from "@/bus/bus-event"
 import { Flag } from "../flag/flag"
@@ -171,8 +173,31 @@ export namespace Installation {
         )
 
         const methodImpl = Effect.fn("Installation.method")(function* () {
-          if (process.execPath.includes(path.join(".numasec", "bin"))) return "curl" as Method
-          if (process.execPath.includes(path.join(".local", "bin"))) return "curl" as Method
+          const execPaths = [process.execPath]
+          // process.execPath resolves symlinks — also check symlink source and common locations
+          yield* Effect.sync(() => {
+            try {
+              const fsSync = require("fs")
+              const selfExe = fsSync.readlinkSync("/proc/self/exe")
+              if (selfExe !== process.execPath) execPaths.push(selfExe)
+            } catch {}
+            const home = os.homedir()
+            for (const candidate of [
+              path.join(home, ".local", "bin", "numasec"),
+              path.join(home, ".numasec", "bin", "numasec"),
+            ]) {
+              try {
+                const fsSync = require("fs")
+                const stat = fsSync.lstatSync(candidate)
+                if (stat.isSymbolicLink() || stat.isFile()) execPaths.push(candidate)
+              } catch {}
+            }
+          })
+
+          for (const ep of execPaths) {
+            if (ep.includes(path.join(".numasec", "bin"))) return "curl" as Method
+            if (ep.includes(path.join(".local", "bin"))) return "curl" as Method
+          }
           const exec = process.execPath.toLowerCase()
 
           const checks: Array<{ name: Method; command: () => Effect.Effect<string> }> = [
