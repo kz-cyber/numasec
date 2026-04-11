@@ -254,6 +254,12 @@ for (const item of targets) {
 
   await $`rm -rf ./dist/${name}/bin/tui`
   await $`chmod +x ./dist/${name}/bin/numasec`
+
+  // Postinstall to fix permissions (npm may strip execute bit)
+  await Bun.file(`dist/${name}/postinstall.js`).write(
+    `#!/usr/bin/env node\nconst{chmodSync}=require("fs"),{join}=require("path");try{chmodSync(join(__dirname,"bin","numasec"),0o755)}catch{}\n`,
+  )
+
   await Bun.file(`dist/${name}/package.json`).write(
     JSON.stringify(
       {
@@ -263,7 +269,8 @@ for (const item of targets) {
         license: "MIT",
         os: [item.os],
         cpu: [item.arch],
-        files: ["bin/"],
+        files: ["bin/", "postinstall.js"],
+        scripts: { postinstall: "node postinstall.js" },
       },
       null,
       2,

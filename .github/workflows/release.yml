@@ -149,6 +149,12 @@ jobs:
             "
           fi
 
+          # Restore executable permissions (GitHub Actions artifacts strip them)
+          for dir in packages/numasec-*/; do
+            [ -d "$dir" ] || continue
+            chmod +x "$dir/bin/numasec" 2>/dev/null || true
+          done
+
           # Publish platform binary packages first
           for dir in packages/numasec-*/; do
             [ -d "$dir" ] || continue
