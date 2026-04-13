@@ -9,6 +9,16 @@ import z from "zod"
 import { Tool } from "../../tool/tool"
 import { analyzeJwt, testJwtAuth } from "../scanner/jwt-analyzer"
 import { httpRequest } from "../http-client"
+import { makeToolResultEnvelope } from "./result-envelope"
+
+function slug(value: string) {
+  return value.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase()
+}
+
+function family(type: string) {
+  if (type.includes("credential")) return "auth"
+  return "jwt"
+}
 
 const DESCRIPTION = `Test authentication and authorization mechanisms.
 Covers: JWT analysis (decode, crack, alg:none, expiration), default credentials,
@@ -53,6 +63,9 @@ export const AuthTestTool = Tool.define("auth_test", {
 
     const parts: string[] = []
     let totalFindings = 0
+    const artifacts: Record<string, any>[] = []
+    const observations: Record<string, any>[] = []
+    const verifications: Record<string, any>[] = []
 
     // JWT analysis
     if (params.jwt) {
@@ -64,6 +77,21 @@ export const AuthTestTool = Tool.define("auth_test", {
         parts.push(`Algorithm: ${analysis.decoded.header.alg}`)
         parts.push(`Payload: ${JSON.stringify(analysis.decoded.payload, null, 2)}`)
         if (analysis.decoded.expired) parts.push(`⚠ Token EXPIRED: ${analysis.decoded.expiresAt}`)
+        artifacts.push({
+          key: "jwt-token",
+          subtype: "jwt_analysis",
+          jwt: params.jwt,
+          header: analysis.decoded.header,
+          payload: analysis.decoded.payload,
+          expired: analysis.decoded.expired,
+          expires_at: analysis.decoded.expiresAt ?? "",
+        })
+        observations.push({
+          key: "jwt-present",
+          family: "jwt",
+          kind: "token_present",
+          url: params.url,
+        })
       }
 
       if (analysis.weaknesses.length > 0) {
@@ -73,6 +101,18 @@ export const AuthTestTool = Tool.define("auth_test", {
           parts.push(`  [${w.severity.toUpperCase()}] ${w.description}`)
           parts.push(`  Evidence: ${w.evidence}`)
           totalFindings++
+          verifications.push({
+            key: `jwt-${slug(w.type)}`,
+            family: family(w.type),
+            kind: w.type,
+            title: w.description,
+            technical_severity: w.severity,
+            passed: true,
+            control: "positive",
+            url: params.url,
+            evidence: w.evidence,
+            evidence_keys: analysis.decoded ? ["jwt-token"] : [],
+          })
         }
       }
 
@@ -90,6 +130,18 @@ export const AuthTestTool = Tool.define("auth_test", {
         parts.push(`  [${w.severity.toUpperCase()}] ${w.description}`)
         parts.push(`  Evidence: ${w.evidence}`)
         totalFindings++
+        verifications.push({
+          key: `jwt-auth-${slug(w.type)}`,
+          family: family(w.type),
+          kind: w.type,
+          title: w.description,
+          technical_severity: w.severity,
+          passed: true,
+          control: "positive",
+          url: params.url,
+          evidence: w.evidence,
+          evidence_keys: analysis.decoded ? ["jwt-token"] : [],
+        })
       }
     }
 
@@ -122,6 +174,36 @@ export const AuthTestTool = Tool.define("auth_test", {
           parts.push(`  Status: ${resp.status}`)
           parts.push(`  Response: ${resp.body.slice(0, 300)}`)
           totalFindings++
+          artifacts.push({
+            key: `default-creds-${slug(cred.username)}-${slug(cred.password)}`,
+            subtype: "http_exchange",
+            request: {
+              url: params.url,
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body,
+            },
+            response: {
+              status: resp.status,
+              headers: resp.headers,
+              body: resp.body,
+              elapsed: resp.elapsed,
+              url: resp.url,
+            },
+          })
+          verifications.push({
+            key: `default-creds-${slug(cred.username)}-${slug(cred.password)}-verified`,
+            family: "auth",
+            kind: "default_credentials",
+            title: `Default credentials work for ${cred.username}`,
+            technical_severity: "high",
+            passed: true,
+            control: "positive",
+            url: params.url,
+            evidence_keys: [`default-creds-${slug(cred.username)}-${slug(cred.password)}`],
+          })
         }
       }
     }
@@ -133,6 +215,15 @@ export const AuthTestTool = Tool.define("auth_test", {
     return {
       title: totalFindings > 0 ? `⚠ ${totalFindings} auth issue(s)` : "Auth: no issues",
       metadata: { findings: totalFindings } as any,
+      envelope: makeToolResultEnvelope({
+        status: "ok",
+        artifacts,
+        observations,
+        verifications,
+        metrics: {
+          findings: totalFindings,
+        },
+      }),
       output: parts.join("\n"),
     }
   },

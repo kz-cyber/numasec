@@ -203,6 +203,11 @@ test("review agent denies scanner tools and bash", async () => {
       expect(evalPerm(review, "auth_test")).toBe("deny")
       expect(evalPerm(review, "access_control_test")).toBe("deny")
       expect(evalPerm(review, "path_test")).toBe("deny")
+      expect(evalPerm(review, "observe_surface")).toBe("deny")
+      expect(evalPerm(review, "plan_next")).toBe("deny")
+      expect(evalPerm(review, "upsert_finding")).toBe("deny")
+      expect(evalPerm(review, "exec_command")).toBe("deny")
+      expect(evalPerm(review, "security_shell")).toBe("deny")
       // read tools allowed
       expect(evalPerm(review, "read")).toBe("allow")
       expect(evalPerm(review, "glob")).toBe("allow")
@@ -226,8 +231,15 @@ test("report agent denies bash and scanner tools", async () => {
       // scanner tools denied
       expect(evalPerm(report, "injection_test")).toBe("deny")
       expect(evalPerm(report, "xss_test")).toBe("deny")
+      expect(evalPerm(report, "observe_surface")).toBe("deny")
+      expect(evalPerm(report, "exec_command")).toBe("deny")
+      expect(evalPerm(report, "security_shell")).toBe("deny")
+      expect(evalPerm(report, "batch_replay")).toBe("deny")
+      expect(evalPerm(report, "upsert_finding")).toBe("deny")
       // read and report tools allowed
       expect(evalPerm(report, "read")).toBe("allow")
+      expect(evalPerm(report, "query_graph")).toBe("allow")
+      expect(evalPerm(report, "derive_attack_paths")).toBe("allow")
       expect(evalPerm(report, "get_findings")).toBe("allow")
       expect(evalPerm(report, "generate_report")).toBe("allow")
     },

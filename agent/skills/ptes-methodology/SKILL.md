@@ -75,11 +75,12 @@ After recon, assess:
 **Objective**: Professional report with evidence, severity, and remediation.
 
 ### Steps
-1. `/findings` — Review all findings
+1. `/finding list` — Review all findings (legacy alias: `/findings`)
 2. `/coverage` — Check OWASP coverage gaps
-3. Eliminate false positives with @analyst
-4. `/report markdown` or `/report html` — Generate the report
-5. Review and refine with the user
+3. `/chains list` — Review derived attack narratives
+4. Eliminate false positives with @analyst
+5. `/report generate markdown` or `/report generate html` — Generate the report (legacy: `/report <format>`)
+6. Review and refine with the user
 
 ### Report Quality Checklist
 - [ ] Every finding has: title, severity, evidence, remediation

@@ -13,6 +13,13 @@ import { Wildcard } from "@/util/wildcard"
 import { Deferred, Effect, Layer, Schema, ServiceMap } from "effect"
 import os from "os"
 import z from "zod"
+import {
+  annotateApprovalMetadata,
+  formatConstraintPrompt,
+  formatRejectionConstraint,
+  resolveApproval,
+  selectApprovalPatterns,
+} from "./approval"
 import { evaluate as evalRule } from "./evaluate"
 import { PermissionID } from "./schema"
 
@@ -118,6 +125,7 @@ export namespace Permission {
     readonly ask: (input: z.infer<typeof AskInput>) => Effect.Effect<void, Error>
     readonly reply: (input: z.infer<typeof ReplyInput>) => Effect.Effect<void>
     readonly list: () => Effect.Effect<Request[]>
+    readonly constraints: (sessionID: SessionID) => Effect.Effect<string[]>
   }
 
   interface PendingEntry {
@@ -128,6 +136,7 @@ export namespace Permission {
   interface State {
     pending: Map<PermissionID, PendingEntry>
     approved: Ruleset
+    constraints: Map<SessionID, string[]>
   }
 
   export function evaluate(permission: string, pattern: string, ...rulesets: Ruleset[]): Rule {
@@ -148,6 +157,7 @@ export namespace Permission {
           const state = {
             pending: new Map<PermissionID, PendingEntry>(),
             approved: row?.data ?? [],
+            constraints: new Map<SessionID, string[]>(),
           }
 
           yield* Effect.addFinalizer(() =>
@@ -156,6 +166,7 @@ export namespace Permission {
                 yield* Deferred.fail(item.deferred, new RejectedError())
               }
               state.pending.clear()
+              state.constraints.clear()
             }),
           )
 
@@ -183,9 +194,14 @@ export namespace Permission {
         if (!needsAsk) return
 
         const id = request.id ?? PermissionID.ascending()
+        const approval = resolveApproval({
+          permission: request.permission,
+          metadata: request.metadata,
+        })
         const info: Request = {
           id,
           ...request,
+          metadata: annotateApprovalMetadata(request.metadata, approval),
         }
         log.info("asking", { id, permission: info.permission, patterns: info.patterns })
 
@@ -201,7 +217,7 @@ export namespace Permission {
       })
 
       const reply = Effect.fn("Permission.reply")(function* (input: z.infer<typeof ReplyInput>) {
-        const { approved, pending } = yield* InstanceState.get(state)
+        const { approved, pending, constraints } = yield* InstanceState.get(state)
         const existing = pending.get(input.requestID)
         if (!existing) return
 
@@ -213,6 +229,19 @@ export namespace Permission {
         })
 
         if (input.reply === "reject") {
+          if (input.message) {
+            const text = formatRejectionConstraint({
+              permission: existing.info.permission,
+              patterns: existing.info.patterns,
+              message: input.message,
+            })
+            if (text) {
+              const list = constraints.get(existing.info.sessionID) ?? []
+              if (!list.includes(text)) list.push(text)
+              if (list.length > 6) list.shift()
+              constraints.set(existing.info.sessionID, list)
+            }
+          }
           yield* Deferred.fail(
             existing.deferred,
             input.message ? new CorrectedError({ feedback: input.message }) : new RejectedError(),
@@ -234,7 +263,16 @@ export namespace Permission {
         yield* Deferred.succeed(existing.deferred, undefined)
         if (input.reply === "once") return
 
-        for (const pattern of existing.info.always) {
+        const patterns = selectApprovalPatterns({
+          always: existing.info.always,
+          patterns: existing.info.patterns,
+          approval: resolveApproval({
+            permission: existing.info.permission,
+            metadata: existing.info.metadata,
+          }),
+        })
+
+        for (const pattern of patterns) {
           approved.push({
             permission: existing.info.permission,
             pattern,
@@ -263,7 +301,13 @@ export namespace Permission {
         return Array.from(pending.values(), (item) => item.info)
       })
 
-      return Service.of({ ask, reply, list })
+      const getConstraints = Effect.fn("Permission.constraints")(function* (sessionID: SessionID) {
+        const constraints = (yield* InstanceState.get(state)).constraints
+        const list = constraints.get(sessionID) ?? []
+        return [...list]
+      })
+
+      return Service.of({ ask, reply, list, constraints: getConstraints })
     }),
   )
 
@@ -308,6 +352,10 @@ export namespace Permission {
 
   export const { runPromise } = makeRuntime(Service, layer)
 
+  export function formatConstraints(input: string[]) {
+    return formatConstraintPrompt(input)
+  }
+
   export async function ask(input: z.infer<typeof AskInput>) {
     return runPromise((s) => s.ask(input))
   }
@@ -318,5 +366,9 @@ export namespace Permission {
 
   export async function list() {
     return runPromise((s) => s.list())
+  }
+
+  export async function constraints(sessionID: SessionID) {
+    return runPromise((s) => s.constraints(sessionID))
   }
 }

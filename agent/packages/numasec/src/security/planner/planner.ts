@@ -285,3 +285,13 @@ export function formatPlan(plan: AttackPlan): string {
 
   return lines.join("\n")
 }
+
+export {
+  createPlannerKernel,
+  applyPlannerEvent,
+  nextPlannerStep,
+  plannerIsTerminal,
+  type PlannerKernel,
+  type PlannerEvent,
+  type PlannerState,
+} from "./kernel"

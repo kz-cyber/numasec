@@ -5,26 +5,11 @@ import { useSync } from "@tui/context/sync"
 import { useTheme } from "../context/theme"
 import { useDialog } from "@tui/ui/dialog"
 import { DialogSelect, type DialogSelectOption } from "@tui/ui/dialog-select"
-import type { Part } from "@numasec/sdk/v2"
-
-type Finding = {
-  id: string
-  title: string
-  severity: string
-  url: string
-  parameter: string
-  payload: string
-  evidence: string
-  cwe_id: string
-  owasp_category: string
-  confidence: string
-  chain_id: string
-  tool_used: string
-  description: string
-  cvss_score: string
-}
-
-const SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"]
+import {
+  fallbackFindings,
+  selectFindings,
+  type SecurityFinding,
+} from "../security-view-model"
 
 function severityColor(severity: string, theme: ReturnType<typeof useTheme>["theme"]) {
   const sev = severity.toLowerCase()
@@ -44,97 +29,15 @@ function severityIcon(severity: string) {
   return "⚪"
 }
 
-function parseFinding(raw: Record<string, unknown>): Finding {
-  return {
-    id: String(raw.id ?? raw.finding_id ?? ""),
-    title: String(raw.title ?? "Untitled"),
-    severity: String(raw.severity ?? "info"),
-    url: String(raw.url ?? ""),
-    parameter: String(raw.parameter ?? ""),
-    payload: String(raw.payload ?? ""),
-    evidence: String(raw.evidence ?? raw.description ?? ""),
-    cwe_id: String(raw.cwe_id ?? raw.cwe ?? ""),
-    owasp_category: String(raw.owasp_category ?? ""),
-    confidence: String(raw.confidence ?? ""),
-    chain_id: String(raw.chain_id ?? ""),
-    tool_used: String(raw.tool_used ?? ""),
-    description: String(raw.description ?? ""),
-    cvss_score: String(raw.cvss_score ?? ""),
-  }
-}
-
-function extractFindings(
-  messages: readonly { id: string; role: string }[],
-  parts: Record<string, Part[]>,
-): Finding[] {
-  const results: Finding[] = []
-  const seen = new Set<string>()
-
-  const addFinding = (raw: Record<string, unknown>) => {
-    const finding = parseFinding(raw)
-    if (finding.id && seen.has(finding.id)) return
-    if (finding.id) seen.add(finding.id)
-    results.push(finding)
-  }
-
-  for (const msg of messages) {
-    const msgParts = parts[msg.id]
-    if (!msgParts) continue
-
-    for (const part of msgParts) {
-      if (part.type !== "tool") continue
-      if (part.state.status !== "completed") continue
-      const out = (part.state as { output?: string }).output
-      if (!out) continue
-
-      // get_findings is the authoritative source
-      if (part.tool.includes("get_findings")) {
-        try {
-          const data = JSON.parse(out)
-          const list = data.findings
-          if (Array.isArray(list)) {
-            for (const f of list) addFinding(f)
-          }
-        } catch { /* skip */ }
-        continue
-      }
-
-      // save_finding outputs
-      if (part.tool.includes("save_finding")) {
-        try {
-          const data = JSON.parse(out)
-          addFinding(data.finding ?? data)
-        } catch { /* skip */ }
-        continue
-      }
-
-      // auto-saved findings from scanner outputs
-      try {
-        const data = JSON.parse(out)
-        const autoSaved = data.findings_auto_saved
-        if (Array.isArray(autoSaved)) {
-          for (const f of autoSaved) addFinding(f)
-        }
-      } catch { /* skip */ }
-    }
-  }
-
-  results.sort((a, b) => {
-    const ai = SEVERITY_ORDER.indexOf(a.severity.toLowerCase())
-    const bi = SEVERITY_ORDER.indexOf(b.severity.toLowerCase())
-    return ai - bi
-  })
-
-  return results
-}
-
 export function EvidenceBrowser(props: { sessionID: string; findingID?: string }) {
   const sync = useSync()
   const dialog = useDialog()
   const { theme } = useTheme()
 
   const messages = createMemo(() => sync.data.message[props.sessionID] ?? [])
-  const allFindings = createMemo(() => extractFindings(messages(), sync.data.part))
+  const security = createMemo(() => sync.session.security(props.sessionID))
+  const fallbackFindingList = createMemo(() => fallbackFindings(messages(), sync.data.part))
+  const allFindings = createMemo(() => selectFindings(security(), fallbackFindingList()))
 
   const initial = createMemo(() => {
     if (!props.findingID) return undefined
@@ -174,7 +77,7 @@ export function EvidenceBrowser(props: { sessionID: string; findingID?: string }
                 esc
               </text>
             </box>
-            <text fg={theme.textMuted}>No findings yet — use /target to start a scan</text>
+            <text fg={theme.textMuted}>No findings yet — use /scope set to start a scan (legacy: /target)</text>
           </box>
         }
       >
@@ -184,7 +87,7 @@ export function EvidenceBrowser(props: { sessionID: string; findingID?: string }
   )
 }
 
-function EvidenceDetail(props: { finding: Finding; sessionID: string }) {
+function EvidenceDetail(props: { finding: SecurityFinding; sessionID: string }) {
   const { theme } = useTheme()
   const dialog = useDialog()
   const dimensions = useTerminalDimensions()

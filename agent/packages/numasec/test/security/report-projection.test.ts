@@ -147,7 +147,7 @@ describe("generate_report projection path", () => {
     expect(html.output).toContain("<h2>Findings</h2>")
   })
 
-  test("falls back to legacy report reads when projection helper fails", async () => {
+  test("fails closed when projection helper fails", async () => {
     const sessionID = "sess-report-projection-fallback" as SessionID
     seedSession(sessionID)
     insertReportFindings(sessionID)
@@ -157,9 +157,7 @@ describe("generate_report projection path", () => {
     })
 
     try {
-      const result = await runReport(sessionID, "markdown")
-      expect(result.title).toContain("Report (markdown)")
-      expect(result.output).toContain("## Findings")
+      await expect(runReport(sessionID, "markdown")).rejects.toThrow("projection unavailable")
 
       const rows = Database.use((db) =>
         db

@@ -194,6 +194,7 @@ export const VerifyAssertionTool = Tool.define("verify_assertion", {
   parameters: z.object({
     predicate: z.string().optional().describe("Assertion or predicate to verify"),
     evidence_refs: z.array(z.string()).min(1).describe("Evidence node ids"),
+    hypothesis_id: z.string().optional().describe("Optional hypothesis node id to link from"),
     mode: MODE.optional().describe("Match mode"),
     require_all: z.boolean().optional().describe("Require every evidence ref to match"),
     control: CONTROL.optional().describe("Assertion control type: positive expects matches, negative expects no matches"),
@@ -273,6 +274,39 @@ export const VerifyAssertionTool = Tool.define("verify_assertion", {
         ).pipe(Effect.provide(EvidenceGraphStore.layer)),
       )
       verificationNodeID = row.id
+      for (const ref of params.evidence_refs) {
+        Effect.runSync(
+          EvidenceGraphStore.use((store) =>
+            store.upsertEdge({
+              sessionID: ctx.sessionID,
+              fromNodeID: ref,
+              toNodeID: row.id,
+              relation: "supports",
+              weight: 1,
+              metadata: {
+                source: "verify_assertion",
+              },
+            }),
+          ).pipe(Effect.provide(EvidenceGraphStore.layer)),
+        )
+      }
+      const hypothesisID = params.hypothesis_id ?? ""
+      if (hypothesisID) {
+        Effect.runSync(
+          EvidenceGraphStore.use((store) =>
+            store.upsertEdge({
+              sessionID: ctx.sessionID,
+              fromNodeID: hypothesisID,
+              toNodeID: row.id,
+              relation: "verifies",
+              weight: 1,
+              metadata: {
+                source: "verify_assertion",
+              },
+            }),
+          ).pipe(Effect.provide(EvidenceGraphStore.layer)),
+        )
+      }
     }
 
     return {

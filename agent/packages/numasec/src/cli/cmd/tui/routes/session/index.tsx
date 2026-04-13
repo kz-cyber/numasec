@@ -131,6 +131,8 @@ export function Session() {
       .toSorted((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   })
   const messages = createMemo(() => sync.data.message[route.sessionID] ?? [])
+  const older = createMemo(() => sync.session.hasOlder(route.sessionID))
+  const loadingOlder = createMemo(() => sync.session.loadingOlder(route.sessionID))
   const permissions = createMemo(() => {
     if (session()?.parentID) return []
     return children().flatMap((x) => sync.data.permission[x.id] ?? [])
@@ -315,6 +317,24 @@ export function Session() {
       if (!scroll || scroll.isDestroyed) return
       scroll.scrollTo(scroll.scrollHeight)
     }, 50)
+  }
+
+  async function loadOlder() {
+    if (!scroll || scroll.isDestroyed) return
+    if (!older()) return
+    if (loadingOlder()) return
+    const anchor = scroll.getChildren().find((item) => item.id && item.y >= scroll.y)
+    const anchorID = anchor?.id
+    const anchorY = anchor?.y ?? 0
+    const loaded = await sync.session.loadOlder(route.sessionID)
+    if (!loaded) return
+    setTimeout(() => {
+      if (!scroll || scroll.isDestroyed) return
+      if (!anchorID) return
+      const next = scroll.getChildren().find((item) => item.id === anchorID)
+      if (!next) return
+      scroll.scrollBy(next.y - anchorY)
+    }, 0)
   }
 
   const local = useLocal()
@@ -649,6 +669,17 @@ export function Session() {
       category: "Session",
       onSelect: (dialog) => {
         setShowGenericToolOutput((prev) => !prev)
+        dialog.clear()
+      },
+    },
+    {
+      title: loadingOlder() ? "Loading older messages..." : "Load older messages",
+      value: "session.load_older",
+      category: "Session",
+      suggested: older(),
+      disabled: !older() || loadingOlder(),
+      onSelect: async (dialog) => {
+        await loadOlder()
         dialog.clear()
       },
     },
@@ -1079,6 +1110,28 @@ export function Session() {
               flexGrow={1}
               scrollAcceleration={scrollAcceleration()}
             >
+              <Show when={older() || loadingOlder()}>
+                <box marginBottom={1} paddingLeft={2}>
+                  <box
+                    border={["left"]}
+                    borderColor={theme.border}
+                    customBorderChars={SplitBorder.customBorderChars}
+                    onMouseUp={() => {
+                      if (loadingOlder()) return
+                      loadOlder().catch(() => {})
+                    }}
+                  >
+                    <box paddingLeft={2} paddingTop={1} paddingBottom={1} backgroundColor={theme.backgroundPanel}>
+                      <text fg={theme.textMuted}>
+                        {loadingOlder() ? "Loading older messages..." : "Load older messages"}
+                      </text>
+                      <Show when={!loadingOlder()}>
+                        <text fg={theme.textMuted}>Showing latest {messages().length} messages</text>
+                      </Show>
+                    </box>
+                  </box>
+                </box>
+              </Show>
               <For each={messages()}>
                 {(message, index) => (
                   <Switch>

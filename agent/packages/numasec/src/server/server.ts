@@ -32,6 +32,7 @@ import { ConfigRoutes } from "./routes/config"
 import { ExperimentalRoutes } from "./routes/experimental"
 import { ProviderRoutes } from "./routes/provider"
 import { EventRoutes } from "./routes/event"
+import { SecurityRoutes } from "./routes/security"
 import { InstanceBootstrap } from "../project/bootstrap"
 import { NotFoundError } from "../storage/db"
 import type { ContentfulStatusCode } from "hono/utils/http-status"
@@ -264,6 +265,7 @@ export namespace Server {
       .route("/config", ConfigRoutes())
       .route("/experimental", ExperimentalRoutes())
       .route("/session", SessionRoutes())
+      .route("/security", SecurityRoutes())
       .route("/permission", PermissionRoutes())
       .route("/question", QuestionRoutes())
       .route("/provider", ProviderRoutes())

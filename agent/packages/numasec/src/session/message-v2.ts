@@ -301,6 +301,7 @@ export namespace MessageV2 {
       status: z.literal("completed"),
       input: z.record(z.string(), z.any()),
       output: z.string(),
+      output_v2: z.record(z.string(), z.any()).optional(),
       title: z.string(),
       metadata: z.record(z.string(), z.any()),
       time: z.object({

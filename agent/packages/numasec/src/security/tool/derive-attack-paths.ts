@@ -1,6 +1,6 @@
 import z from "zod"
 import { Tool } from "../../tool/tool"
-import { deriveAttackPathProjection } from "../chain-projection"
+import { deriveAttackPathProjection, persistAttackPathProjection } from "../chain-projection"
 import { makeToolResultEnvelope } from "./result-envelope"
 
 const DESCRIPTION = `Derive attack paths from findings and persist chain projection.
@@ -21,6 +21,7 @@ export const DeriveAttackPathsTool = Tool.define("derive_attack_paths", {
       confidenceThreshold: params.confidence_threshold,
       includeFalsePositive: params.include_false_positive,
     })
+    persistAttackPathProjection(ctx.sessionID, result)
 
     if (result.chains.length === 0) {
       return {

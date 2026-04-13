@@ -14,6 +14,7 @@ import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
 import { Keybind } from "@/util/keybind"
 import { Locale } from "@/util/locale"
 import { Global } from "@/global"
+import { allowLabel, resolveApproval, selectApprovalPatterns } from "@/permission/approval"
 import { useDialog } from "../../ui/dialog"
 import { useTuiConfig } from "../../context/tui-config"
 
@@ -146,6 +147,19 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
     }
     return {}
   })
+  const approval = createMemo(() =>
+    resolveApproval({
+      permission: props.request.permission,
+      metadata: props.request.metadata ?? {},
+    }),
+  )
+  const allowPatterns = createMemo(() =>
+    selectApprovalPatterns({
+      always: props.request.always ?? [],
+      patterns: props.request.patterns ?? [],
+      approval: approval(),
+    }),
+  )
 
   const { theme } = useTheme()
 
@@ -153,17 +167,17 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
     <Switch>
       <Match when={store.stage === "always"}>
         <Prompt
-          title="Always allow"
+          title={allowLabel(approval().scope) ?? "Allow"}
           body={
             <Switch>
-              <Match when={props.request.always.length === 1 && props.request.always[0] === "*"}>
-                <TextBody title={"This will allow " + props.request.permission + " until Numasec is restarted."} />
+              <Match when={allowPatterns().length === 1 && allowPatterns()[0] === "*"}>
+                <TextBody title={"This will allow " + props.request.permission + " for this " + approval().scope + "."} />
               </Match>
               <Match when={true}>
                 <box paddingLeft={1} gap={1}>
-                  <text fg={theme.textMuted}>This will allow the following patterns until Numasec is restarted</text>
+                  <text fg={theme.textMuted}>{"This will allow the following patterns for this " + approval().scope}</text>
                   <box>
-                    <For each={props.request.always}>
+                    <For each={allowPatterns()}>
                       {(pattern) => (
                         <text fg={theme.text}>
                           {"- "}
@@ -190,6 +204,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
       </Match>
       <Match when={store.stage === "reject"}>
         <RejectPrompt
+          required={approval().reason_required}
           onConfirm={(message) => {
             sdk.client.permission.reply({
               reply: "reject",
@@ -409,19 +424,32 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
             }
           }
 
-          const current = info()
+            const current = info()
+            const risk = approval()
+            const riskColor = () => {
+              if (risk.risk === "high") return theme.error
+              if (risk.risk === "medium") return theme.warning
+              return theme.textMuted
+            }
+            const scope = allowLabel(risk.scope)
 
-          const header = () => (
-            <box flexDirection="column" gap={0}>
-              <box flexDirection="row" gap={1} flexShrink={0}>
-                <text fg={theme.warning}>{"△"}</text>
-                <text fg={theme.text}>Permission required</text>
-              </box>
-              <box flexDirection="row" gap={1} paddingLeft={2} flexShrink={0}>
-                <text fg={theme.textMuted} flexShrink={0}>
-                  {current.icon}
-                </text>
-                <text fg={theme.text}>{current.title}</text>
+            const header = () => (
+              <box flexDirection="column" gap={0}>
+                <box flexDirection="row" gap={1} flexShrink={0}>
+                  <text fg={theme.warning}>{"△"}</text>
+                  <text fg={theme.text}>Permission required</text>
+                  <text fg={riskColor()}>{"[" + risk.risk.toUpperCase() + "]"}</text>
+                </box>
+                <Show when={scope}>
+                  <box flexDirection="row" gap={1} paddingLeft={2} flexShrink={0}>
+                    <text fg={theme.textMuted}>{"Scoped approval: " + scope}</text>
+                  </box>
+                </Show>
+                <box flexDirection="row" gap={1} paddingLeft={2} flexShrink={0}>
+                  <text fg={theme.textMuted} flexShrink={0}>
+                    {current.icon}
+                  </text>
+                  <text fg={theme.text}>{current.title}</text>
               </box>
             </box>
           )
@@ -431,7 +459,11 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
               title="Permission required"
               header={header()}
               body={current.body}
-              options={{ once: "Allow once", always: "Allow always", reject: "Reject" }}
+              options={
+                scope
+                  ? { once: "Allow once", always: scope, reject: "Reject" }
+                  : { once: "Allow once", reject: "Reject" }
+              }
               escapeKey="reject"
               fullscreen
               onSelect={(option) => {
@@ -440,7 +472,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
                   return
                 }
                 if (option === "reject") {
-                  if (session()?.parentID) {
+                  if (approval().reason_required || session()?.parentID) {
                     setStore("stage", "reject")
                     return
                   }
@@ -465,7 +497,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
   )
 }
 
-function RejectPrompt(props: { onConfirm: (message: string) => void; onCancel: () => void }) {
+function RejectPrompt(props: { required?: boolean; onConfirm: (message: string) => void; onCancel: () => void }) {
   let input: TextareaRenderable
   const { theme } = useTheme()
   const keybind = useKeybind()
@@ -473,6 +505,19 @@ function RejectPrompt(props: { onConfirm: (message: string) => void; onCancel: (
   const dimensions = useTerminalDimensions()
   const narrow = createMemo(() => dimensions().width < 80)
   const dialog = useDialog()
+  const [store, setStore] = createStore({
+    error: "",
+  })
+
+  const submit = () => {
+    const message = (input?.plainText ?? "").trim()
+    if (props.required && !message) {
+      setStore("error", "Reason is required for high-risk requests")
+      return
+    }
+    setStore("error", "")
+    props.onConfirm(message)
+  }
 
   useKeyboard((evt) => {
     if (dialog.stack.length > 0) return
@@ -484,7 +529,7 @@ function RejectPrompt(props: { onConfirm: (message: string) => void; onCancel: (
     }
     if (evt.name === "return") {
       evt.preventDefault()
-      props.onConfirm(input.plainText)
+      submit()
     }
   })
 
@@ -501,8 +546,15 @@ function RejectPrompt(props: { onConfirm: (message: string) => void; onCancel: (
           <text fg={theme.text}>Reject permission</text>
         </box>
         <box paddingLeft={1}>
-          <text fg={theme.textMuted}>Tell Numasec what to do differently</text>
+          <text fg={theme.textMuted}>
+            {props.required ? "Tell Numasec what to do differently (required)" : "Tell Numasec what to do differently"}
+          </text>
         </box>
+        <Show when={store.error}>
+          <box paddingLeft={1}>
+            <text fg={theme.error}>{store.error}</text>
+          </box>
+        </Show>
       </box>
       <box
         flexDirection={narrow() ? "column" : "row"}

@@ -8,6 +8,34 @@
 import z from "zod"
 import { Tool } from "../../tool/tool"
 import { httpRequest } from "../http-client"
+import { makeToolResultEnvelope } from "./result-envelope"
+
+function shell(value: string) {
+  return value.replace(/'/g, "'\\''")
+}
+
+function replay(input: {
+  url: string
+  method: string
+  headers?: Record<string, string>
+  body?: string
+  cookies?: string
+}) {
+  const parts: string[] = [`curl -i -X ${input.method}`]
+  parts.push(`'${shell(input.url)}'`)
+  const headers = input.headers ?? {}
+  const names = Object.keys(headers).sort((left, right) => left.localeCompare(right))
+  for (const name of names) {
+    parts.push(`-H '${shell(name)}: ${shell(headers[name] ?? "")}'`)
+  }
+  if (input.cookies) {
+    parts.push(`-H 'Cookie: ${shell(input.cookies)}'`)
+  }
+  if (input.body) {
+    parts.push(`--data-raw '${shell(input.body)}'`)
+  }
+  return parts.join(" ")
+}
 
 const DESCRIPTION = `Make an HTTP request to a target URL. Use for:
 - Sending crafted requests during security testing
@@ -71,6 +99,108 @@ export const HttpRequestTool = Tool.define("http_request", {
       .filter(Boolean)
       .join("\n")
 
+    const artifacts = [
+      {
+        key: "exchange",
+        subtype: "http_exchange",
+        request: {
+          url: params.url,
+          method: params.method,
+          headers: params.headers ?? {},
+          body: params.body ?? "",
+          cookies: params.cookies ?? "",
+        },
+        response: {
+          url: response.url,
+          status: response.status,
+          status_text: response.statusText,
+          headers: response.headers,
+          body: response.body,
+          elapsed: response.elapsed,
+          redirect_chain: response.redirectChain,
+        },
+        replay: replay({
+          url: params.url,
+          method: params.method,
+          headers: params.headers,
+          body: params.body,
+          cookies: params.cookies,
+        }),
+      },
+    ]
+
+    const verifications: Record<string, any>[] = []
+    const lower = response.body.toLowerCase()
+    const origin = params.headers?.Origin ?? params.headers?.origin ?? ""
+    const acao = response.headers["access-control-allow-origin"] ?? ""
+    const acac = response.headers["access-control-allow-credentials"] ?? ""
+    if (origin && acao === origin && acac === "true") {
+      verifications.push({
+        key: "cors-dangerous-reflection",
+        family: "cors",
+        kind: "credentialed_reflection",
+        title: "Credentialed CORS origin reflection on sensitive endpoint",
+        technical_severity: "high",
+        passed: true,
+        control: "positive",
+        url: response.url,
+        method: params.method,
+        evidence_keys: ["exchange"],
+      })
+    }
+    if (acao === "*" && acac === "true") {
+      verifications.push({
+        key: "cors-dangerous-wildcard",
+        family: "cors",
+        kind: "wildcard_with_credentials",
+        title: "Wildcard CORS with credentials enabled",
+        technical_severity: "high",
+        passed: true,
+        control: "positive",
+        url: response.url,
+        method: params.method,
+        evidence_keys: ["exchange"],
+      })
+    }
+    if (
+      response.status === 200 &&
+      (response.url.endsWith("/metrics") || lower.includes("process_cpu_user_seconds_total") || lower.includes("# help"))
+    ) {
+      verifications.push({
+        key: "metrics-public",
+        family: "metrics",
+        kind: "prometheus_public",
+        title: "Prometheus metrics exposed without authentication",
+        technical_severity: "medium",
+        passed: true,
+        control: "positive",
+        url: response.url,
+        method: params.method,
+        evidence_keys: ["exchange"],
+      })
+    }
+    const payload = `${params.url}\n${params.body ?? ""}`.toLowerCase()
+    if (
+      response.status >= 500 &&
+      (lower.includes("sqlite") || lower.includes("mysql") || lower.includes("postgres") || lower.includes("oracle") || lower.includes("sql")) &&
+      (payload.includes("union select") || payload.includes("'") || payload.includes("sleep(") || payload.includes("waitfor"))
+    ) {
+      verifications.push({
+        key: "sqli-db-error",
+        family: "sql_injection",
+        kind: "db_error_signature",
+        title: "SQL injection indicated by database error after crafted request",
+        technical_severity: "high",
+        passed: true,
+        control: "positive",
+        url: response.url,
+        method: params.method,
+        parameter: "",
+        payload: params.body ?? "",
+        evidence_keys: ["exchange"],
+      })
+    }
+
     return {
       title: `${params.method} ${params.url} → ${response.status}`,
       metadata: {
@@ -79,6 +209,17 @@ export const HttpRequestTool = Tool.define("http_request", {
         contentLength: response.body.length,
         redirects: response.redirectChain.length,
       },
+      envelope: makeToolResultEnvelope({
+        status: "ok",
+        artifacts,
+        verifications,
+        metrics: {
+          status: response.status,
+          elapsed_ms: response.elapsed,
+          content_length: response.body.length,
+          redirects: response.redirectChain.length,
+        },
+      }),
       output,
     }
   },

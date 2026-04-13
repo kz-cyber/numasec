@@ -614,7 +614,8 @@ describe("primitive tools", () => {
         .get(),
     )
     expect(row).toBeDefined()
-    expect(row?.severity).toBe("medium")
+    expect(row?.severity).toBe("high")
+    expect(row?.state).toBe("provisional")
   })
 
   test("confirm_finding auto-selects verification, control, and impact evidence", async () => {

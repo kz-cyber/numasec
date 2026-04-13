@@ -11,6 +11,16 @@ import { Installation } from "@/installation"
 
 type Finding = typeof FindingTable.$inferSelect
 
+interface ReportContext {
+  incomplete?: boolean
+  incomplete_reason?: string
+  verified_risk_score?: number
+  upper_bound_risk_score?: number
+  provisional?: Finding[]
+  suppressed?: Finding[]
+  promotion_gaps?: number
+}
+
 // ── SARIF 2.1.0 ──────────────────────────────────────────────
 
 interface SarifResult {
@@ -21,7 +31,7 @@ interface SarifResult {
   properties?: Record<string, any>
 }
 
-export function generateSarif(findings: Finding[], targetUrl: string, chains?: ChainGroup[]): string {
+export function generateSarif(findings: Finding[], targetUrl: string, chains?: ChainGroup[], context?: ReportContext): string {
   const severityToLevel: Record<string, string> = {
     critical: "error",
     high: "error",
@@ -77,6 +87,17 @@ export function generateSarif(findings: Finding[], targetUrl: string, chains?: C
       findingIds: c.findings.map((f) => f.id),
     }))
   }
+  if (context) {
+    invocationProperties.reportTruth = {
+      incomplete: context.incomplete ?? false,
+      incompleteReason: context.incomplete_reason || undefined,
+      verifiedRiskScore: context.verified_risk_score,
+      upperBoundRiskScore: context.upper_bound_risk_score,
+      provisionalCount: context.provisional?.length ?? 0,
+      suppressedCount: context.suppressed?.length ?? 0,
+      promotionGaps: context.promotion_gaps ?? 0,
+    }
+  }
 
   const sarif = {
     $schema: "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
@@ -102,7 +123,7 @@ export function generateSarif(findings: Finding[], targetUrl: string, chains?: C
 
 // ── Markdown Report ──────────────────────────────────────────
 
-export function generateMarkdown(findings: Finding[], targetUrl: string, chains?: ChainGroup[]): string {
+export function generateMarkdown(findings: Finding[], targetUrl: string, chains?: ChainGroup[], context?: ReportContext): string {
   const lines: string[] = []
   const now = new Date().toISOString().split("T")[0]
 
@@ -114,14 +135,33 @@ export function generateMarkdown(findings: Finding[], targetUrl: string, chains?
   lines.push(`**Findings:** ${findings.length}`)
   lines.push(``)
 
+  if (context && (context.incomplete || (context.provisional?.length ?? 0) > 0 || (context.promotion_gaps ?? 0) > 0)) {
+    lines.push(`## Truthfulness Notice`)
+    lines.push(``)
+    lines.push(`This report includes only **verified** findings in the main risk score and findings section.`)
+    lines.push(``)
+    lines.push(`- Verified risk score: ${context.verified_risk_score ?? calculateRiskScore(findings)}/100`)
+    if (context.upper_bound_risk_score !== undefined && context.upper_bound_risk_score !== (context.verified_risk_score ?? calculateRiskScore(findings))) {
+      lines.push(`- Upper-bound risk score (verified + provisional): ${context.upper_bound_risk_score}/100`)
+    }
+    if ((context.provisional?.length ?? 0) > 0) lines.push(`- Provisional reportable findings excluded from verified score: ${context.provisional?.length ?? 0}`)
+    if ((context.suppressed?.length ?? 0) > 0) lines.push(`- Suppressed/refuted findings: ${context.suppressed?.length ?? 0}`)
+    if ((context.promotion_gaps ?? 0) > 0) lines.push(`- Promotion gaps: ${context.promotion_gaps}`)
+    if (context.incomplete_reason) lines.push(`- Incomplete override reason: ${context.incomplete_reason}`)
+    lines.push(``)
+  }
+
   // Executive summary
   const counts: Record<string, number> = {}
   for (const f of findings) counts[f.severity] = (counts[f.severity] ?? 0) + 1
 
   lines.push(`## Executive Summary`)
   lines.push(``)
-  const riskScore = calculateRiskScore(findings)
-  lines.push(`**Risk Score:** ${riskScore}/100`)
+  const riskScore = context?.verified_risk_score ?? calculateRiskScore(findings)
+  lines.push(`**Verified Risk Score:** ${riskScore}/100`)
+  if (context?.upper_bound_risk_score !== undefined && context.upper_bound_risk_score !== riskScore) {
+    lines.push(`**Upper-Bound Risk Score:** ${context.upper_bound_risk_score}/100`)
+  }
   lines.push(``)
   lines.push(`| Severity | Count |`)
   lines.push(`|----------|-------|`)
@@ -211,6 +251,36 @@ export function generateMarkdown(findings: Finding[], targetUrl: string, chains?
     lines.push(``)
   }
 
+  const provisional = sortBySeverity(context?.provisional ?? [])
+  if (provisional.length > 0) {
+    lines.push(`## Provisional Findings`)
+    lines.push(``)
+    lines.push(`These findings are reportable signals but do not yet meet the verified evidence contract.`)
+    lines.push(``)
+    for (const f of provisional) {
+      const icon = severityIcon(f.severity)
+      lines.push(`### ${icon} ${f.title}`)
+      lines.push(``)
+      lines.push(`| Field | Value |`)
+      lines.push(`|-------|-------|`)
+      lines.push(`| ID | ${f.id} |`)
+      lines.push(`| Severity | ${f.severity.toUpperCase()} |`)
+      lines.push(`| State | ${f.state || "provisional"} |`)
+      lines.push(`| URL | ${f.url} |`)
+      if (f.method) lines.push(`| Method | ${f.method} |`)
+      if (f.parameter) lines.push(`| Parameter | ${f.parameter} |`)
+      if (f.description) {
+        lines.push(``)
+        lines.push(`**Description:** ${f.description}`)
+      }
+      if (f.evidence) {
+        lines.push(``)
+        lines.push(`**Evidence refs:** \`${f.evidence}\``)
+      }
+      lines.push(``)
+    }
+  }
+
   // Remediation Roadmap
   lines.push(generateRemediationRoadmap(sorted))
 
@@ -221,9 +291,9 @@ export function generateMarkdown(findings: Finding[], targetUrl: string, chains?
 
 const INLINE_CSS = `*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f8f9fa;color:#212529;line-height:1.6;padding:2rem 1rem}.container{max-width:960px;margin:0 auto}.row{display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem}.col-4{flex:0 0 calc(33.333% - .67rem)}.col-8{flex:0 0 calc(66.667% - .33rem)}.card{background:#fff;border:1px solid #dee2e6;border-radius:.375rem}.card-body{padding:1rem}.text-center{text-align:center}.badge{display:inline-block;padding:.2em .5em;font-size:.75rem;font-weight:700;color:#fff;border-radius:.25rem;margin-right:.25rem}.lead{font-size:1.05rem;color:#6c757d;margin-bottom:1rem}.text-success{color:#198754}code{background:#e9ecef;padding:.1em .25em;border-radius:.2rem;font-size:.875em}pre{background:#212529;color:#f8f9fa;padding:.75rem;border-radius:.375rem;overflow:auto;max-height:300px;margin:.5rem 0}pre code{background:transparent;padding:0}details{margin:.5rem 0}summary{cursor:pointer;font-weight:600}h1{font-size:1.75rem;margin-bottom:.25rem}h2{font-size:1.4rem;margin:1.5rem 0 .75rem;border-bottom:2px solid #dee2e6;padding-bottom:.25rem}h3{font-size:1.15rem;margin:1rem 0 .5rem}h5{font-size:1rem;margin-bottom:.4rem}p{margin:.25rem 0}strong{font-weight:600}.finding{background:#fff;border:1px solid #dee2e6;border-radius:.375rem;border-left:4px solid;padding:1rem;margin-bottom:1rem}.chain-card{background:#fff;border:1px solid #dee2e6;border-radius:.375rem;padding:1rem;margin-bottom:.75rem}.chain-step{padding:.25rem 0 .25rem 1rem;border-left:2px solid #dee2e6;margin:.25rem 0}.risk-score{font-size:3rem;font-weight:bold}.roadmap-item{padding:.5rem 0;border-bottom:1px solid #f0f0f0}@media(max-width:768px){.col-4,.col-8{flex:0 0 100%}}`
 
-export function generateHtml(findings: Finding[], targetUrl: string, chains?: ChainGroup[]): string {
+export function generateHtml(findings: Finding[], targetUrl: string, chains?: ChainGroup[], context?: ReportContext): string {
   const now = new Date().toISOString().split("T")[0]
-  const riskScore = calculateRiskScore(findings)
+  const riskScore = context?.verified_risk_score ?? calculateRiskScore(findings)
   const counts: Record<string, number> = {}
   for (const f of findings) counts[f.severity] = (counts[f.severity] ?? 0) + 1
 
@@ -268,6 +338,24 @@ export function generateHtml(findings: Finding[], targetUrl: string, chains?: Ch
     .join("\n")
 
   const roadmapHtml = generateHtmlRemediation(sorted)
+  const truthHtml =
+    context && (context.incomplete || (context.provisional?.length ?? 0) > 0 || (context.promotion_gaps ?? 0) > 0)
+      ? `<div class="card" style="margin-bottom:1rem;border-left:4px solid #dc3545"><div class="card-body"><h5>Truthfulness Notice</h5><p>This report scores only verified findings.</p><p><strong>Verified risk:</strong> ${context.verified_risk_score ?? riskScore}/100${
+          context.upper_bound_risk_score !== undefined && context.upper_bound_risk_score !== (context.verified_risk_score ?? riskScore)
+            ? ` | <strong>Upper bound:</strong> ${context.upper_bound_risk_score}/100`
+            : ""
+        }</p><p><strong>Provisional:</strong> ${context.provisional?.length ?? 0} | <strong>Suppressed/refuted:</strong> ${context.suppressed?.length ?? 0} | <strong>Promotion gaps:</strong> ${context.promotion_gaps ?? 0}</p>${
+          context.incomplete_reason ? `<p><strong>Override reason:</strong> ${esc(context.incomplete_reason)}</p>` : ""
+        }</div></div>`
+      : ""
+  const provisionalHtml =
+    (context?.provisional?.length ?? 0) > 0
+      ? `<h2>Provisional Findings</h2><p>These findings are excluded from the verified risk score until the evidence contract is complete.</p>${sortBySeverity(context?.provisional ?? [])
+          .map(
+            (f) => `<div class="finding" style="border-left-color:${SEV_COLORS[f.severity] ?? "#999"}"><h5>${esc(f.title)}</h5><span class="badge" style="background:${SEV_COLORS[f.severity]}">${f.severity.toUpperCase()}</span><span class="badge" style="background:#6c757d">${esc(f.state || "provisional")}</span><p style="margin-top:.5rem"><strong>URL:</strong> <code>${esc(f.url)}</code> ${f.method ? `(${f.method})` : ""} ${f.parameter ? `param: <code>${esc(f.parameter)}</code>` : ""}</p>${f.description ? `<p>${esc(f.description)}</p>` : ""}${f.evidence ? `<details><summary>Evidence refs</summary><pre><code>${esc(f.evidence)}</code></pre></details>` : ""}</div>`,
+          )
+          .join("")}`
+      : ""
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -295,16 +383,20 @@ export function generateHtml(findings: Finding[], targetUrl: string, chains?: Ch
         <div class="card">
           <div class="card-body">
             <h5>Summary</h5>
-            <p>${findings.length} findings: ${severityBadges}</p>
+            <p>${findings.length} verified findings: ${severityBadges}</p>
           </div>
         </div>
       </div>
     </div>
 
+    ${truthHtml}
+
     ${chainsHtml}
 
     <h2>Findings</h2>
     ${findingCards}
+
+    ${provisionalHtml}
 
     ${roadmapHtml}
   </div>

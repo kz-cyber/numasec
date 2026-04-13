@@ -6,9 +6,9 @@
 
 import z from "zod"
 import { Tool } from "../../tool/tool"
-import { Database, eq, and } from "../../storage/db"
-import { FindingTable, type FindingID, type TargetID } from "../security.sql"
-import { enrichFinding, generateFindingId, normalizeSeverity } from "../enrichment/enrich"
+import { EvidenceGraphStore } from "../evidence-store"
+import { Effect } from "effect"
+import { UpsertFindingTool } from "./upsert-finding"
 
 const DESCRIPTION = `Save a security finding. Auto-enriches with CWE, CVSS 3.1, OWASP category, and MITRE ATT&CK.
 Call this IMMEDIATELY when you discover a vulnerability — don't wait until the end.
@@ -36,87 +36,97 @@ export const SaveFindingTool = Tool.define("save_finding", {
     confirmed: z.boolean().default(false).describe("Has this been confirmed/exploited?"),
   }),
   async execute(params, ctx) {
-    const severity = normalizeSeverity(params.severity)
-    const findingId = generateFindingId({ method: params.method, url: params.url, parameter: params.parameter, title: params.title, severity })
-
-    // Auto-enrich
-    const enrichment = enrichFinding({
-      title: params.title,
-      severity,
-      description: params.description,
-      url: params.url,
-      parameter: params.parameter,
-    })
-
-    // Dedup check
-    const existing = Database.use((db) =>
-      db.select().from(FindingTable).where(eq(FindingTable.id, findingId)).get(),
+    const hypothesis = Effect.runSync(
+      EvidenceGraphStore.use((store) =>
+        store.upsertNode({
+          sessionID: ctx.sessionID,
+          type: "hypothesis",
+          sourceTool: "save_finding",
+          confidence: Math.max(0.2, Math.min(0.9, params.confidence)),
+          status: params.confirmed ? "confirmed" : "open",
+          payload: {
+            statement: params.title,
+            predicate: params.description,
+            asset_ref: params.url,
+            legacy_tool: "save_finding",
+          },
+        }),
+      ).pipe(Effect.provide(EvidenceGraphStore.layer)),
     )
 
-    if (existing) {
-      return {
-        title: `Finding already saved: ${params.title}`,
-        metadata: { id: findingId, duplicate: true } as any,
-        output: `Finding ${findingId} already exists. Skipping duplicate.`,
-      }
-    }
-
-    // Insert
-    Database.use((db) =>
-      db
-        .insert(FindingTable)
-        .values({
-          id: findingId,
-          session_id: ctx.sessionID,
-          title: params.title,
-          severity,
-          description: params.description,
-          url: params.url,
-          method: params.method,
-          parameter: params.parameter,
-          payload: params.payload,
-          evidence: params.evidence,
-          confidence: params.confidence,
-          tool_used: params.tool_used,
-          remediation_summary: params.remediation,
-          confirmed: params.confirmed,
-          cwe_id: enrichment.cweId ?? "",
-          cvss_score: enrichment.cvssScore,
-          cvss_vector: enrichment.cvssVector ?? "",
-          owasp_category: enrichment.owaspCategory ?? "",
-          attack_technique: enrichment.attackTechnique ?? "",
-        })
-        .run(),
+    const artifact = Effect.runSync(
+      EvidenceGraphStore.use((store) =>
+        store.upsertNode({
+          sessionID: ctx.sessionID,
+          type: "artifact",
+          sourceTool: params.tool_used || "save_finding",
+          confidence: Math.max(0.2, params.confidence),
+          status: "active",
+          payload: {
+            evidence: params.evidence,
+            url: params.url,
+            method: params.method,
+            parameter: params.parameter,
+            payload: params.payload,
+            remediation: params.remediation,
+          },
+        }),
+      ).pipe(Effect.provide(EvidenceGraphStore.layer)),
     )
 
-    const lines = [
-      `Finding saved: ${findingId}`,
-      `Title: ${params.title}`,
-      `Severity: ${severity}`,
-      `CWE: ${enrichment.cweId ?? "N/A"}`,
-      `CVSS: ${enrichment.cvssScore?.toFixed(1) ?? "N/A"} ${enrichment.cvssVector ?? ""}`,
-      `OWASP: ${enrichment.owaspCategory ?? "N/A"}`,
-      `ATT&CK: ${enrichment.attackTechnique ?? "N/A"}`,
-    ]
+    const verification = Effect.runSync(
+      EvidenceGraphStore.use((store) =>
+        store.upsertNode({
+          sessionID: ctx.sessionID,
+          type: "verification",
+          sourceTool: "save_finding",
+          confidence: Math.max(0.2, params.confidence),
+          status: params.confirmed || params.confidence >= 0.8 ? "confirmed" : "open",
+          payload: {
+            predicate: params.title,
+            control: "positive",
+            passed: params.confirmed || params.confidence >= 0.8,
+            evidence_refs: [artifact.id],
+            reason: "legacy save_finding wrapper verification",
+          },
+        }),
+      ).pipe(Effect.provide(EvidenceGraphStore.layer)),
+    )
 
-    if (enrichment.nextActions.length > 0) {
-      lines.push(``)
-      lines.push(`Next steps:`)
-      for (const action of enrichment.nextActions) {
-        lines.push(`  → ${action}`)
-      }
-    }
+    const impl = await UpsertFindingTool.init()
+    const out = await impl.execute(
+      {
+        hypothesis_id: hypothesis.id,
+        title: params.title,
+        severity: params.severity,
+        impact: params.description,
+        evidence_refs: [verification.id],
+        impact_refs: [artifact.id],
+        confidence: params.confidence,
+        status: params.confirmed ? "confirmed" : "active",
+        url: params.url,
+        method: params.method,
+        parameter: params.parameter,
+        payload: params.payload,
+        tool_used: params.tool_used || "save_finding",
+        remediation: params.remediation,
+      } as never,
+      ctx,
+    )
+
+    const findingID = typeof (out.metadata as any).findingID === "string" ? (out.metadata as any).findingID : ""
+    const severity = typeof (out.metadata as any).severity === "string" ? (out.metadata as any).severity : params.severity
 
     return {
-      title: `✓ Saved: ${params.title} (${severity})`,
+      title: `✓ Saved: ${params.title} (${String(severity).toLowerCase()})`,
       metadata: {
-        id: findingId,
+        id: findingID,
         severity,
-        cwe: enrichment.cweId,
-        cvss: enrichment.cvssScore,
-        owasp: enrichment.owaspCategory,
+        wrappedBy: "save_finding",
+        assertionContract: (out.metadata as any).assertionContract ?? {},
       } as any,
-      output: lines.join("\n"),
+      envelope: out.envelope,
+      output: out.output,
     }
   },
 })

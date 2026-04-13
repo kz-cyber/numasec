@@ -1,16 +1,21 @@
 import { useSync } from "@tui/context/sync"
-import { createMemo, For, Show, Switch, Match } from "solid-js"
+import { createMemo, For, Match, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useTheme } from "../../context/theme"
-import { Locale } from "@/util/locale"
-import path from "path"
 import type { AssistantMessage } from "@numasec/sdk/v2"
-import { Global } from "@/global"
 import { Installation } from "@/installation"
-import { useKeybind } from "../../context/keybind"
 import { useDirectory } from "../../context/directory"
 import { useKV } from "../../context/kv"
 import { TodoItem } from "../../component/todo-item"
+import {
+  fallbackChains,
+  fallbackFindings,
+  fallbackTarget,
+  findingCounts,
+  selectChains,
+  selectFindings,
+  selectTarget,
+} from "../../security-view-model"
 
 export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
   const sync = useSync()
@@ -19,6 +24,7 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
   const diff = createMemo(() => sync.data.session_diff[props.sessionID] ?? [])
   const todo = createMemo(() => sync.data.todo[props.sessionID] ?? [])
   const messages = createMemo(() => sync.data.message[props.sessionID] ?? [])
+  const security = createMemo(() => sync.session.security(props.sessionID))
 
   const [expanded, setExpanded] = createStore({
     mcp: true,
@@ -61,187 +67,13 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
     }
   })
 
-  // Derive findings from tool results: save_finding, get_findings, auto-saved scanner outputs
-  const findings = createMemo(() => {
-    const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 }
-    type SevKey = keyof typeof counts
-    const seen = new Set<string>()
-    const severityRe = /\b(critical|high|medium|low|info)\b/i
-
-    const addFinding = (id: string, severity: string) => {
-      if (id && seen.has(id)) return
-      if (id) seen.add(id)
-      const sev = severity.toLowerCase() as SevKey
-      if (sev in counts) counts[sev]++
-      else counts.info++
-    }
-
-    const msgs = messages()
-    for (let mi = 0; mi < msgs.length; mi++) {
-      const msg = msgs[mi]
-      const parts = sync.data.part[msg.id]
-      if (!parts) continue
-      for (let pi = 0; pi < parts.length; pi++) {
-        const part = parts[pi]
-        if (part.type !== "tool") continue
-        if (part.state.status !== "completed") continue
-        const state = part.state as { output?: string }
-        const out = state.output
-        if (!out) continue
-
-        // Source 1: save_finding tool outputs
-        if (part.tool.includes("save_finding")) {
-          try {
-            const data = JSON.parse(out)
-            addFinding(data.finding_id ?? "", data.severity ?? data.finding?.severity ?? "")
-          } catch {
-            const m = out.match(severityRe)
-            if (m) addFinding("", m[1])
-            else addFinding("", "info")
-          }
-          continue
-        }
-
-        // Source 2: get_findings tool outputs (authoritative — reads from DB)
-        if (part.tool.includes("get_findings")) {
-          try {
-            const data = JSON.parse(out)
-            const list = data.findings
-            if (Array.isArray(list)) {
-              for (const f of list) {
-                addFinding(f.id ?? f.finding_id ?? "", f.severity ?? "")
-              }
-            }
-          } catch { /* skip */ }
-          continue
-        }
-
-        // Source 3: auto-saved findings embedded in scanner tool outputs
-        try {
-          const data = JSON.parse(out)
-          const autoSaved = data.findings_auto_saved
-          if (Array.isArray(autoSaved)) {
-            for (const f of autoSaved) {
-              addFinding(f.finding_id ?? "", f.severity ?? "")
-            }
-          }
-        } catch { /* not JSON or no auto-saved */ }
-      }
-    }
-    return counts
-  })
-  const totalFindings = createMemo(() => {
-    const c = findings()
-    return c.critical + c.high + c.medium + c.low + c.info
-  })
-
-  // Derive attack chains from save_finding, build_chains, get_findings, and generate_report tool results
-  const attackChains = createMemo(() => {
-    const chains: Record<string, { items: Array<{title: string; sev: string}>; severity: string }> = {}
-    const sevOrder = ["critical", "high", "medium", "low", "info"]
-    for (const msg of messages()) {
-      const parts = sync.data.part[msg.id] ?? []
-      for (const part of parts) {
-        if (part.type !== "tool" || part.state.status !== "completed") continue
-        const out = (part.state as { output?: string }).output ?? ""
-
-        // Source 1: save_finding with chain_id
-        if (part.tool.includes("save_finding")) {
-          try {
-            const data = JSON.parse(out)
-            const chainId = data.chain_id || data.finding?.chain_id
-            if (!chainId) continue
-            if (!chains[chainId]) chains[chainId] = { items: [], severity: "info" }
-            const title = data.title || data.finding?.title || "Finding"
-            const itemSev = (data.severity || data.finding?.severity || "info").toLowerCase()
-            if (!chains[chainId].items.some(x => x.title === title)) chains[chainId].items.push({ title, sev: itemSev })
-            const sev = (data.severity || "").toLowerCase()
-            if (sevOrder.indexOf(sev) < sevOrder.indexOf(chains[chainId].severity)) {
-              chains[chainId].severity = sev
-            }
-          } catch { /* skip */ }
-          continue
-        }
-
-        // Source 2: build_chains tool output OR generate_report with chains
-        if (part.tool.includes("build_chains") || part.tool.includes("generate_report")) {
-          try {
-            const data = JSON.parse(out)
-
-            // Extract chain_ids and titles from findings list (generate_report includes both)
-            const reportFindings = data.findings
-            if (Array.isArray(reportFindings)) {
-              for (const f of reportFindings) {
-                const chainId = f.chain_id
-                if (!chainId) continue
-                if (!chains[chainId]) chains[chainId] = { items: [], severity: "info" }
-                const title = f.title || "Finding"
-                const itemSev = (f.severity || "info").toLowerCase()
-                if (!chains[chainId].items.some(x => x.title === title)) chains[chainId].items.push({ title, sev: itemSev })
-                const sev = (f.severity || "").toLowerCase()
-                if (sevOrder.indexOf(sev) < sevOrder.indexOf(chains[chainId].severity)) {
-                  chains[chainId].severity = sev
-                }
-              }
-            }
-
-            // Fallback: build_chains returns {chains: {id: [findingIds]}} — use IDs only if no titles found
-            const builtChains = data.chains
-            if (builtChains && typeof builtChains === "object") {
-              for (const [cid, fids] of Object.entries(builtChains)) {
-                if (!chains[cid]) chains[cid] = { items: [], severity: "info" }
-                // Only add IDs if we don't already have titled findings for this chain
-                if (chains[cid].items.length === 0) {
-                  for (const fid of fids as string[]) {
-                    if (!chains[cid].items.some(x => x.title === fid)) chains[cid].items.push({ title: fid, sev: "info" })
-                  }
-                }
-              }
-            }
-          } catch { /* skip */ }
-          continue
-        }
-
-        // Source 3: get_findings output with chain_id on individual findings
-        if (part.tool.includes("get_findings")) {
-          try {
-            const data = JSON.parse(out)
-            const list = data.findings
-            if (!Array.isArray(list)) continue
-            for (const f of list) {
-              const chainId = f.chain_id
-              if (!chainId) continue
-              if (!chains[chainId]) chains[chainId] = { items: [], severity: "info" }
-              const title = f.title || "Finding"
-              const itemSev = (f.severity || "info").toLowerCase()
-              if (!chains[chainId].items.some(x => x.title === title)) chains[chainId].items.push({ title, sev: itemSev })
-              const sev = (f.severity || "").toLowerCase()
-              if (sevOrder.indexOf(sev) < sevOrder.indexOf(chains[chainId].severity)) {
-                chains[chainId].severity = sev
-              }
-            }
-          } catch { /* skip */ }
-          continue
-        }
-      }
-    }
-    return Object.entries(chains).filter(([_, c]) => c.items.length > 1)
-  })
-
-  // Derive target URL from recon/create_session tool inputs
-  const targetUrl = createMemo(() => {
-    for (const msg of messages()) {
-      const parts = sync.data.part[msg.id] ?? []
-      for (const part of parts) {
-        if (part.type !== "tool") continue
-        if (!part.tool.includes("create_session") && !part.tool.includes("recon")) continue
-        const state = part.state as { input?: Record<string, unknown> }
-        const url = state.input?.target ?? state.input?.url ?? state.input?.base_url
-        if (typeof url === "string" && url.startsWith("http")) return url
-      }
-    }
-    return undefined
-  })
+  const fallbackFindingList = createMemo(() => fallbackFindings(messages(), sync.data.part))
+  const findingList = createMemo(() => selectFindings(security(), fallbackFindingList()))
+  const findings = createMemo(() => findingCounts(findingList()))
+  const totalFindings = createMemo(() => findingList().length)
+  const fallbackChainList = createMemo(() => fallbackChains(messages(), sync.data.part, fallbackFindingList()))
+  const attackChains = createMemo(() => selectChains(security(), fallbackChainList(), findingList()))
+  const targetUrl = createMemo(() => selectTarget(security(), fallbackTarget(messages(), sync.data.part)))
 
   const directory = useDirectory()
   const kv = useKV()
@@ -376,7 +208,7 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
               </box>
               <Show when={totalFindings() === 0}>
                 <text fg={theme.textMuted}>
-                  No findings yet — use /target to start
+                  No findings yet — use /scope set to start (legacy: /target)
                 </text>
               </Show>
               <Show when={totalFindings() > 0 && expanded.findings}>
@@ -432,7 +264,7 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                 </box>
                 <Show when={expanded.chains}>
                   <For each={attackChains()}>
-                    {([_, chain]) => (
+                    {(chain) => (
                       <box paddingLeft={1}>
                         <text fg={chain.severity === "critical" || chain.severity === "high" ? theme.error : theme.warning} wrapMode="word">
                           ⛓ {chain.items.slice(0, 2).map(x => x.title).join(" → ")}

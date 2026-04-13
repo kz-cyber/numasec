@@ -29,6 +29,18 @@ import { batch, onMount } from "solid-js"
 import { Log } from "@/util/log"
 import type { Path } from "@numasec/sdk"
 import type { Workspace } from "@numasec/sdk/v2"
+import {
+  emptySecurityState,
+  mergeChains,
+  mergeFindings,
+  mergeMessages,
+  readNextCursor,
+  type SecurityChain,
+  type SecurityCoverage,
+  type SecurityFinding,
+  type SecurityState,
+  type SecuritySyncPage,
+} from "./sync-pagination"
 
 export const { use: useSync, provider: SyncProvider } = createSimpleContext({
   name: "Sync",
@@ -61,8 +73,20 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       message: {
         [sessionID: string]: Message[]
       }
+      message_cursor: {
+        [sessionID: string]: string | null
+      }
+      message_loading: {
+        [sessionID: string]: boolean
+      }
+      message_history: {
+        [sessionID: string]: boolean
+      }
       part: {
         [messageID: string]: Part[]
+      }
+      security: {
+        [sessionID: string]: SecurityState
       }
       lsp: LspStatus[]
       mcp: {
@@ -95,7 +119,11 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       session_diff: {},
       todo: {},
       message: {},
+      message_cursor: {},
+      message_loading: {},
+      message_history: {},
       part: {},
+      security: {},
       lsp: [],
       mcp: {},
       mcp_resource: {},
@@ -111,6 +139,162 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       const result = await sdk.client.experimental.workspace.list().catch(() => undefined)
       if (!result?.data) return
       setStore("workspaceList", reconcile(result.data))
+    }
+
+    type SecuritySummary = {
+      generated_at: number
+      checkpoints: {
+        findings: { count: number; changed: boolean }
+        chains: { count: number; changed: boolean }
+        coverage: { count: number; changed: boolean }
+      }
+    }
+
+    type SecurityRead = {
+      coverage: SecurityCoverage[]
+    }
+
+    type SecurityClient = {
+      client?: {
+        get: (input: { url: string }) => Promise<{ data?: unknown }>
+      }
+    }
+
+    function patchSecurity(sessionID: string, value: Partial<SecurityState>) {
+      const existing = store.security[sessionID]
+      if (!existing) {
+        setStore("security", sessionID, {
+          ...emptySecurityState(),
+          ...value,
+        })
+        return
+      }
+      setStore(
+        "security",
+        sessionID,
+        produce((draft) => {
+          if (value.status !== undefined) draft.status = value.status
+          if (value.findings !== undefined) draft.findings = value.findings
+          if (value.chains !== undefined) draft.chains = value.chains
+          if (value.coverage !== undefined) draft.coverage = value.coverage
+          if (value.updated !== undefined) draft.updated = value.updated
+          if ("error" in value) draft.error = value.error
+        }),
+      )
+    }
+
+    function workspace(sessionID: string) {
+      const result = Binary.search(store.session, sessionID, (item) => item.id)
+      if (!result.found) return undefined
+      return store.session[result.index]?.workspaceID
+    }
+
+    function path(input: string, workspaceID?: string) {
+      const url = new URL(input, "http://numasec.local")
+      if (workspaceID) url.searchParams.set("workspace", workspaceID)
+      return url.pathname + url.search
+    }
+
+    async function get<T>(input: string, workspaceID?: string) {
+      const client = sdk.client as unknown as SecurityClient
+      if (!client.client) throw new Error("security client unavailable")
+      const response = await client.client.get({ url: path(input, workspaceID) })
+      if (!response.data) throw new Error("security request failed")
+      return response.data as T
+    }
+
+    async function pages<T>(input: string, workspaceID?: string, since?: number) {
+      const rows: T[] = []
+      let cursor: string | undefined = undefined
+      while (true) {
+        const query = new URLSearchParams()
+        query.set("limit", "200")
+        if (since !== undefined) query.set("since", String(since))
+        if (cursor) query.set("cursor", cursor)
+        const body = await get<SecuritySyncPage<T>>(`${input}?${query.toString()}`, workspaceID)
+        rows.push(...body.items)
+        if (!body.sync.has_more) break
+        if (!body.sync.next_cursor) break
+        cursor = body.sync.next_cursor
+      }
+      return rows
+    }
+
+    async function syncSecurity(sessionID: string, workspaceID?: string, force = false) {
+      const current = store.security[sessionID] ?? emptySecurityState()
+      if (current.status === "loading") return
+      patchSecurity(sessionID, {
+        status: "loading",
+        error: undefined,
+      })
+      try {
+        const since = !force && current.updated > 0 ? current.updated : undefined
+        const query = since === undefined ? "" : `?since=${since}`
+        const summary = await get<SecuritySummary>(`/security/${sessionID}/read/summary${query}`, workspaceID)
+        const findingLimit = summary.checkpoints.findings.count < current.findings.length
+        const chainLimit = summary.checkpoints.chains.count < current.chains.length
+        const coverageLimit = summary.checkpoints.coverage.count < current.coverage.length
+        const findingDelta = summary.checkpoints.findings.changed
+        const chainDelta = summary.checkpoints.chains.changed
+        const coverageDelta = summary.checkpoints.coverage.changed
+        const initial = force || current.updated === 0
+
+        let findings = current.findings
+        const fullFindings = initial || findingLimit
+        if (fullFindings) findings = await pages<SecurityFinding>(`/security/${sessionID}/findings/sync`, workspaceID)
+        const deltaFindings = !fullFindings && findingDelta
+        if (deltaFindings) {
+          const rows = await pages<SecurityFinding>(`/security/${sessionID}/findings/sync`, workspaceID, since)
+          findings = mergeFindings(findings, rows)
+        }
+
+        let chains = current.chains
+        const fullChains = initial || chainLimit
+        if (fullChains) chains = await pages<SecurityChain>(`/security/${sessionID}/chains/sync`, workspaceID)
+        const deltaChains = !fullChains && chainDelta
+        if (deltaChains) {
+          const rows = await pages<SecurityChain>(`/security/${sessionID}/chains/sync`, workspaceID, since)
+          chains = mergeChains(chains, rows)
+        }
+
+        let coverage = current.coverage
+        const fullCoverage = initial || coverageLimit
+        if (fullCoverage || coverageDelta) {
+          const read = await get<SecurityRead>(`/security/${sessionID}/read`, workspaceID)
+          coverage = read.coverage ?? []
+        }
+
+        patchSecurity(sessionID, {
+          status: "ready",
+          findings,
+          chains,
+          coverage,
+          updated: summary.generated_at,
+          error: undefined,
+        })
+      } catch (error) {
+        Log.Default.debug("security sync failed", {
+          sessionID,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        const stale = store.security[sessionID] ?? current
+        const ready = stale.findings.length > 0 || stale.chains.length > 0 || stale.coverage.length > 0
+        patchSecurity(sessionID, {
+          status: ready ? "ready" : "error",
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+
+    const securityQueue = new Map<string, ReturnType<typeof setTimeout>>()
+
+    function queueSecurity(sessionID: string) {
+      if (securityQueue.has(sessionID)) return
+      const timer = setTimeout(() => {
+        securityQueue.delete(sessionID)
+        syncSecurity(sessionID, workspace(sessionID)).catch(() => {})
+      }, 250)
+      securityQueue.set(sessionID, timer)
     }
 
     sdk.event.listen((e) => {
@@ -212,6 +396,17 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
               }),
             )
           }
+          setStore(
+            produce((draft) => {
+              delete draft.todo[event.properties.info.id]
+              delete draft.session_diff[event.properties.info.id]
+              delete draft.message[event.properties.info.id]
+              delete draft.message_cursor[event.properties.info.id]
+              delete draft.message_loading[event.properties.info.id]
+              delete draft.message_history[event.properties.info.id]
+              delete draft.security[event.properties.info.id]
+            }),
+          )
           break
         }
         case "session.updated": {
@@ -253,7 +448,9 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
             }),
           )
           const updated = store.message[event.properties.info.sessionID]
-          if (updated.length > 100) {
+          const history = store.message_history[event.properties.info.sessionID]
+          const cursor = store.message_cursor[event.properties.info.sessionID]
+          if (!history && !cursor && updated.length > 100) {
             const oldest = updated[0]
             batch(() => {
               setStore(
@@ -291,11 +488,15 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           const parts = store.part[event.properties.part.messageID]
           if (!parts) {
             setStore("part", event.properties.part.messageID, [event.properties.part])
+            if (event.properties.part.type === "tool" && event.properties.part.state.status === "completed")
+              queueSecurity(event.properties.part.sessionID)
             break
           }
           const result = Binary.search(parts, event.properties.part.id, (p) => p.id)
           if (result.found) {
             setStore("part", event.properties.part.messageID, result.index, reconcile(event.properties.part))
+            if (event.properties.part.type === "tool" && event.properties.part.state.status === "completed")
+              queueSecurity(event.properties.part.sessionID)
             break
           }
           setStore(
@@ -305,6 +506,8 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
               draft.splice(result.index, 0, event.properties.part)
             }),
           )
+          if (event.properties.part.type === "tool" && event.properties.part.state.status === "completed")
+            queueSecurity(event.properties.part.sessionID)
           break
         }
 
@@ -467,14 +670,27 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           if (last.role === "user") return "working"
           return last.time.completed ? "idle" : "working"
         },
+        hasOlder(sessionID: string) {
+          return store.message_cursor[sessionID] !== null && store.message_cursor[sessionID] !== undefined
+        },
+        loadingOlder(sessionID: string) {
+          return store.message_loading[sessionID] ?? false
+        },
+        security(sessionID: string) {
+          return store.security[sessionID]
+        },
+        async refreshSecurity(sessionID: string) {
+          await syncSecurity(sessionID, workspace(sessionID), true)
+        },
         async sync(sessionID: string) {
           if (fullSyncedSessions.has(sessionID)) return
           const [session, messages, todo, diff] = await Promise.all([
             sdk.client.session.get({ sessionID }, { throwOnError: true }),
-            sdk.client.session.messages({ sessionID, limit: 100 }),
+            sdk.client.session.messages({ sessionID, limit: 100 }, { throwOnError: true }),
             sdk.client.session.todo({ sessionID }),
             sdk.client.session.diff({ sessionID }),
           ])
+          const cursor = readNextCursor(messages.response?.headers)
           setStore(
             produce((draft) => {
               const match = Binary.search(draft.session, sessionID, (s) => s.id)
@@ -482,13 +698,49 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
               if (!match.found) draft.session.splice(match.index, 0, session.data!)
               draft.todo[sessionID] = todo.data ?? []
               draft.message[sessionID] = messages.data!.map((x) => x.info)
+              draft.message_cursor[sessionID] = cursor
+              draft.message_loading[sessionID] = false
+              draft.message_history[sessionID] = false
               for (const message of messages.data!) {
                 draft.part[message.info.id] = message.parts
               }
               draft.session_diff[sessionID] = diff.data ?? []
             }),
           )
+          syncSecurity(sessionID, session.data?.workspaceID, true).catch(() => {})
           fullSyncedSessions.add(sessionID)
+        },
+        async loadOlder(sessionID: string, limit = 100) {
+          const cursor = store.message_cursor[sessionID]
+          if (!cursor) return false
+          if (store.message_loading[sessionID]) return false
+          setStore("message_loading", sessionID, true)
+          const result = await sdk.client.session
+            .messages(
+              {
+                sessionID,
+                limit,
+                before: cursor,
+              },
+              { throwOnError: true },
+            )
+            .finally(() => {
+              setStore("message_loading", sessionID, false)
+            })
+          const next = readNextCursor(result.response?.headers)
+          setStore(
+            produce((draft) => {
+              const page = result.data?.map((item) => item.info) ?? []
+              const existing = draft.message[sessionID] ?? []
+              draft.message[sessionID] = mergeMessages(existing, page)
+              for (const item of result.data ?? []) {
+                draft.part[item.info.id] = item.parts
+              }
+              draft.message_cursor[sessionID] = next
+              if (page.length > 0) draft.message_history[sessionID] = true
+            }),
+          )
+          return (result.data?.length ?? 0) > 0
         },
       },
       workspace: {

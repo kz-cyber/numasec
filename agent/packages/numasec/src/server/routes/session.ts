@@ -1018,12 +1018,14 @@ export const SessionRoutes = lazy(() =>
           permissionID: PermissionID.zod,
         }),
       ),
-      validator("json", z.object({ response: Permission.Reply })),
+      validator("json", z.object({ response: Permission.Reply, message: z.string().optional() })),
       async (c) => {
         const params = c.req.valid("param")
+        const json = c.req.valid("json")
         Permission.reply({
           requestID: params.permissionID,
-          reply: c.req.valid("json").response,
+          reply: json.response,
+          message: json.message,
         })
         return c.json(true)
       },

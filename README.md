@@ -28,6 +28,7 @@
 - [LLM Providers](#llm-providers)
 - [Installation](#installation)
 - [Usage](#usage)
+- [v1 to v2 cutover runbook](#v1-to-v2-cutover-runbook-release-105)
 - [Development](#development)
 - [Contributing](#contributing)
 
@@ -221,18 +222,140 @@ apt install ffuf           # fast directory fuzzing
 numasec                  # Launch the TUI
 ```
 
-### Slash commands
+### Slash commands (v2 taxonomy)
+
+#### Canonical workflow commands
 
 | Command | Description |
 |---|---|
-| `/target <url>` | Set target and start scanning |
-| `/findings` | List discovered vulnerabilities |
-| `/report <format>` | Generate report (markdown, html, sarif) |
+| `/scope set <target>` | Set engagement scope and begin reconnaissance |
+| `/scope show` | Show current scope and latest observed surface |
+| `/hypothesis list` | List evidence-graph hypotheses |
+| `/verify next` | Plan the next verification primitive |
+| `/evidence list` | List findings with available evidence |
+| `/evidence show <id-or-title>` | Show full evidence for one finding |
+| `/chains list` | List derived attack chains |
+| `/finding list` | List findings by severity |
+| `/remediation plan` | Generate prioritized remediation actions |
+| `/retest run [filter]` | Replay and retest saved findings |
+| `/report generate [format] [--out <path>]` | Generate report (`markdown`, `html`, `sarif`) and optionally write to file |
 | `/coverage` | OWASP Top 10 coverage matrix |
-| `/creds` | Discovered credentials |
-| `/evidence <id>` | Evidence for a specific finding |
+| `/creds` | List discovered credentials (masked) |
 | `/review` | Security review of code changes |
 | `/init` | Analyze app and create security profile |
+
+#### Legacy aliases (soft deprecations, still supported)
+
+| Legacy command | v2 replacement |
+|---|---|
+| `/target <url>` | `/scope set <url>` |
+| `/findings` | `/finding list` |
+| `/report <format>` | `/report generate <format>` |
+| `/evidence` | `/evidence list` |
+| `/evidence <id-or-title>` | `/evidence show <id-or-title>` |
+
+Deprecation notes (v1 → v2):
+- **v1.0.5**: v2 command taxonomy is the documented default.
+- **v1.x**: legacy aliases remain available (soft deprecation only; no removals in v1.x).
+- **v2.0+ earliest**: alias removals, if any, will be announced in release notes before breaking.
+
+Migration examples:
+
+```bash
+# old
+/target https://app.example.com
+# new
+/scope set https://app.example.com
+
+# old
+/findings
+# new
+/finding list
+
+# old
+/report html
+# new
+/report generate html
+/report generate markdown --out reports/final.md
+
+# old
+/evidence SSEC-AB12CD34EF56
+# new
+/evidence show SSEC-AB12CD34EF56
+```
+
+### v1 to v2 cutover runbook (release 1.0.5)
+
+#### Feature-flag sequencing (recommended)
+
+1. **Command UX cutover first (no flags):** move operators and scripts to canonical slash commands  
+   (`/scope set`, `/scope show`, `/hypothesis list`, `/verify next`, `/evidence list`, `/evidence show`, `/chains list`, `/finding list`, `/remediation plan`, `/retest run`, `/report generate`).
+2. **Enable graph writes in canary environments:**
+   ```bash
+   export NUMASEC_SECURITY_GRAPH_WRITE=1
+   export NUMASEC_SECURITY_GRAPH_READ=0
+   ```
+   `save_finding` will continue writing legacy findings and additionally write evidence-graph nodes.
+   (This flag controls the legacy compatibility path; graph-native primitives already persist evidence graph data.)
+3. **Enable graph reads for canary API/TUI consumers:**
+   ```bash
+   export NUMASEC_SECURITY_GRAPH_READ=1
+   ```
+   This enables evidence read projections and `graph_enabled=true` in `/security/:sessionID/read*`.
+4. **Promote to default rollout:** set both `NUMASEC_SECURITY_GRAPH_WRITE=1` and `NUMASEC_SECURITY_GRAPH_READ=1` in production env config.
+
+> Notes:
+> - `NUMASEC_SECURITY_V2_PLANNER` and `NUMASEC_SECURITY_V2_TUI` are currently declared flags, but are not wired to runtime behavior in v1.0.5.
+> - `NUMASEC_SECURITY_GRAPH_WRITE` is specifically a compatibility-write gate for `save_finding`.
+> - Keep legacy slash aliases available in v1.x (`/target`, `/findings`, `/report`, `/evidence`) during rollout.
+
+#### Rollback playbook by subsystem
+
+| Subsystem | Rollback action | Verified fallback behavior |
+|---|---|---|
+| Commands | Keep using legacy aliases (`/target`, `/findings`, `/report`, `/evidence`) while keeping canonical names documented. | Alias mapping is covered by `test/command/taxonomy.test.ts` and parser behavior by `test/command/resolve.test.ts`. |
+| APIs | Disable graph reads first: `export NUMASEC_SECURITY_GRAPH_READ=0` (or unset). Continue using `/security/:sessionID/findings`, `/security/:sessionID/chains`, and sync variants. | Evidence routes (`/security/:sessionID/evidence/*`) return `{ enabled: false, items: [] }` when graph read is off. |
+| TUI canonical views | If canonical projections are unstable, keep graph read off and restart clients. TUI keeps fallback parsing from tool outputs for findings/chains/target/coverage. | Canonical-preferred + fallback behavior is covered by `test/cli/cmd/tui/security-view-model.test.ts`. |
+| Approval UX | Use `Allow once` only during rollback window. API responders should use `POST /permission/:requestID/reply` (`reply: once/reject`). Legacy clients may use deprecated `POST /session/:sessionID/permissions/:permissionID` (`response: once/reject`). | Scoped approval labels/risk are covered by `test/permission/approval.test.ts` and `test/acp/event-subscription.test.ts`. |
+
+#### Acceptance checks before enabling defaults
+
+Run from `agent/packages/numasec`:
+
+```bash
+bun test --timeout 30000 test/command/taxonomy.test.ts
+bun test --timeout 30000 test/command/resolve.test.ts
+bun test --timeout 30000 test/server/security-read-model.test.ts
+bun test --timeout 30000 test/cli/cmd/tui/security-view-model.test.ts
+bun test --timeout 30000 test/cli/tui/sync-pagination.test.ts
+bun test --timeout 30000 test/permission/approval.test.ts
+bun test --timeout 30000 test/permission/next.test.ts
+```
+
+API smoke checks for canary sessions:
+
+```bash
+curl -s "$NUMASEC_URL/security/$SESSION_ID/read/summary?since=0"
+curl -s "$NUMASEC_URL/security/$SESSION_ID/findings/sync?limit=2"
+curl -s "$NUMASEC_URL/security/$SESSION_ID/chains/sync?limit=2"
+curl -s "$NUMASEC_URL/security/$SESSION_ID/evidence/nodes/sync?limit=1"
+```
+
+#### Post-cutover monitoring signals
+
+- `GET /security/:sessionID/read/summary`:
+  - `graph_enabled` should match rollout flag state.
+  - Track `summary.finding_count`, `summary.chain_count`, `summary.coverage_count`.
+  - Watch checkpoint deltas (`checkpoints.*.changed`) for expected activity.
+- Evidence graph health:
+  - When reads are enabled, `checkpoints.evidence_nodes.enabled` and `checkpoints.evidence_edges.enabled` should be `true`.
+- TUI sync health:
+  - Watch for repeated `security sync failed` debug logs and stale sidebar/header data.
+- Approval pressure:
+  - Monitor pending queue via `GET /permission`.
+  - Monitor spikes in high-risk requests (`approval_risk=high`) and reject reasons.
+- Command migration adoption:
+  - Track `command.executed` events/logs for lingering legacy alias usage.
 
 ### Agent modes
 
@@ -246,29 +369,27 @@ numasec                  # Launch the TUI
 
 ### Security tools
 
-| Tool | Description |
+v2 UX favors graph primitives. Legacy wrappers remain supported for progressive migration.
+
+| Preferred v2 primitives | Description |
 |---|---|
-| `recon` | Port scan + service probe + tech fingerprint |
-| `crawl` | Spider + OpenAPI + sitemap discovery |
-| `dir_fuzz` | Directory brute-force |
-| `js_analyze` | JS endpoint/secret extraction |
-| `injection_test` | SQL/NoSQL/SSTI/CmdI/CRLF/LFI/XXE |
-| `xss_test` | Reflected XSS |
-| `auth_test` | JWT analysis + credential testing |
-| `access_control_test` | IDOR/CSRF/CORS/mass assignment |
-| `ssrf_test` | SSRF with cloud metadata |
-| `upload_test` | File upload bypass |
-| `race_test` | Race condition detection |
-| `graphql_test` | Introspection, batching, depth attacks |
-| `kb_search` | Security knowledge base search (BM25) |
-| `pentest_plan` | PTES methodology planner |
-| `save_finding` | Persist finding with auto-enrichment |
-| `get_findings` | Retrieve findings |
-| `build_chains` | Group findings into attack chains |
-| `generate_report` | SARIF/HTML/Markdown report |
-| `http_request` | Raw HTTP with full control |
-| `security_shell` | Shell execution (nmap, sqlmap, etc.) |
-| `browser` | Playwright automation |
+| `observe_surface` | Persist canonical target/surface observation |
+| `upsert_hypothesis` | Track testable hypotheses in the evidence graph |
+| `record_evidence` | Store normalized test evidence |
+| `verify_assertion` | Verify/refute hypotheses against evidence |
+| `upsert_finding` | Persist confirmed findings from verified assertions |
+| `derive_attack_paths` | Build attack-path narratives from linked findings |
+| `plan_next` | Suggest next primitive action from current graph state |
+| `query_graph` | Read graph state for hypotheses/evidence/findings |
+| `batch_replay` | Deterministic replay for retests |
+| `exec_command` | Controlled command execution with normalized output |
+
+| Compatibility wrappers (still supported in v1.x) | Description |
+|---|---|
+| `recon`, `crawl`, `dir_fuzz`, `js_analyze` | Composite discovery/scanning wrappers |
+| `save_finding`, `get_findings`, `build_chains` | Legacy finding/chaining workflow |
+| `security_shell` | Legacy shell wrapper for external tooling |
+| `generate_report` | Report generation for both legacy and v2 flows |
 
 ---
 
@@ -309,4 +430,3 @@ Issues, PRs, and ideas are welcome.
 </p>
 
 <p align="center"><a href="LICENSE">MIT License</a></p>
-

@@ -9,6 +9,15 @@ import { useCommandDialog } from "@tui/component/dialog-command"
 import { useKeybind } from "../../context/keybind"
 import { Flag } from "@/flag/flag"
 import { useTerminalDimensions } from "@opentui/solid"
+import {
+  OWASP_CATEGORIES,
+  fallbackCoverage,
+  fallbackFindings,
+  fallbackTarget,
+  selectCoverage,
+  selectFindings,
+  selectTarget,
+} from "../../security-view-model"
 
 const Title = (props: { session: Accessor<Session> }) => {
   const { theme } = useTheme()
@@ -46,6 +55,7 @@ export function Header() {
   const sync = useSync()
   const session = createMemo(() => sync.session.get(route.sessionID)!)
   const messages = createMemo(() => sync.data.message[route.sessionID] ?? [])
+  const security = createMemo(() => sync.session.security(route.sessionID))
 
   const cost = createMemo(() => {
     const total = pipe(
@@ -79,106 +89,10 @@ export function Header() {
     return `Workspace ${id} (${info.type})`
   })
 
-  // Derive target URL from recon/create_session tool inputs
-  const targetUrl = createMemo(() => {
-    for (const msg of messages()) {
-      const parts = sync.data.part[msg.id] ?? []
-      for (const part of parts) {
-        if (part.type !== "tool") continue
-        if (!part.tool.includes("create_session") && !part.tool.includes("recon")) continue
-        const state = part.state as { input?: Record<string, unknown> }
-        const url = state.input?.target ?? state.input?.url ?? state.input?.base_url
-        if (typeof url === "string" && url.startsWith("http")) return url
-      }
-    }
-    return undefined
-  })
-
-  // Derive OWASP coverage from save_finding, get_findings, and auto-saved scanner findings
-  const owaspCategories = [
-    "A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10",
-  ] as const
-
-  // Maps scanner tool names to OWASP categories they cover (mirrors numasec/core/coverage.py)
-  const toolToOwasp: Record<string, string[]> = {
-    access_control_test: ["A01", "A08"],
-    auth_test: ["A01", "A02", "A07"],
-    injection_test: ["A03", "A04", "A07"],
-    xss_test: ["A03"],
-    ssrf_test: ["A10"],
-    path_test: ["A03", "A10"],
-    recon: ["A05", "A06", "A09"],
-    crawl: ["A05"],
-    js_analyze: ["A05"],
-    dir_fuzz: ["A05"],
-    upload_test: ["A04"],
-  }
-
-  const coverageInfo = createMemo(() => {
-    const tested = new Set<string>()
-    const vulnerable = new Set<string>()
-    const categoryRe = /A0[1-9]|A10/g
-    const msgs = messages()
-    for (let mi = 0; mi < msgs.length; mi++) {
-      const msg = msgs[mi]
-      const parts = sync.data.part[msg.id]
-      if (!parts) continue
-      for (let pi = 0; pi < parts.length; pi++) {
-        const part = parts[pi]
-        if (part.type !== "tool") continue
-        if (part.state.status !== "completed") continue
-        const out = (part.state as { output?: string }).output
-        if (!out) continue
-
-        // Source 1: save_finding outputs (owasp_category in enriched) — these are vulnerabilities
-        if (part.tool.includes("save_finding")) {
-          const matches = out.match(categoryRe)
-          if (matches) matches.forEach((m) => { tested.add(m); vulnerable.add(m) })
-          continue
-        }
-
-        // Source 2: get_findings outputs (each finding may have owasp category)
-        if (part.tool.includes("get_findings")) {
-          const matches = out.match(categoryRe)
-          if (matches) matches.forEach((m) => { tested.add(m); vulnerable.add(m) })
-          continue
-        }
-
-        // Source 3: plan tool coverage_gaps output (tested categories)
-        if (part.tool.includes("plan")) {
-          const matches = out.match(categoryRe)
-          if (matches) matches.forEach((m) => tested.add(m))
-          try {
-            const data = JSON.parse(out)
-            const coveredList = data?.coverage?.covered_categories
-            if (Array.isArray(coveredList)) coveredList.forEach((c: string) => tested.add(c))
-          } catch { /* skip */ }
-          continue
-        }
-
-        // Source 4: Any completed scanner tool marks its OWASP categories as tested
-        const toolName = part.tool.split("/").pop() ?? ""
-        for (const [key, cats] of Object.entries(toolToOwasp)) {
-          if (toolName.includes(key)) {
-            cats.forEach((c) => tested.add(c))
-          }
-        }
-
-        // Source 5: auto-saved findings in scanner outputs (these are vulnerabilities)
-        try {
-          const data = JSON.parse(out)
-          const autoSaved = data.findings_auto_saved
-          if (!Array.isArray(autoSaved)) continue
-          for (const f of autoSaved) {
-            const cat = f.owasp_category ?? ""
-            const matches = cat.match(categoryRe)
-            if (matches) matches.forEach((m: string) => { tested.add(m); vulnerable.add(m) })
-          }
-        } catch { /* skip */ }
-      }
-    }
-    return { tested, vulnerable, testedCount: tested.size, total: owaspCategories.length }
-  })
+  const fallbackFindingList = createMemo(() => fallbackFindings(messages(), sync.data.part))
+  const findingList = createMemo(() => selectFindings(security(), fallbackFindingList()))
+  const targetUrl = createMemo(() => selectTarget(security(), fallbackTarget(messages(), sync.data.part)))
+  const coverageInfo = createMemo(() => selectCoverage(security(), fallbackCoverage(messages(), sync.data.part), findingList()))
 
   const { theme } = useTheme()
   const keybind = useKeybind()
@@ -276,7 +190,7 @@ export function Header() {
                   <Show when={coverageInfo().testedCount > 0}>
                     <box flexDirection="row" gap={0} flexShrink={0}>
                       <text fg={theme.textMuted} wrapMode="none">OWASP </text>
-                      {owaspCategories.map((cat) => {
+                      {OWASP_CATEGORIES.map((cat) => {
                         const info = coverageInfo()
                         const isVuln = info.vulnerable.has(cat)
                         const isTested = info.tested.has(cat)

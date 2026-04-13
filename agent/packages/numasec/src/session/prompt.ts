@@ -679,6 +679,9 @@ export namespace SessionPrompt {
         ...(skills ? [skills] : []),
         ...(await InstructionPrompt.system()),
       ]
+      const constraints = await Permission.constraints(sessionID)
+      const guidance = Permission.formatConstraints(constraints.slice(-4))
+      if (guidance) system.push(guidance)
       const format = lastUser.format ?? { type: "text" }
       if (format.type === "json_schema") {
         system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
@@ -1432,7 +1435,9 @@ export namespace SessionPrompt {
           sessionID: userMessage.info.sessionID,
           type: "text",
           text:
-            BUILD_SWITCH + "\n\n" + `Reconnaissance data exists at ${plan}. You should use the identified endpoints and attack surface to guide your vulnerability testing.`,
+            BUILD_SWITCH +
+            "\n\n" +
+            `Reconnaissance evidence exists at ${plan}. Use it to seed hypothesis-first testing and verification.`,
           synthetic: true,
         })
         userMessage.parts.push(part)
@@ -1447,46 +1452,41 @@ export namespace SessionPrompt {
       if (!exists) await fs.mkdir(path.dirname(plan), { recursive: true })
       const part = await Session.updatePart({
         id: PartID.ascending(),
-        messageID: userMessage.info.id,
-        sessionID: userMessage.info.sessionID,
-        type: "text",
-        text: `<system-reminder>
+          messageID: userMessage.info.id,
+          sessionID: userMessage.info.sessionID,
+          type: "text",
+          text: `<system-reminder>
 Reconnaissance mode is active. The user indicated recon-only -- you MUST NOT send exploitation payloads, run injection/XSS/SSRF/auth tests, or attempt any vulnerability exploitation. This supersedes any other instructions you have received.
 
 ## Recon Notes:
 ${exists ? `Previous reconnaissance data exists at ${plan}. Review it and continue mapping the attack surface.` : `No recon data yet. Begin mapping the target's attack surface.`}
 
-## Recon Workflow
+## Recon Workflow (primitive-first)
 
-### Phase 1: Target Enumeration
-Goal: Map the target's attack surface using passive and active reconnaissance.
+### Step 1: Scope Baseline
+Goal: map attack surface without exploitation.
+1. Run **observe_surface** to enumerate services, routes, forms, and technology signals
+2. Use legacy wrappers (**recon**, **crawl**, **dir_fuzz**, **js_analyze**) only when wrapper-specific behavior is needed
 
-1. Run **recon** on the target to enumerate ports, services, and technologies
-2. Run **crawl** to discover endpoints, forms, and API routes
-3. Run **dir_fuzz** to find hidden directories and files
-4. Run **js_analyze** to extract secrets, endpoints, and API keys from JavaScript
+### Step 2: Hypothesis Seeding
+Goal: capture testable follow-up ideas for pentest mode.
+1. Create candidate hypotheses with **upsert_hypothesis**
+2. Keep deterministic sequencing with **plan_next**
 
-### Phase 2: Deep Enumeration
-Goal: Enumerate specific services and identify potential attack vectors.
+### Step 3: Evidence Curation
+Goal: preserve recon outputs for reproducible handoff.
+1. Persist key artifacts with **record_evidence**
+2. Connect relationships with **link_evidence**
+3. Check completeness with **query_graph**
 
-- Use **scanner** subagents in parallel for different aspects (e.g., one for service fingerprinting, one for endpoint discovery)
-- Map authentication mechanisms, API schemas, and input parameters
-- Identify technologies and frameworks for targeted testing
+### Step 4: Recon Summary
+Goal: present a clear handoff package.
+- List discovered endpoints and service map
+- Note auth mechanisms and technology versions
+- Highlight highest-value hypotheses for validation
+- Confirm scope/priorities with **question** when needed
 
-### Phase 3: Attack Surface Review
-Goal: Review the reconnaissance data and prioritise for testing.
-1. Correlate findings across tools to build a complete target profile
-2. Identify high-value targets (auth endpoints, file upload, API endpoints with params)
-3. Use question tool to confirm scope and priorities with the user
-
-### Phase 4: Recon Summary
-Goal: Present the attack surface summary.
-- List all discovered endpoints with their parameters
-- Note all identified technologies and versions
-- Highlight high-priority targets for exploitation testing
-- Track which OWASP Top 10 categories can be tested based on discoveries
-
-### Phase 5: Call plan_exit tool
+### Step 5: Call plan_exit tool
 At the very end of your turn, once you have gathered sufficient reconnaissance data and are ready to present the attack surface to the user - you should always call plan_exit to indicate that recon is complete.
 This is critical - your turn should only end with either asking the user a question or calling plan_exit. Do not stop unless it's for these 2 reasons.
 

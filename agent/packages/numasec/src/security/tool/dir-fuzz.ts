@@ -6,7 +6,7 @@
 
 import z from "zod"
 import { Tool } from "../../tool/tool"
-import { dirFuzz } from "../scanner/dir-fuzzer"
+import { runObserveSurfaceProfile } from "./observe-surface"
 
 const DESCRIPTION = `Brute-force directories and files on a web server.
 Uses a built-in wordlist (~600 common paths) to discover hidden endpoints.
@@ -34,8 +34,25 @@ export const DirFuzzTool = Tool.define("dir_fuzz", {
       metadata: { url: params.url } as Record<string, any>,
     })
 
-    ctx.metadata({ title: `Fuzzing directories on ${new URL(params.url).hostname}...` })
-    const result = await dirFuzz(params.url, { wordlist: params.wordlist, extensions: params.extensions })
+    const profile = await runObserveSurfaceProfile(
+      {
+        target: params.url,
+        modes: ["dir_fuzz"],
+        wordlist: params.wordlist,
+        extensions: params.extensions,
+      },
+      {
+        onStage: (title) => ctx.metadata({ title }),
+      },
+    )
+    const result = profile.dir_fuzz
+    if (!result) {
+      return {
+        title: "Dir fuzz: 0 found / 0 tested",
+        metadata: { found: 0, tested: 0 } as any,
+        output: "No directory fuzzing results.",
+      }
+    }
 
     const parts: string[] = [`── Directory Fuzzing (${result.testedCount} tested, ${result.elapsed}ms) ──`]
     if (result.found.length === 0) {

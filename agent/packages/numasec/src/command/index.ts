@@ -10,12 +10,20 @@ import { Skill } from "../skill"
 import { Log } from "../util/log"
 import PROMPT_INITIALIZE from "./template/initialize.txt"
 import PROMPT_REVIEW from "./template/review.txt"
-import PROMPT_TARGET from "./template/target.txt"
-import PROMPT_FINDINGS from "./template/findings.txt"
-import PROMPT_REPORT from "./template/report.txt"
+import PROMPT_SCOPE_SET from "./template/target.txt"
+import PROMPT_SCOPE_SHOW from "./template/scope-show.txt"
+import PROMPT_HYPOTHESIS_LIST from "./template/hypothesis-list.txt"
+import PROMPT_VERIFY_NEXT from "./template/verify-next.txt"
+import PROMPT_EVIDENCE_LIST from "./template/evidence-list.txt"
+import PROMPT_EVIDENCE_SHOW from "./template/evidence.txt"
+import PROMPT_CHAINS_LIST from "./template/chains-list.txt"
+import PROMPT_FINDING_LIST from "./template/findings.txt"
+import PROMPT_REMEDIATION_PLAN from "./template/remediation-plan.txt"
+import PROMPT_RETEST_RUN from "./template/retest-run.txt"
+import PROMPT_REPORT_GENERATE from "./template/report.txt"
 import PROMPT_COVERAGE from "./template/coverage.txt"
 import PROMPT_CREDS from "./template/creds.txt"
-import PROMPT_EVIDENCE from "./template/evidence.txt"
+import PROMPT_EVIDENCE_LEGACY from "./template/evidence-legacy.txt"
 
 export namespace Command {
   const log = Log.create({ service: "command" })
@@ -69,12 +77,23 @@ export namespace Command {
   export const Default = {
     INIT: "init",
     REVIEW: "review",
+    SCOPE_SET: "scope set",
+    SCOPE_SHOW: "scope show",
+    HYPOTHESIS_LIST: "hypothesis list",
+    VERIFY_NEXT: "verify next",
+    EVIDENCE_LIST: "evidence list",
+    EVIDENCE_SHOW: "evidence show",
+    CHAINS_LIST: "chains list",
+    FINDING_LIST: "finding list",
+    REMEDIATION_PLAN: "remediation plan",
+    RETEST_RUN: "retest run",
+    REPORT_GENERATE: "report generate",
     TARGET: "target",
     FINDINGS: "findings",
     REPORT: "report",
+    EVIDENCE: "evidence",
     COVERAGE: "coverage",
     CREDS: "creds",
-    EVIDENCE: "evidence",
   } as const
 
   export interface Interface {
@@ -94,6 +113,27 @@ export namespace Command {
       const init = Effect.fn("Command.state")(function* (ctx) {
         const cfg = yield* config.get()
         const commands: Record<string, Info> = {}
+        const register = (
+          name: string,
+          command: {
+            description: string
+            template: string
+            agent?: string
+            subtask?: boolean
+          },
+        ) => {
+          commands[name] = {
+            name,
+            description: command.description,
+            source: "command",
+            agent: command.agent,
+            get template() {
+              return command.template
+            },
+            subtask: command.subtask,
+            hints: hints(command.template),
+          }
+        }
 
         commands[Default.INIT] = {
           name: Default.INIT,
@@ -116,36 +156,83 @@ export namespace Command {
         }
 
         // ── Security commands ──────────────────────────────────
-        commands[Default.TARGET] = {
-          name: Default.TARGET,
+        register(Default.SCOPE_SET, {
           description: "set pentest target and begin reconnaissance",
-          source: "command",
+          template: PROMPT_SCOPE_SET,
           agent: "pentest",
-          get template() {
-            return PROMPT_TARGET
-          },
-          hints: hints(PROMPT_TARGET),
-        }
-        commands[Default.FINDINGS] = {
-          name: Default.FINDINGS,
-          description: "list all security findings",
-          source: "command",
-          get template() {
-            return PROMPT_FINDINGS
-          },
+        })
+        register(Default.SCOPE_SHOW, {
+          description: "show current engagement scope and observed surface",
+          template: PROMPT_SCOPE_SHOW,
           subtask: true,
-          hints: hints(PROMPT_FINDINGS),
-        }
-        commands[Default.REPORT] = {
-          name: Default.REPORT,
-          description: "generate pentest report [markdown|html|sarif|json]",
-          source: "command",
+        })
+        register(Default.HYPOTHESIS_LIST, {
+          description: "list hypotheses from the evidence graph",
+          template: PROMPT_HYPOTHESIS_LIST,
+          subtask: true,
+        })
+        register(Default.VERIFY_NEXT, {
+          description: "plan the next verification step",
+          template: PROMPT_VERIFY_NEXT,
+          subtask: true,
+        })
+        register(Default.EVIDENCE_LIST, {
+          description: "list available evidence entries",
+          template: PROMPT_EVIDENCE_LIST,
+          subtask: true,
+        })
+        register(Default.EVIDENCE_SHOW, {
+          description: "show evidence details for a finding",
+          template: PROMPT_EVIDENCE_SHOW,
+          subtask: true,
+        })
+        register(Default.CHAINS_LIST, {
+          description: "list derived attack chains",
+          template: PROMPT_CHAINS_LIST,
+          subtask: true,
+        })
+        register(Default.FINDING_LIST, {
+          description: "list all security findings",
+          template: PROMPT_FINDING_LIST,
+          subtask: true,
+        })
+        register(Default.REMEDIATION_PLAN, {
+          description: "produce a prioritized remediation plan",
+          template: PROMPT_REMEDIATION_PLAN,
+          subtask: true,
+        })
+        register(Default.RETEST_RUN, {
+          description: "run retest workflow for saved findings",
+          template: PROMPT_RETEST_RUN,
+          subtask: true,
+        })
+        register(Default.REPORT_GENERATE, {
+          description: "generate pentest report [markdown|html|sarif]",
+          template: PROMPT_REPORT_GENERATE,
           agent: "pentest",
-          get template() {
-            return PROMPT_REPORT
-          },
-          hints: hints(PROMPT_REPORT),
-        }
+        })
+
+        // Legacy aliases (progressive migration)
+        register(Default.TARGET, {
+          description: "alias for /scope set",
+          template: PROMPT_SCOPE_SET,
+          agent: "pentest",
+        })
+        register(Default.FINDINGS, {
+          description: "alias for /finding list",
+          template: PROMPT_FINDING_LIST,
+          subtask: true,
+        })
+        register(Default.REPORT, {
+          description: "alias for /report generate",
+          template: PROMPT_REPORT_GENERATE,
+          agent: "pentest",
+        })
+        register(Default.EVIDENCE, {
+          description: "legacy /evidence command (maps to list/show behavior)",
+          template: PROMPT_EVIDENCE_LEGACY,
+          subtask: true,
+        })
         commands[Default.COVERAGE] = {
           name: Default.COVERAGE,
           description: "show OWASP Top 10 coverage matrix",
@@ -165,16 +252,6 @@ export namespace Command {
           },
           subtask: true,
           hints: hints(PROMPT_CREDS),
-        }
-        commands[Default.EVIDENCE] = {
-          name: Default.EVIDENCE,
-          description: "show evidence for a finding",
-          source: "command",
-          get template() {
-            return PROMPT_EVIDENCE
-          },
-          subtask: true,
-          hints: hints(PROMPT_EVIDENCE),
         }
 
         for (const [name, command] of Object.entries(cfg.command ?? {})) {

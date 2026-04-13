@@ -13,7 +13,7 @@
 
 import z from "zod"
 import { Tool } from "../../tool/tool"
-import { spawn } from "child_process"
+import { executeExecCommand } from "./exec-command"
 
 const DEFAULT_TIMEOUT = 120_000
 
@@ -38,48 +38,25 @@ export const ShellTool = Tool.define("security_shell", {
     description: z.string().describe("Short description of what this command does (5-10 words)"),
   }),
   async execute(params, ctx) {
-    await ctx.ask({
-      permission: "security_shell",
-      patterns: [params.command],
-      always: [] as string[],
-      metadata: { command: params.command, description: params.description } as Record<string, any>,
-    })
-
     const timeout = params.timeout ?? DEFAULT_TIMEOUT
-    const start = Date.now()
-
-    const result = await new Promise<{ stdout: string; stderr: string; exitCode: number }>((resolve) => {
-      const chunks: Buffer[] = []
-      const errChunks: Buffer[] = []
-
-      const isWin = process.platform === "win32"
-      const shell = isWin ? (process.env.COMSPEC || "cmd.exe") : "sh"
-      const shellArgs = isWin ? ["/c", params.command] : ["-c", params.command]
-
-      const proc = spawn(shell, shellArgs, {
+    const isWin = process.platform === "win32"
+    const shell = isWin ? (process.env.COMSPEC || "cmd.exe") : "sh"
+    const shellArgs = isWin ? ["/c", params.command] : ["-c", params.command]
+    const execution = await executeExecCommand(
+      {
+        argv: [shell, ...shellArgs],
         timeout,
-        stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, TERM: "dumb" },
-        windowsHide: isWin,
-      })
-
-      proc.stdout.on("data", (d: Buffer) => chunks.push(d))
-      proc.stderr.on("data", (d: Buffer) => errChunks.push(d))
-
-      proc.on("close", (code) => {
-        resolve({
-          stdout: Buffer.concat(chunks).toString("utf-8"),
-          stderr: Buffer.concat(errChunks).toString("utf-8"),
-          exitCode: code ?? 1,
-        })
-      })
-
-      proc.on("error", (err) => {
-        resolve({ stdout: "", stderr: err.message, exitCode: 1 })
-      })
-    })
-
-    const elapsed = Date.now() - start
+        description: params.description,
+      },
+      ctx,
+      {
+        permission: "security_shell",
+        patterns: [params.command],
+        always: [] as string[],
+        metadata: { command: params.command, description: params.description } as Record<string, any>,
+      },
+    )
+    const result = execution.result
 
     const parts: string[] = []
     if (result.stdout) {
@@ -90,13 +67,13 @@ export const ShellTool = Tool.define("security_shell", {
       parts.push("── stderr ──")
       parts.push(result.stderr.length > 5000 ? result.stderr.slice(0, 5000) + "\n... (truncated)" : result.stderr)
     }
-    parts.push(`\nExit code: ${result.exitCode} | Elapsed: ${elapsed}ms`)
+    parts.push(`\nExit code: ${result.exitCode} | Elapsed: ${execution.elapsed}ms`)
 
     return {
       title: params.description,
       metadata: {
         exitCode: result.exitCode,
-        elapsed,
+        elapsed: execution.elapsed,
         stdoutLength: result.stdout.length,
         stderrLength: result.stderr.length,
       },

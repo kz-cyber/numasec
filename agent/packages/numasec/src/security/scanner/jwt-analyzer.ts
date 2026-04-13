@@ -67,6 +67,27 @@ const WEAK_SECRETS = [
   "token", "abc123", "letmein", "1234567890", "qwerty",
 ]
 
+function walk(
+  input: unknown,
+  path: string,
+  visit: (path: string, value: unknown) => void,
+) {
+  visit(path, input)
+  if (!input || typeof input !== "object") return
+  if (Array.isArray(input)) {
+    let index = 0
+    for (const item of input) {
+      walk(item, `${path}[${index++}]`, visit)
+    }
+    return
+  }
+  const value = input as Record<string, unknown>
+  for (const key of Object.keys(value)) {
+    const next = path ? `${path}.${key}` : key
+    walk(value[key], next, visit)
+  }
+}
+
 /** Try to crack HS256 JWT with common secrets. */
 function crackHs256(token: string): { secret: string; algorithm: string } | undefined {
   const parts = token.split(".")
@@ -151,26 +172,32 @@ export function analyzeJwt(token: string): JwtAnalysisResult {
 
   // Check for sensitive data in payload
   const sensitiveKeys = ["password", "secret", "ssn", "credit_card", "cc", "cvv"]
-  for (const key of Object.keys(decoded.payload)) {
-    if (sensitiveKeys.some((sk) => key.toLowerCase().includes(sk))) {
-      weaknesses.push({
-        type: "sensitive_data",
-        severity: "high",
-        description: `JWT contains potentially sensitive field: ${key}`,
-        evidence: `Payload key: ${key}`,
-      })
-    }
-  }
+  walk(decoded.payload, "", (path, value) => {
+    const key = path.split(".").at(-1) ?? path
+    if (!key) return
+    if (!sensitiveKeys.some((item) => key.toLowerCase().includes(item))) return
+    if (value === undefined || value === null || value === "") return
+    weaknesses.push({
+      type: "sensitive_data",
+      severity: "high",
+      description: `JWT contains potentially sensitive field: ${path}`,
+      evidence: `Payload path: ${path}`,
+    })
+  })
 
   // Check for admin/role claims that might be manipulable
-  if (decoded.payload.role || decoded.payload.admin || decoded.payload.is_admin) {
+  walk(decoded.payload, "", (path, value) => {
+    const key = path.split(".").at(-1) ?? path
+    if (!key) return
+    if (!["role", "admin", "is_admin"].includes(key.toLowerCase())) return
+    if (value === undefined || value === null || value === "") return
     weaknesses.push({
       type: "role_in_token",
       severity: "medium",
       description: "JWT contains role/admin claims — test for privilege escalation via token manipulation",
-      evidence: `role=${decoded.payload.role}, admin=${decoded.payload.admin ?? decoded.payload.is_admin}`,
+      evidence: `Path ${path}=${String(value)}`,
     })
-  }
+  })
 
   return { decoded, weaknesses }
 }

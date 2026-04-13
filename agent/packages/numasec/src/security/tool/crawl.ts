@@ -7,8 +7,7 @@
 
 import z from "zod"
 import { Tool } from "../../tool/tool"
-import { crawl } from "../scanner/crawl"
-import { dirFuzz } from "../scanner/dir-fuzzer"
+import { runObserveSurfaceProfile } from "./observe-surface"
 
 const DESCRIPTION = `Crawl a web application to discover endpoints, forms, and technologies.
 Combines: link following, sitemap.xml, robots.txt, OpenAPI detection, directory fuzzing.
@@ -38,14 +37,32 @@ export const CrawlTool = Tool.define("crawl", {
       metadata: { url: params.url } as Record<string, any>,
     })
 
-    const parts: string[] = []
+    const profile = await runObserveSurfaceProfile(
+      {
+        target: params.url,
+        modes: params.fuzz === false ? ["crawl"] : ["crawl", "dir_fuzz"],
+        max_urls: params.max_urls,
+        max_depth: params.max_depth,
+      },
+      {
+        onStage: (title) => ctx.metadata({ title }),
+      },
+    )
 
-    // Crawl
-    ctx.metadata({ title: `Crawling ${params.url}...` })
-    const crawlResult = await crawl(params.url, {
-      maxUrls: params.max_urls,
-      maxDepth: params.max_depth,
-    })
+    const crawlResult = profile.crawl
+    if (!crawlResult) {
+      return {
+        title: "Crawl: 0 URLs, 0 forms",
+        metadata: {
+          urls: 0,
+          forms: 0,
+          technologies: [],
+        } as any,
+        output: "No crawl results.",
+      }
+    }
+
+    const parts: string[] = []
 
     parts.push(`── Crawl Results (${crawlResult.elapsed}ms) ──`)
     parts.push(`URLs discovered: ${crawlResult.urls.length}`)
@@ -80,11 +97,9 @@ export const CrawlTool = Tool.define("crawl", {
       }
     }
 
-    // Directory fuzzing
     if (params.fuzz !== false) {
-      ctx.metadata({ title: "Fuzzing directories..." })
-      const fuzzResult = await dirFuzz(params.url)
-      if (fuzzResult.found.length > 0) {
+      const fuzzResult = profile.dir_fuzz
+      if (fuzzResult && fuzzResult.found.length > 0) {
         parts.push("")
         parts.push(`── Directory Fuzzing (${fuzzResult.testedCount} tested, ${fuzzResult.elapsed}ms) ──`)
         for (const f of fuzzResult.found) {

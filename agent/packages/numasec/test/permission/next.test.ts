@@ -613,6 +613,31 @@ test("ask - publishes asked event", async () => {
   })
 })
 
+test("ask - enriches approval metadata for pending requests", async () => {
+  await using tmp = await tmpdir({ git: true })
+  await Instance.provide({
+    directory: tmp.path,
+    fn: async () => {
+      const ask = Permission.ask({
+        sessionID: SessionID.make("session_meta"),
+        permission: "bash",
+        patterns: ["ls"],
+        metadata: { cmd: "ls" },
+        always: [],
+        ruleset: [],
+      })
+
+      const list = await waitForPending(1)
+      expect(list[0]?.metadata?.["approval_risk"]).toBe("high")
+      expect(list[0]?.metadata?.["approval_scope"]).toBe("scope")
+      expect(list[0]?.metadata?.["approval_reason_required"]).toBe(true)
+
+      await rejectAll()
+      await ask.catch(() => {})
+    },
+  })
+})
+
 // reply tests
 
 test("reply - once resolves the pending ask", async () => {
@@ -695,6 +720,37 @@ test("reply - reject with message throws CorrectedError", async () => {
       const err = await ask.catch((err) => err)
       expect(err).toBeInstanceOf(Permission.CorrectedError)
       expect(err.message).toContain("Use a safer command")
+    },
+  })
+})
+
+test("reply - reject with message records planner constraints", async () => {
+  await using tmp = await tmpdir({ git: true })
+  await Instance.provide({
+    directory: tmp.path,
+    fn: async () => {
+      const ask = Permission.ask({
+        id: PermissionID.make("per_test2c"),
+        sessionID: SessionID.make("session_constraints"),
+        permission: "bash",
+        patterns: ["rm -rf /"],
+        metadata: {},
+        always: [],
+        ruleset: [],
+      })
+
+      await waitForPending(1)
+      await Permission.reply({
+        requestID: PermissionID.make("per_test2c"),
+        reply: "reject",
+        message: "Use non-destructive checks only",
+      })
+
+      await ask.catch(() => {})
+      const constraints = await Permission.constraints(SessionID.make("session_constraints"))
+      expect(constraints).toHaveLength(1)
+      expect(constraints[0]).toContain("Do not run bash")
+      expect(constraints[0]).toContain("Use non-destructive checks only")
     },
   })
 })

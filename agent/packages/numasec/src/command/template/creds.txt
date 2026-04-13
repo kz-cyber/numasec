@@ -2,7 +2,7 @@ Show all discovered credentials from the current pentest session.
 
 Call `get_findings` to retrieve findings, then filter for any that contain credentials (look for findings with rule_id containing "auth", "credential", "password", or findings from auth_test).
 
-Also call `relay_credentials` with action "list" to show any explicitly stored credentials.
+Use the extracted finding evidence as the credential source of truth (there is no separate credential relay tool).
 
 Display results in a table:
 - Username

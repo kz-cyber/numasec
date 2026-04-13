@@ -9,6 +9,8 @@ import { useDialog } from "../../ui/dialog"
 import type { PromptInfo } from "@tui/component/prompt/history"
 import { strip } from "@tui/component/prompt/part"
 
+const OLDER_OPTION = "__older_messages__"
+
 export function DialogForkFromTimeline(props: { sessionID: string; onMove: (messageID: string) => void }) {
   const sync = useSync()
   const dialog = useDialog()
@@ -58,8 +60,33 @@ export function DialogForkFromTimeline(props: { sessionID: string; onMove: (mess
       })
     }
     result.reverse()
+    const loading = sync.session.loadingOlder(props.sessionID)
+    const older = sync.session.hasOlder(props.sessionID)
+    if (loading || older) {
+      result.unshift({
+        title: loading ? "Loading older messages..." : "Load older messages",
+        value: OLDER_OPTION,
+        description: loading ? "Please wait" : "Fetch older timeline messages",
+        onSelect: async (dialog) => {
+          if (sync.session.loadingOlder(props.sessionID)) return
+          await sync.session.loadOlder(props.sessionID)
+          dialog.replace(() => (
+            <DialogForkFromTimeline sessionID={props.sessionID} onMove={props.onMove} />
+          ))
+        },
+      })
+    }
     return result
   })
 
-  return <DialogSelect onMove={(option) => props.onMove(option.value)} title="Fork from message" options={options()} />
+  return (
+    <DialogSelect
+      onMove={(option) => {
+        if (option.value === OLDER_OPTION) return
+        props.onMove(option.value)
+      }}
+      title="Fork from message"
+      options={options()}
+    />
+  )
 }

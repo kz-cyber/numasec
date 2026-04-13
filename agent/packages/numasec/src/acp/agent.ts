@@ -45,6 +45,8 @@ import { z } from "zod"
 import { LoadAPIKeyError } from "ai"
 import type { AssistantMessage, Event, NumasecClient, SessionMessageResponse, ToolPart } from "@numasec/sdk/v2"
 import { applyPatch } from "diff"
+import { resolveSlashCommand } from "@/command/resolve"
+import { allowLabel, resolveApproval } from "@/permission/approval"
 
 type ModeOption = { id: string; name: string; description?: string }
 type ModelOption = { modelId: string; name: string }
@@ -141,11 +143,6 @@ export namespace ACP {
     private bashSnapshots = new Map<string, string>()
     private toolStarts = new Set<string>()
     private permissionQueues = new Map<string, Promise<void>>()
-    private permissionOptions: PermissionOption[] = [
-      { optionId: "once", kind: "allow_once", name: "Allow once" },
-      { optionId: "always", kind: "allow_always", name: "Always allow" },
-      { optionId: "reject", kind: "reject_once", name: "Reject" },
-    ]
 
     constructor(connection: AgentSideConnection, config: ACPConfig) {
       this.connection = connection
@@ -153,6 +150,15 @@ export namespace ACP {
       this.sdk = config.sdk
       this.sessionManager = new ACPSessionManager(this.sdk)
       this.startEventSubscription()
+    }
+
+    private permissionOptions(permission: string, metadata?: Record<string, any>): PermissionOption[] {
+      const approval = resolveApproval({ permission, metadata })
+      const out: PermissionOption[] = [{ optionId: "once", kind: "allow_once", name: "Allow once" }]
+      const label = allowLabel(approval.scope)
+      if (label) out.push({ optionId: "always", kind: "allow_always", name: label })
+      out.push({ optionId: "reject", kind: "reject_once", name: "Reject" })
+      return out
     }
 
     private startEventSubscription() {
@@ -204,7 +210,7 @@ export namespace ACP {
                     kind: toToolKind(permission.permission),
                     locations: toLocations(permission.permission, permission.metadata),
                   },
-                  options: this.permissionOptions,
+                  options: this.permissionOptions(permission.permission, permission.metadata),
                 })
                 .catch(async (error) => {
                   log.error("failed to request permission from ACP", {
@@ -1373,18 +1379,11 @@ export namespace ACP {
 
       log.info("parts", { parts })
 
-      const cmd = (() => {
-        const text = parts
-          .filter((p): p is { type: "text"; text: string } => p.type === "text")
-          .map((p) => p.text)
-          .join("")
-          .trim()
-
-        if (!text.startsWith("/")) return
-
-        const [name, ...rest] = text.slice(1).split(/\s+/)
-        return { name, args: rest.join(" ").trim() }
-      })()
+      const text = parts
+        .filter((p): p is { type: "text"; text: string } => p.type === "text")
+        .map((p) => p.text)
+        .join("")
+        .trim()
 
       const buildUsage = (msg: AssistantMessage): Usage => ({
         totalTokens:
@@ -1400,7 +1399,7 @@ export namespace ACP {
         cachedWriteTokens: msg.tokens.cache?.write || undefined,
       })
 
-      if (!cmd) {
+      if (!text.startsWith("/")) {
         const response = await this.sdk.session.prompt({
           sessionID,
           model: {
@@ -1423,14 +1422,24 @@ export namespace ACP {
         }
       }
 
-      const command = await this.config.sdk.command
+      const commands = await this.config.sdk.command
         .list({ directory }, { throwOnError: true })
-        .then((x) => x.data!.find((c) => c.name === cmd.name))
+        .then((x) => x.data ?? [])
+      const cmd = resolveSlashCommand(text, [...commands.map((item) => item.name), "compact"])
+      if (!cmd) {
+        await sendUsageUpdate(this.connection, this.sdk, sessionID, directory)
+        return {
+          stopReason: "end_turn" as const,
+          _meta: {},
+        }
+      }
+
+      const command = commands.find((item) => item.name === cmd.command)
       if (command) {
         const response = await this.sdk.session.command({
           sessionID,
           command: command.name,
-          arguments: cmd.args,
+          arguments: cmd.arguments,
           model: model.providerID + "/" + model.modelID,
           agent,
           directory,
@@ -1446,7 +1455,7 @@ export namespace ACP {
         }
       }
 
-      switch (cmd.name) {
+      switch (cmd.command) {
         case "compact":
           await this.config.sdk.session.summarize(
             {

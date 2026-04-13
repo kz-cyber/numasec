@@ -9,6 +9,24 @@ import z from "zod"
 import { Tool } from "../../tool/tool"
 import { testPayloads, type PayloadPosition } from "../scanner/test-payloads"
 import { testNoSql } from "../scanner/nosql-tester"
+import { makeToolResultEnvelope } from "./result-envelope"
+
+function slug(value: string) {
+  return value.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase()
+}
+
+function family(type: string) {
+  if (type === "sqli") return "sql_injection"
+  if (type === "nosql") return "nosql_injection"
+  return type
+}
+
+function severity(type: string) {
+  if (type === "sqli" || type === "nosql" || type === "cmdi" || type === "xxe") return "high"
+  if (type === "lfi" || type === "ssti") return "high"
+  if (type === "crlf") return "medium"
+  return "medium"
+}
 
 const DESCRIPTION = `Test a URL/parameter for injection vulnerabilities. Covers:
 - SQL injection (error-based, boolean-based, time-based)
@@ -101,6 +119,8 @@ export const InjectionTestTool = Tool.define("injection_test", {
     const results: string[] = []
     let totalVulnerable = 0
     const findings: { type: string; payload: string; evidence: string }[] = []
+    const artifacts: Record<string, any>[] = []
+    const verifications: Record<string, any>[] = []
 
     const testConfig = {
       url: params.url,
@@ -137,6 +157,33 @@ export const InjectionTestTool = Tool.define("injection_test", {
             results.push(`  Payload: ${f.payload}`)
             results.push(`  Evidence: ${f.evidence}`)
             findings.push({ type: "nosql", payload: f.payload, evidence: f.evidence })
+            const item = `nosql-${slug(f.technique)}-${slug(f.payload).slice(0, 40)}`
+            artifacts.push({
+              key: item,
+              subtype: "scanner_result",
+              family: "nosql_injection",
+              technique: f.technique,
+              payload: f.payload,
+              evidence: f.evidence,
+              url: params.url,
+              parameter: params.parameter,
+              position: f.position,
+            })
+            verifications.push({
+              key: `${item}-verified`,
+              family: "nosql_injection",
+              kind: "operator_injection",
+              title: `NoSQL injection indicated on ${params.parameter}`,
+              technical_severity: "high",
+              passed: true,
+              control: "positive",
+              url: params.url,
+              method: params.method ?? "GET",
+              parameter: params.parameter,
+              payload: f.payload,
+              evidence: f.evidence,
+              evidence_keys: [item],
+            })
           }
         } else {
           results.push(`\n── NoSQL Injection: not vulnerable (${nosqlResult.testedCount} payloads) ──`)
@@ -154,17 +201,46 @@ export const InjectionTestTool = Tool.define("injection_test", {
         successIndicators: set.indicators,
       })
 
-      if (scanResult.vulnerable) {
-        totalVulnerable++
-        const vulnResults = scanResult.results.filter((r) => r.vulnerable)
-        results.push(`\n── ⚠ ${set.label}: VULNERABLE ──`)
-        for (const r of vulnResults) {
-          results.push(`  Payload: ${r.payload}`)
-          results.push(`  Evidence: ${r.evidence}`)
-          results.push(`  Match: ${r.matchType} | Status: ${r.status} | Time: ${r.elapsed}ms`)
-          findings.push({ type, payload: r.payload, evidence: r.evidence })
-        }
-      } else {
+        if (scanResult.vulnerable) {
+          totalVulnerable++
+          const vulnResults = scanResult.results.filter((r) => r.vulnerable)
+          results.push(`\n── ⚠ ${set.label}: VULNERABLE ──`)
+          for (const r of vulnResults) {
+            results.push(`  Payload: ${r.payload}`)
+            results.push(`  Evidence: ${r.evidence}`)
+            results.push(`  Match: ${r.matchType} | Status: ${r.status} | Time: ${r.elapsed}ms`)
+            findings.push({ type, payload: r.payload, evidence: r.evidence })
+            const item = `${type}-${slug(r.payload).slice(0, 40)}-${r.matchType}`
+            artifacts.push({
+              key: item,
+              subtype: "scanner_result",
+              family: family(type),
+              payload: r.payload,
+              evidence: r.evidence,
+              status: r.status,
+              elapsed: r.elapsed,
+              match_type: r.matchType,
+              url: params.url,
+              parameter: params.parameter,
+              position: params.position,
+            })
+            verifications.push({
+              key: `${item}-verified`,
+              family: family(type),
+              kind: r.matchType === "timing" ? "timing_signal" : "payload_signal",
+              title: `${set.label} indicated on ${params.parameter}`,
+              technical_severity: severity(type),
+              passed: true,
+              control: "positive",
+              url: params.url,
+              method: params.method ?? "GET",
+              parameter: params.parameter,
+              payload: r.payload,
+              evidence: r.evidence,
+              evidence_keys: [item],
+            })
+          }
+        } else {
         results.push(`\n── ${set.label}: not vulnerable (${scanResult.testedCount} payloads) ──`)
       }
     }
@@ -174,6 +250,16 @@ export const InjectionTestTool = Tool.define("injection_test", {
         ? `⚠ ${totalVulnerable} injection type(s) found on ${params.parameter}`
         : `No injections found on ${params.parameter}`,
       metadata: { vulnerable: totalVulnerable, findings: findings.length, testedTypes: types.length } as any,
+      envelope: makeToolResultEnvelope({
+        status: "ok",
+        artifacts,
+        verifications,
+        metrics: {
+          vulnerable_types: totalVulnerable,
+          findings: findings.length,
+          tested_types: types.length,
+        },
+      }),
       output: results.join("\n"),
     }
   },

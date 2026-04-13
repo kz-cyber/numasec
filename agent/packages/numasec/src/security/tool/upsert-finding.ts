@@ -189,12 +189,13 @@ export const UpsertFindingTool = Tool.define("upsert_finding", {
     if (contractRequired && params.strict_assertion && missing.length > 0) {
       throw new Error(`upsert_finding assertion contract incomplete: ${missing.join(", ")}. Next steps: ${suggestions.join("; ")}`)
     }
-    const severity = contractRequired ? severityStep(requestedSeverity, missing.length) : (requestedSeverity as Severity)
+    const severity = requestedSeverity as Severity
     const speculative = /\b(could|might|may|potential|future|possible)\b/i.test(params.impact)
     const confidenceBase = contractRequired ? Math.max(0.2, requestedConfidence - missing.length * 0.2) : requestedConfidence
     const confidenceCap = !impactOK && speculative ? 0.65 : !impactOK && contractRequired ? 0.75 : 1
     const confidence = Math.min(confidenceBase, confidenceCap)
     const contractStatus = missing.length === 0 ? "complete" : "incomplete"
+    const findingState = contractStatus === "complete" ? "verified" : "provisional"
     const url = params.url ?? ""
     const method = params.method ?? "GET"
     const parameter = params.parameter ?? ""
@@ -235,7 +236,14 @@ export const UpsertFindingTool = Tool.define("upsert_finding", {
             severity,
             description: impact,
             evidence: params.evidence_refs.join(","),
-            confirmed: confidence >= 0.8 && contractStatus === "complete",
+            confirmed: findingState === "verified",
+            state: findingState,
+            family: "",
+            source_hypothesis_id: params.hypothesis_id,
+            root_cause_key: findingID,
+            suppression_reason: "",
+            reportable: true,
+            manual_override: true,
             url,
             method,
             parameter,
@@ -262,7 +270,13 @@ export const UpsertFindingTool = Tool.define("upsert_finding", {
               severity,
               description: impact,
               evidence: params.evidence_refs.join(","),
-              confirmed: confidence >= 0.8 && contractStatus === "complete",
+              confirmed: findingState === "verified",
+              state: findingState,
+              source_hypothesis_id: params.hypothesis_id,
+              root_cause_key: existing.root_cause_key || findingID,
+              suppression_reason: "",
+              reportable: true,
+              manual_override: true,
               url,
               method,
               parameter,

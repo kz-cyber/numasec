@@ -6,7 +6,7 @@
 
 import z from "zod"
 import { Tool } from "../../tool/tool"
-import { analyzeJs } from "../scanner/js-analyzer"
+import { runObserveSurfaceProfile } from "./observe-surface"
 
 const DESCRIPTION = `Analyze JavaScript files on a web application to discover:
 - API endpoints and hidden routes
@@ -35,8 +35,26 @@ export const JsAnalyzeTool = Tool.define("js_analyze", {
       metadata: { url: params.url } as Record<string, any>,
     })
 
-    ctx.metadata({ title: `Analyzing JavaScript at ${params.url}...` })
-    const result = await analyzeJs(params.url)
+    const profile = await runObserveSurfaceProfile(
+      {
+        target: params.url,
+        modes: ["js"],
+      },
+      {
+        onStage: (title) => ctx.metadata({ title }),
+      },
+    )
+    const result = profile.js
+    if (!result) {
+      return {
+        title: "JS: 0 endpoints, 0 secrets",
+        metadata: {
+          endpoints: 0,
+          secrets: 0,
+        } as any,
+        output: "No JavaScript analysis results.",
+      }
+    }
 
     const parts: string[] = [`── JS Analysis (${result.jsFiles.length} files, ${result.elapsed}ms) ──`]
 

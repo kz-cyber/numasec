@@ -96,6 +96,10 @@ export const RecordEvidenceTool = Tool.define("record_evidence", {
         .optional()
         .describe("Optional canonical response block"),
       replay: z.string().optional().describe("Optional reproducible replay snippet"),
+      hypothesis_id: z.string().optional().describe("Optional hypothesis node id to link from"),
+      relation: z.string().optional().describe("Optional relation when linking from hypothesis or parent"),
+      parent_node_id: z.string().optional().describe("Optional existing node id to link from"),
+      parent_relation: z.string().optional().describe("Optional relation when linking from parent_node_id"),
       fingerprint: z.string().optional().describe("Deterministic fingerprint (auto-generated if omitted)"),
       source_tool: z.string().optional().describe("Tool that produced this evidence"),
       confidence: z.number().min(0).max(1).optional().describe("Confidence score 0..1"),
@@ -167,6 +171,42 @@ export const RecordEvidenceTool = Tool.define("record_evidence", {
         }),
       ).pipe(Effect.provide(EvidenceGraphStore.layer)),
     )
+
+    const hypothesisID = params.hypothesis_id ?? ""
+    if (hypothesisID) {
+      Effect.runSync(
+        EvidenceGraphStore.use((store) =>
+          store.upsertEdge({
+            sessionID: ctx.sessionID,
+            fromNodeID: hypothesisID,
+            toNodeID: row.id,
+            relation: params.relation ?? "observes",
+            weight: 1,
+            metadata: {
+              source: "record_evidence",
+            },
+          }),
+        ).pipe(Effect.provide(EvidenceGraphStore.layer)),
+      )
+    }
+
+    const parentNodeID = params.parent_node_id ?? ""
+    if (parentNodeID) {
+      Effect.runSync(
+        EvidenceGraphStore.use((store) =>
+          store.upsertEdge({
+            sessionID: ctx.sessionID,
+            fromNodeID: parentNodeID,
+            toNodeID: row.id,
+            relation: params.parent_relation ?? params.relation ?? "derives",
+            weight: 1,
+            metadata: {
+              source: "record_evidence",
+            },
+          }),
+        ).pipe(Effect.provide(EvidenceGraphStore.layer)),
+      )
+    }
 
     return {
       title: `Evidence node: ${row.type} (${row.id})`,

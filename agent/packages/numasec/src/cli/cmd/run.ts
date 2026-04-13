@@ -28,6 +28,7 @@ import { SkillTool } from "../../tool/skill"
 import { BashTool } from "../../tool/bash"
 import { TodoWriteTool } from "../../tool/todo"
 import { Locale } from "../../util/locale"
+import { allowLabel, resolveApproval } from "../../permission/approval"
 
 type ToolProps<T extends Tool.Info> = {
   input: Tool.InferParameters<T>
@@ -545,14 +546,24 @@ export const RunCommand = cmd({
           if (event.type === "permission.asked") {
             const permission = event.properties
             if (permission.sessionID !== sessionID) continue
+            const approval = resolveApproval({
+              permission: permission.permission,
+              metadata: permission.metadata ?? {},
+            })
+            const scope = allowLabel(approval.scope)
             UI.println(
               UI.Style.TEXT_WARNING_BOLD + "!",
               UI.Style.TEXT_NORMAL +
-                `permission requested: ${permission.permission} (${permission.patterns.join(", ")}); auto-rejecting`,
+                `permission requested [${approval.risk.toUpperCase()}]` +
+                (scope ? ` [${scope}]` : "") +
+                `: ${permission.permission} (${permission.patterns.join(", ")}); auto-rejecting`,
             )
             await sdk.permission.reply({
               requestID: permission.id,
               reply: "reject",
+              ...(approval.reason_required
+                ? { message: "Rejected in non-interactive mode. Select a less risky or more specific action." }
+                : {}),
             })
           }
         }

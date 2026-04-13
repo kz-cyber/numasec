@@ -13,6 +13,7 @@ export interface DeriveAttackPathInput {
   severity?: "critical" | "high" | "medium" | "low" | "info"
   confidenceThreshold?: number
   includeFalsePositive?: boolean
+  states?: Array<"verified" | "provisional" | "suppressed" | "refuted">
 }
 
 export interface DeriveAttackPathResult {
@@ -72,6 +73,51 @@ function clusterKey(url: string): string {
     return `${value.hostname}/${path}`
   } catch {
     return "unknown"
+  }
+}
+
+export function persistAttackPathProjection(sessionID: SessionID, result: DeriveAttackPathResult) {
+  Database.use((db) =>
+    db
+      .update(FindingTable)
+      .set({
+        chain_id: "",
+      })
+      .where(eq(FindingTable.session_id, sessionID))
+      .run(),
+  )
+  for (const item of result.chains) {
+    for (const finding of item.findings) {
+      Database.use((db) =>
+        db
+          .update(FindingTable)
+          .set({
+            chain_id: item.id,
+          })
+          .where(eq(FindingTable.id, finding.id))
+          .run(),
+      )
+    }
+  }
+
+  Database.use((db) =>
+    db
+      .delete(CoverageTable)
+      .where(eq(CoverageTable.session_id, sessionID))
+      .run(),
+  )
+  for (const entry of result.owaspCounts.entries()) {
+    Database.use((db) =>
+      db
+        .insert(CoverageTable)
+        .values({
+          session_id: sessionID,
+          category: entry[0],
+          tested: true,
+          finding_count: entry[1],
+        })
+        .run(),
+    )
   }
 }
 
@@ -214,9 +260,17 @@ export function deriveAttackPathProjection(input: DeriveAttackPathInput): Derive
       .where(conditions.length === 1 ? conditions[0] : and(...conditions))
       .all(),
   )
+  const states = input.states && input.states.length > 0 ? new Set(input.states) : null
+  const findingsEligible = findingsAll.filter(
+    (item) =>
+      item.reportable &&
+      item.state !== "suppressed" &&
+      item.state !== "refuted" &&
+      (!states || states.has(item.state as "verified" | "provisional" | "suppressed" | "refuted")),
+  )
 
   const threshold = input.confidenceThreshold ?? 0
-  const findingsThreshold = findingsAll.filter((item) => item.confidence >= threshold)
+  const findingsThreshold = findingsEligible.filter((item) => item.confidence >= threshold)
   const findingMapRaw = new Map<string, FindingRow>(findingsThreshold.map((item) => [item.id, item]))
 
   const nodeRows = Database.use((db) =>
@@ -390,60 +444,24 @@ export function deriveAttackPathProjection(input: DeriveAttackPathInput): Derive
   })
 
   const chainsFinal = findingNodes.length > 0 ? chains : buildChainGroups(findings)
-  const linked = new Set(chainsFinal.flatMap((item) => item.findings.map((finding) => finding.id)))
-  const unchained = findings.filter((item) => !linked.has(item.id))
-
-  Database.use((db) =>
-    db
-      .update(FindingTable)
-      .set({
-        chain_id: "",
-      })
-      .where(eq(FindingTable.session_id, input.sessionID))
-      .run(),
-  )
-
+  const chainMap = new Map<string, string>()
   for (const item of chainsFinal) {
     for (const finding of item.findings) {
-      Database.use((db) =>
-        db
-          .update(FindingTable)
-          .set({
-            chain_id: item.id,
-          })
-          .where(eq(FindingTable.id, finding.id))
-          .run(),
-      )
+      chainMap.set(finding.id, item.id)
     }
   }
+  const findingsWithChain = findings.map((item) => ({
+    ...item,
+    chain_id: chainMap.get(item.id) ?? "",
+  }))
+  const linked = new Set(chainsFinal.flatMap((item) => item.findings.map((finding) => finding.id)))
+  const unchained = findingsWithChain.filter((item) => !linked.has(item.id))
 
   const owaspCounts = new Map<string, number>()
   for (const item of findings) {
     if (!item.owasp_category) continue
     const value = owaspCounts.get(item.owasp_category) ?? 0
     owaspCounts.set(item.owasp_category, value + 1)
-  }
-
-  Database.use((db) =>
-    db
-      .delete(CoverageTable)
-      .where(eq(CoverageTable.session_id, input.sessionID))
-      .run(),
-  )
-  for (const entry of owaspCounts.entries()) {
-    const category = entry[0]
-    const count = entry[1]
-    Database.use((db) =>
-      db
-        .insert(CoverageTable)
-        .values({
-          session_id: input.sessionID,
-          category,
-          tested: true,
-          finding_count: count,
-        })
-        .run(),
-    )
   }
 
   const explain = Array.from(scores.entries())
@@ -461,7 +479,7 @@ export function deriveAttackPathProjection(input: DeriveAttackPathInput): Derive
     .sort((left, right) => right.score - left.score || left.left.localeCompare(right.left))
 
   return {
-    findings,
+    findings: findingsWithChain,
     chains: chainsFinal,
     unchained,
     owaspCounts,

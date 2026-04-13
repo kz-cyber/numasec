@@ -408,6 +408,80 @@ describe("acp.agent event subscription", () => {
     })
   })
 
+  test("permission prompts use risk-tiered options", async () => {
+    await using tmp = await tmpdir()
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const seen: RequestPermissionParams[] = []
+        const { agent, controller, stop, connection } = createFakeAgent()
+        connection.requestPermission = async (params: RequestPermissionParams) => {
+          seen.push(params)
+          return { outcome: { outcome: "selected", optionId: "once" } } as RequestPermissionResult
+        }
+        const cwd = "/tmp/numasec-acp-test"
+        const sessionID = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
+
+        controller.push({
+          directory: cwd,
+          payload: {
+            type: "permission.asked",
+            properties: {
+              id: "perm_low",
+              sessionID,
+              permission: "read",
+              patterns: ["README.md"],
+              metadata: {},
+              always: [],
+            },
+          },
+        } as any)
+        controller.push({
+          directory: cwd,
+          payload: {
+            type: "permission.asked",
+            properties: {
+              id: "perm_medium",
+              sessionID,
+              permission: "webfetch",
+              patterns: ["https://example.com"],
+              metadata: {},
+              always: ["*"],
+            },
+          },
+        } as any)
+        controller.push({
+          directory: cwd,
+          payload: {
+            type: "permission.asked",
+            properties: {
+              id: "perm_high",
+              sessionID,
+              permission: "bash",
+              patterns: ["rm -rf *"],
+              metadata: {},
+              always: ["rm *"],
+            },
+          },
+        } as any)
+
+        await new Promise((r) => setTimeout(r, 30))
+        expect(seen).toHaveLength(3)
+
+        const low = seen[0]?.options.map((item) => item.optionId) ?? []
+        expect(low).toEqual(["once", "reject"])
+
+        const medium = seen[1]?.options.map((item) => item.name) ?? []
+        expect(medium).toContain("Allow in hypothesis")
+
+        const high = seen[2]?.options.map((item) => item.name) ?? []
+        expect(high).toContain("Allow in scope")
+
+        stop()
+      },
+    })
+  })
+
   test("permission prompt on session A does not block message updates for session B", async () => {
     await using tmp = await tmpdir()
     await Instance.provide({

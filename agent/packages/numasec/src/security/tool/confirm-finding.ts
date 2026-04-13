@@ -1,8 +1,8 @@
 import z from "zod"
-import { and, desc, eq } from "../../storage/db"
+import { desc, eq } from "../../storage/db"
 import { Tool } from "../../tool/tool"
 import { Database } from "../../storage/db"
-import { EvidenceNodeTable } from "../evidence.sql"
+import { EvidenceEdgeTable, EvidenceNodeTable } from "../evidence.sql"
 import { UpsertFindingTool } from "./upsert-finding"
 
 function readPayload(input: unknown): Record<string, unknown> {
@@ -54,31 +54,81 @@ export const ConfirmFindingTool = Tool.define("confirm_finding", {
       db
         .select()
         .from(EvidenceNodeTable)
-        .where(and(eq(EvidenceNodeTable.session_id, ctx.sessionID), eq(EvidenceNodeTable.status, "confirmed")))
+        .where(eq(EvidenceNodeTable.session_id, ctx.sessionID))
         .orderBy(desc(EvidenceNodeTable.time_updated))
-        .limit(params.lookback_limit ?? 200)
         .all(),
     )
+    const edges = Database.use((db) =>
+      db
+        .select()
+        .from(EvidenceEdgeTable)
+        .where(eq(EvidenceEdgeTable.session_id, ctx.sessionID))
+        .all(),
+    )
+
+    const known = new Set<string>([params.hypothesis_id])
+    const queue: Array<{ id: string; depth: number }> = [{ id: params.hypothesis_id, depth: 0 }]
+    while (queue.length > 0) {
+      const item = queue.shift()
+      if (!item) continue
+      if (item.depth >= 2) continue
+      for (const edge of edges) {
+        if (edge.from_node_id !== item.id && edge.to_node_id !== item.id) continue
+        const next = edge.from_node_id === item.id ? edge.to_node_id : edge.from_node_id
+        if (known.has(next)) continue
+        known.add(next)
+        queue.push({
+          id: next,
+          depth: item.depth + 1,
+        })
+      }
+    }
+    const recent = rows.filter((row) => row.status === "confirmed").slice(0, params.lookback_limit ?? 200)
+    const scoped = recent.filter((row) => known.has(row.id))
 
     const evidence = Array.from(new Set(params.evidence_refs ?? []))
     const negative = Array.from(new Set(params.negative_control_refs ?? []))
     const impact = Array.from(new Set(params.impact_refs ?? []))
 
     if (evidence.length === 0) {
-      const row = rows.find((item) => item.type === "verification" && verificationPassed(item) && verificationControl(item) !== "negative")
-      if (row) evidence.push(row.id)
+      const candidates = scoped.filter((item) => item.type === "verification" && verificationPassed(item) && verificationControl(item) !== "negative")
+      if (candidates.length === 1) evidence.push(candidates[0]!.id)
+      if (candidates.length > 1) {
+        throw new Error(`confirm_finding found multiple positive verification candidates in hypothesis scope: ${candidates.map((item) => item.id).join(", ")}. Pass evidence_refs explicitly.`)
+      }
+      if (candidates.length === 0) {
+        const fallback = recent.filter((item) => item.type === "verification" && verificationPassed(item) && verificationControl(item) !== "negative")
+        if (fallback.length === 1) evidence.push(fallback[0]!.id)
+        if (fallback.length > 1) {
+          throw new Error(`confirm_finding found multiple positive verification candidates in session scope: ${fallback.map((item) => item.id).join(", ")}. Pass evidence_refs explicitly.`)
+        }
+      }
     }
     if (negative.length === 0) {
-      const row = rows.find((item) => item.type === "verification" && verificationPassed(item) && verificationControl(item) === "negative")
-      if (row) negative.push(row.id)
+      const candidates = scoped.filter((item) => item.type === "verification" && verificationPassed(item) && verificationControl(item) === "negative")
+      if (candidates.length === 1) negative.push(candidates[0]!.id)
+      if (candidates.length > 1) {
+        throw new Error(`confirm_finding found multiple negative control candidates in hypothesis scope: ${candidates.map((item) => item.id).join(", ")}. Pass negative_control_refs explicitly.`)
+      }
+      if (candidates.length === 0) {
+        const fallback = recent.filter((item) => item.type === "verification" && verificationPassed(item) && verificationControl(item) === "negative")
+        if (fallback.length === 1) negative.push(fallback[0]!.id)
+        if (fallback.length > 1) {
+          throw new Error(`confirm_finding found multiple negative control candidates in session scope: ${fallback.map((item) => item.id).join(", ")}. Pass negative_control_refs explicitly.`)
+        }
+      }
     }
     if (impact.length === 0) {
-      const row = rows.find((item) => item.type === "artifact" || item.type === "observation")
-      if (row) impact.push(row.id)
+      const candidates = scoped.filter((item) => item.type === "artifact" || item.type === "observation")
+      if (candidates.length === 1) impact.push(candidates[0]!.id)
+      if (candidates.length === 0) {
+        const fallback = recent.filter((item) => item.type === "artifact" || item.type === "observation")
+        if (fallback.length === 1) impact.push(fallback[0]!.id)
+      }
     }
 
     if (evidence.length === 0) {
-      throw new Error("confirm_finding could not auto-select positive verification evidence. Run verify_assertion with persist=true and retry.")
+      throw new Error("confirm_finding could not auto-select positive verification evidence in hypothesis scope. Run verify_assertion with hypothesis_id/persist=true or pass evidence_refs explicitly.")
     }
 
     const impl = await UpsertFindingTool.init()
@@ -120,4 +170,3 @@ export const ConfirmFindingTool = Tool.define("confirm_finding", {
     }
   },
 })
-

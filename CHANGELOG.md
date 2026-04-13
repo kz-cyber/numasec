@@ -2,6 +2,27 @@
 
 ---
 
+## [1.0.5] — v2 Command/Tool UX Transition
+
+- Documented the canonical v2 slash command taxonomy:
+  - `/scope set`, `/scope show`, `/hypothesis list`, `/verify next`, `/evidence list`, `/evidence show`, `/chains list`, `/finding list`, `/remediation plan`, `/retest run`, `/report generate`
+- Added explicit migration mapping from legacy commands to v2 command names.
+- Marked legacy slash aliases as **soft-deprecated**:
+  - `/target`, `/findings`, `/report`, `/evidence`
+- Clarified compatibility policy:
+  - legacy aliases remain supported across v1.x
+  - no alias removals in v1.x
+  - earliest removal target is v2.0+ with release-note notice
+- Documented v2 primitive-first tool UX and legacy wrapper compatibility (`save_finding`, `get_findings`, `build_chains`, scanner wrappers).
+- Added release cutover runbook guidance in `README.md`:
+  - feature-flag sequencing for `NUMASEC_SECURITY_GRAPH_WRITE` and `NUMASEC_SECURITY_GRAPH_READ`
+  - subsystem rollback steps for commands, APIs, TUI canonical views, and approval UX
+  - pre-default acceptance checks using existing test suites
+  - post-cutover monitoring signals using `/security/:sessionID/read/summary` and permission queues
+- Clarified that `NUMASEC_SECURITY_V2_PLANNER` and `NUMASEC_SECURITY_V2_TUI` are declared but not yet active rollout gates in v1.0.5.
+
+---
+
 ## [1.0.4] — Windows Support
 
 - Added Windows x64, x64-baseline, and ARM64 build targets to CI

@@ -7,9 +7,7 @@
 
 import z from "zod"
 import { Tool } from "../../tool/tool"
-import { scanPorts } from "../scanner/port-scanner"
-import { probeServices } from "../scanner/service-prober"
-import { analyzeJs } from "../scanner/js-analyzer"
+import { runObserveSurfaceProfile } from "./observe-surface"
 
 const DESCRIPTION = `Run reconnaissance on a target. This is typically the FIRST tool to call.
 Performs: port scanning, service detection, technology fingerprinting, JS analysis.
@@ -38,12 +36,33 @@ export const ReconTool = Tool.define("recon", {
       metadata: { target: params.target } as Record<string, any>,
     })
 
-    const parts: string[] = []
-    const host = params.target.replace(/^https?:\/\//, "").split("/")[0].split(":")[0]
+    const profile = await runObserveSurfaceProfile(
+      {
+        target: params.target,
+        modes: ["recon"],
+        ports: params.ports,
+        skip_js: params.skip_js,
+      },
+      {
+        onStage: (title) => ctx.metadata({ title }),
+      },
+    )
 
-    // Port scan
-    ctx.metadata({ title: `Scanning ports on ${host}...` })
-    const portResult = await scanPorts(host, { ports: params.ports })
+    const host = profile.host
+    const portResult = profile.recon?.port_scan
+    if (!portResult) {
+      return {
+        title: `Recon: ${host} — 0 ports, 0 endpoints`,
+        metadata: {
+          openPorts: 0,
+          secrets: 0,
+          endpoints: 0,
+        } as any,
+        output: "No reconnaissance results.",
+      }
+    }
+
+    const parts: string[] = []
     parts.push(`── Port Scan (${portResult.elapsed}ms) ──`)
     if (portResult.openPorts.length === 0) {
       parts.push("No open ports found.")
@@ -55,35 +74,24 @@ export const ReconTool = Tool.define("recon", {
       }
     }
 
-    // Service probing on open ports
-    const openPorts = portResult.openPorts.map((p) => p.port)
-    let services: { port: number; protocol: string; service: string; banner?: string }[] = []
-    if (openPorts.length > 0) {
-      ctx.metadata({ title: `Probing ${openPorts.length} services...` })
-      const probeResult = await probeServices(host, openPorts)
-      services = probeResult.services
-      if (services.length > 0) {
-        parts.push("")
-        parts.push(`── Service Detection (${probeResult.elapsed}ms) ──`)
-        for (const s of services) {
-          parts.push(`  ${s.port}: ${s.service} (${s.protocol})${s.banner ? ` — ${s.banner.slice(0, 80)}` : ""}`)
-        }
+    const openPorts = portResult.openPorts.map((item) => item.port)
+    const probeResult = profile.recon?.service_probe
+    const services = probeResult?.services ?? []
+    if (services.length > 0) {
+      parts.push("")
+      parts.push(`── Service Detection (${probeResult?.elapsed ?? 0}ms) ──`)
+      for (const service of services) {
+        parts.push(`  ${service.port}: ${service.service} (${service.protocol})${service.banner ? ` — ${service.banner.slice(0, 80)}` : ""}`)
       }
     }
 
-    // JS analysis on web ports
-    let jsResult: Awaited<ReturnType<typeof analyzeJs>> | undefined
-    const webPorts = openPorts.filter((p) => [80, 443, 8080, 8443, 3000, 5000, 8000, 8888, 9090].includes(p))
-    if (!params.skip_js && (webPorts.length > 0 || params.target.startsWith("http"))) {
-      const targetUrl = params.target.startsWith("http") ? params.target : `http://${host}:${webPorts[0] || 80}`
-      ctx.metadata({ title: "Analyzing JavaScript..." })
-      jsResult = await analyzeJs(targetUrl)
-
+    const jsResult = profile.recon?.js_analysis
+    if (jsResult) {
       if (jsResult.endpoints.length > 0) {
         parts.push("")
         parts.push(`── API Endpoints (${jsResult.endpoints.length}) ──`)
-        for (const ep of jsResult.endpoints.slice(0, 20)) {
-          parts.push(`  ${ep}`)
+        for (const endpoint of jsResult.endpoints.slice(0, 20)) {
+          parts.push(`  ${endpoint}`)
         }
         if (jsResult.endpoints.length > 20) parts.push(`  ... and ${jsResult.endpoints.length - 20} more`)
       }
@@ -91,15 +99,15 @@ export const ReconTool = Tool.define("recon", {
       if (jsResult.secrets.length > 0) {
         parts.push("")
         parts.push("── ⚠ Secrets Found in JS ──")
-        for (const s of jsResult.secrets) {
-          parts.push(`  [${s.type}] ${s.value.slice(0, 40)}... in ${s.file}`)
+        for (const secret of jsResult.secrets) {
+          parts.push(`  [${secret.type}] ${secret.value.slice(0, 40)}... in ${secret.file}`)
         }
       }
 
       if (jsResult.spaRoutes.length > 0) {
         parts.push("")
         parts.push(`── SPA Routes (${jsResult.spaRoutes.length}) ──`)
-        for (const r of jsResult.spaRoutes.slice(0, 15)) parts.push(`  ${r}`)
+        for (const route of jsResult.spaRoutes.slice(0, 15)) parts.push(`  ${route}`)
       }
 
       if (jsResult.chatbotIndicators.length > 0) {

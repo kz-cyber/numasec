@@ -37,6 +37,7 @@ export namespace Tool {
         title: string
         metadata: M
         output: string
+        envelope?: Record<string, any>
         attachments?: Omit<MessageV2.FilePart, "id" | "sessionID" | "messageID">[]
       }>
       formatValidationError?(error: z.ZodError): string

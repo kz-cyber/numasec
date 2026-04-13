@@ -51,6 +51,13 @@ export const FindingTable = sqliteTable(
     evidence: text().notNull().default(""),
     confirmed: integer({ mode: "boolean" }).notNull().default(false),
     false_positive: integer({ mode: "boolean" }).notNull().default(false),
+    state: text().notNull().default("verified"),
+    family: text().notNull().default(""),
+    source_hypothesis_id: text().notNull().default(""),
+    root_cause_key: text().notNull().default(""),
+    suppression_reason: text().notNull().default(""),
+    reportable: integer({ mode: "boolean" }).notNull().default(true),
+    manual_override: integer({ mode: "boolean" }).notNull().default(false),
 
     // HTTP context
     url: text().notNull().default(""),

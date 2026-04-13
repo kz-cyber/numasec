@@ -24,7 +24,6 @@ import { useExit } from "../../context/exit"
 import { Clipboard } from "../../util/clipboard"
 import type { FilePart } from "@numasec/sdk/v2"
 import { TuiEvent } from "../../event"
-import { iife } from "@/util/iife"
 import { Locale } from "@/util/locale"
 import { formatDuration } from "@/util/format"
 import { createColors, createFrames } from "../../ui/spinner.ts"
@@ -35,6 +34,7 @@ import { useToast } from "../../ui/toast"
 import { useKV } from "../../context/kv"
 import { useTextareaKeybindings } from "../textarea-keybindings"
 import { DialogSkill } from "../dialog-skill"
+import { resolveSlashCommand } from "@/command/resolve"
 
 export type PromptProps = {
   sessionID?: string
@@ -613,55 +613,47 @@ export function Prompt(props: PromptProps) {
         command: inputText,
       })
       setStore("mode", "normal")
-    } else if (
-      inputText.startsWith("/") &&
-      iife(() => {
-        const firstLine = inputText.split("\n")[0]
-        const command = firstLine.split(" ")[0].slice(1)
-        return sync.data.command.some((x) => x.name === command)
-      })
-    ) {
-      // Parse command from first line, preserve multi-line content in arguments
-      const firstLineEnd = inputText.indexOf("\n")
-      const firstLine = firstLineEnd === -1 ? inputText : inputText.slice(0, firstLineEnd)
-      const [command, ...firstLineArgs] = firstLine.split(" ")
-      const restOfInput = firstLineEnd === -1 ? "" : inputText.slice(firstLineEnd + 1)
-      const args = firstLineArgs.join(" ") + (restOfInput ? "\n" + restOfInput : "")
-
-      sdk.client.session.command({
-        sessionID,
-        command: command.slice(1),
-        arguments: args,
-        agent: local.agent.current().name,
-        model: `${selectedModel.providerID}/${selectedModel.modelID}`,
-        messageID,
-        variant,
-        parts: nonTextParts
-          .filter((x) => x.type === "file")
-          .map((x) => ({
-            id: PartID.ascending(),
-            ...x,
-          })),
-      })
     } else {
-      sdk.client.session
-        .prompt({
+      const resolved = resolveSlashCommand(
+        inputText,
+        sync.data.command.map((item) => item.name),
+      )
+      if (resolved) {
+        sdk.client.session.command({
           sessionID,
-          ...selectedModel,
-          messageID,
+          command: resolved.command,
+          arguments: resolved.arguments,
           agent: local.agent.current().name,
-          model: selectedModel,
+          model: `${selectedModel.providerID}/${selectedModel.modelID}`,
+          messageID,
           variant,
-          parts: [
-            {
+          parts: nonTextParts
+            .filter((x) => x.type === "file")
+            .map((x) => ({
               id: PartID.ascending(),
-              type: "text",
-              text: inputText,
-            },
-            ...nonTextParts.map(assign),
-          ],
+              ...x,
+            })),
         })
-        .catch(() => {})
+      } else {
+        sdk.client.session
+          .prompt({
+            sessionID,
+            ...selectedModel,
+            messageID,
+            agent: local.agent.current().name,
+            model: selectedModel,
+            variant,
+            parts: [
+              {
+                id: PartID.ascending(),
+                type: "text",
+                text: inputText,
+              },
+              ...nonTextParts.map(assign),
+            ],
+          })
+          .catch(() => {})
+      }
     }
     history.append({
       ...store.prompt,

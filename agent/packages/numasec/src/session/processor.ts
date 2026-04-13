@@ -16,6 +16,7 @@ import { Permission } from "@/permission"
 import { Question } from "@/question"
 import { PartID } from "./schema"
 import type { SessionID, MessageID } from "./schema"
+import { ingestToolEnvelope } from "@/security/envelope-ingestor"
 
 export namespace SessionProcessor {
   const DOOM_LOOP_THRESHOLD = 3
@@ -187,6 +188,7 @@ export namespace SessionProcessor {
                         status: "completed",
                         input: value.input ?? match.state.input,
                         output: value.output.output,
+                        output_v2: value.output.envelope,
                         metadata: value.output.metadata,
                         title: value.output.title,
                         time: {
@@ -196,6 +198,22 @@ export namespace SessionProcessor {
                         attachments: value.output.attachments,
                       },
                     })
+                    const envelope = value.output.envelope
+                    const tool = match.tool
+                    if (envelope && tool) {
+                      await ingestToolEnvelope({
+                        sessionID: input.assistantMessage.sessionID,
+                        tool,
+                        title: value.output.title,
+                        metadata: value.output.metadata,
+                        envelope,
+                      }).catch((error) => {
+                        log.warn("failed to ingest tool envelope", {
+                          tool,
+                          error,
+                        })
+                      })
+                    }
 
                     delete toolcalls[value.toolCallId]
                   }

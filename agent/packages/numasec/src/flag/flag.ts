@@ -69,6 +69,10 @@ export namespace Flag {
   export const NUMASEC_DISABLE_CHANNEL_DB = truthy("NUMASEC_DISABLE_CHANNEL_DB")
   export const NUMASEC_SKIP_MIGRATIONS = truthy("NUMASEC_SKIP_MIGRATIONS")
   export const NUMASEC_STRICT_CONFIG_DEPS = truthy("NUMASEC_STRICT_CONFIG_DEPS")
+  export declare const NUMASEC_SECURITY_GRAPH_WRITE: boolean
+  export declare const NUMASEC_SECURITY_GRAPH_READ: boolean
+  export declare const NUMASEC_SECURITY_V2_PLANNER: boolean
+  export declare const NUMASEC_SECURITY_V2_TUI: boolean
 
   function number(key: string) {
     const value = process.env[key]
@@ -117,6 +121,38 @@ Object.defineProperty(Flag, "NUMASEC_CONFIG_DIR", {
 Object.defineProperty(Flag, "NUMASEC_CLIENT", {
   get() {
     return process.env["NUMASEC_CLIENT"] ?? "cli"
+  },
+  enumerable: true,
+  configurable: false,
+})
+
+Object.defineProperty(Flag, "NUMASEC_SECURITY_GRAPH_WRITE", {
+  get() {
+    return truthy("NUMASEC_SECURITY_GRAPH_WRITE")
+  },
+  enumerable: true,
+  configurable: false,
+})
+
+Object.defineProperty(Flag, "NUMASEC_SECURITY_GRAPH_READ", {
+  get() {
+    return truthy("NUMASEC_SECURITY_GRAPH_READ")
+  },
+  enumerable: true,
+  configurable: false,
+})
+
+Object.defineProperty(Flag, "NUMASEC_SECURITY_V2_PLANNER", {
+  get() {
+    return truthy("NUMASEC_SECURITY_V2_PLANNER")
+  },
+  enumerable: true,
+  configurable: false,
+})
+
+Object.defineProperty(Flag, "NUMASEC_SECURITY_V2_TUI", {
+  get() {
+    return truthy("NUMASEC_SECURITY_V2_TUI")
   },
   enumerable: true,
   configurable: false,

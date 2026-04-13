@@ -113,7 +113,8 @@ export namespace Agent {
           const agents: Record<string, Info> = {
             pentest: {
               name: "pentest",
-              description: "Default penetration testing agent. Follows PTES methodology with full tool access.",
+              description:
+                "Default penetration testing agent. Uses the v2 primitive cycle (scope → hypothesis → evidence → verification → finding → chains/report) with legacy compatibility.",
               options: {},
               prompt: PROMPT_PENTEST,
               color: "primary",
@@ -139,7 +140,8 @@ export namespace Agent {
             },
             recon: {
               name: "recon",
-              description: "Reconnaissance-only mode. Scanning and analysis without exploitation payloads.",
+              description:
+                "Reconnaissance-only mode. Primitive-first surface observation and hypothesis seeding without exploitation payloads.",
               options: {},
               prompt: PROMPT_RECON,
               color: "info",
@@ -163,7 +165,8 @@ export namespace Agent {
             },
             hunt: {
               name: "hunt",
-              description: "Vulnerability hunting mode. Systematic OWASP Top 10 testing with aggressive scanning and exploitation.",
+              description:
+                "Vulnerability hunting mode. Aggressive primitive-first validation with OWASP prioritisation and compatibility aliases.",
               options: {},
               prompt: PROMPT_HUNT,
               color: "error",
@@ -191,7 +194,8 @@ export namespace Agent {
             },
             review: {
               name: "review",
-              description: "Secure code review mode. Analyzes source code for security vulnerabilities — injection sinks, auth bypasses, crypto misuse, hardcoded secrets.",
+              description:
+                "Secure code review mode. Static source analysis only (no runtime recon/exploitation primitives or legacy wrappers).",
               options: {},
               prompt: PROMPT_REVIEW,
               color: "warning",
@@ -212,9 +216,24 @@ export namespace Agent {
                   dir_fuzz: "deny",
                   recon: "deny",
                   crawl: "deny",
+                  js_analyze: "deny",
+                  observe_surface: "deny",
+                  plan_next: "deny",
+                  upsert_hypothesis: "deny",
+                  record_evidence: "deny",
+                  link_evidence: "deny",
+                  query_graph: "deny",
+                  upsert_finding: "deny",
+                  derive_attack_paths: "deny",
+                  exec_command: "deny",
+                  batch_replay: "deny",
+                  mutate_input: "deny",
+                  extract_observation: "deny",
+                  verify_assertion: "deny",
                   browser: "deny",
                   oob: "deny",
                   http_request: "deny",
+                  security_shell: "deny",
                   run_scanner_batch: "deny",
                   create_session: "deny",
                   save_finding: "deny",
@@ -227,7 +246,8 @@ export namespace Agent {
             },
             report: {
               name: "report",
-              description: "Report generation mode. Build and refine security reports, validate findings, write remediation guidance.",
+              description:
+                "Report generation mode. Derive attack paths, review projected findings, and generate deliverables without active testing.",
               options: {},
               prompt: PROMPT_REPORT,
               color: "success",
@@ -245,8 +265,21 @@ export namespace Agent {
                   dir_fuzz: "deny",
                   recon: "deny",
                   crawl: "deny",
+                  js_analyze: "deny",
+                  observe_surface: "deny",
+                  plan_next: "deny",
+                  upsert_hypothesis: "deny",
+                  record_evidence: "deny",
+                  link_evidence: "deny",
+                  upsert_finding: "deny",
+                  exec_command: "deny",
+                  batch_replay: "deny",
+                  mutate_input: "deny",
+                  extract_observation: "deny",
+                  verify_assertion: "deny",
                   browser: "deny",
                   oob: "deny",
+                  security_shell: "deny",
                   run_scanner_batch: "deny",
                   relay_credentials: "deny",
                 }),
@@ -271,7 +304,8 @@ export namespace Agent {
             },
             scanner: {
               name: "scanner",
-              description: `Security scanner agent. Runs automated vulnerability scans on specific endpoints. Use for batch testing injection, XSS, SSRF, auth, and access control vulnerabilities.`,
+              description:
+                "Security scanner agent. Executes delegated tests, records evidence, and returns verification-ready output (no final finding persistence).",
               prompt: PROMPT_SCANNER,
               permission: Permission.merge(
                 defaults,
@@ -287,7 +321,8 @@ export namespace Agent {
             },
             analyst: {
               name: "analyst",
-              description: `Security analyst agent. Reviews scan results, eliminates false positives, correlates findings, and identifies attack chains. Use after scanning to validate results.`,
+              description:
+                "Security analyst agent. Validates evidence, prunes false positives, and prepares graph-backed chains for reporting.",
               prompt: PROMPT_ANALYST,
               permission: Permission.merge(
                 defaults,

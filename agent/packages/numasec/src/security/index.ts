@@ -40,6 +40,7 @@ export { GraphqlTestTool } from "./tool/graphql-test"
 // Session & reporting tools
 export { SaveFindingTool } from "./tool/save-finding"
 export { GetFindingsTool } from "./tool/get-findings"
+export { ProjectFindingsTool } from "./tool/project-findings"
 export { BuildChainsTool } from "./tool/build-chains"
 export { GenerateReportTool } from "./tool/generate-report"
 
@@ -113,6 +114,7 @@ import { RaceTestTool } from "./tool/race-test"
 import { GraphqlTestTool } from "./tool/graphql-test"
 import { SaveFindingTool } from "./tool/save-finding"
 import { GetFindingsTool } from "./tool/get-findings"
+import { ProjectFindingsTool } from "./tool/project-findings"
 import { BuildChainsTool } from "./tool/build-chains"
 import { GenerateReportTool } from "./tool/generate-report"
 import { KbSearchTool } from "./tool/kb-search"
@@ -153,6 +155,7 @@ export const SecurityTools = [
   // Session
   SaveFindingTool,
   GetFindingsTool,
+  ProjectFindingsTool,
   BuildChainsTool,
   GenerateReportTool,
   // Intelligence

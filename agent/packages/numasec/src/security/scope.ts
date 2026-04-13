@@ -54,7 +54,7 @@ export namespace Scope {
    */
   export function check(urlOrHost: string): { allowed: boolean; reason?: string } {
     if (!currentScope) {
-      return { allowed: false, reason: "No scope defined. Use /target to set engagement scope." }
+      return { allowed: false, reason: "No scope defined. Use /scope set to define engagement scope (legacy: /target)." }
     }
 
     let hostname: string
