@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  37 native security tools · 35 attack templates · 60+ LLM providers · open source
+  37 native security tools · 48 templates, payload packs, and playbooks · evidence graph + attack paths
 </p>
 
 ---
@@ -58,10 +58,10 @@ Until now.
   <img src="docs/pentest-demo.gif" alt="numasec running a pentest" width="900" />
 </p>
 
-- **Built for cyber security from the ground up.** Not a wrapper around ChatGPT. 37 native security tools, 35 attack templates, a deterministic planner, a stateful browser runtime, and an evidence-driven finding pipeline.
+- **Built for cyber security from the ground up.** Not a wrapper around ChatGPT. 37 native security tools, 48 templates, payload packs, and playbooks, a stateful browser runtime, and an evidence graph that turns proof into attack paths.
 - **Recon. Exploit. Chain vulnerabilities. Generate reports.** Default credentials → admin access → user enumeration. SQLi → token issuance → account takeover. IDOR → data exposure → business impact.
-- **Single binary, zero dependencies.** Pure TypeScript. No Python, no Docker, no runtime circus. `bun build` produces a single executable.
-- **Attack paths, not isolated findings.** Findings get chained, scored, enriched, and exported in formats people actually use.
+- **Single binary, no Python tax.** Pure TypeScript. No Docker required. `bun build` produces a single executable.
+- **Attack paths, not isolated findings.** Every serious run becomes graph nodes and edges — evidence, hypotheses, findings, resources, attack paths — not a pile of disconnected scanner output.
 - **Works with any LLM.** xAI, Anthropic, OpenAI, Gemini, OpenRouter, Bedrock, GitHub Models, Ollama, and more. **Grok 4 Fast** is the recommended cheap default right now.
 
 ---
@@ -149,16 +149,16 @@ Every finding includes **CWE ID**, **CVSS 3.1 score**, **OWASP Top 10 category**
 graph TD
     A["pentest https://app.com"] --> B
 
-    B["🗺️ Deterministic Planner\n35 templates · PTES methodology\nSelects tests based on fingerprinted tech"]
+    B["🗺️ Planner + Playbooks\n48 templates, payload packs, and playbooks\nChooses what to hit next from the live surface"]
     B --> C
 
-    C["⚔️ Stateful Offensive Runtime\nPersistent browser actors · shared auth · recovery engine"]
+    C["⚔️ Stateful Runtime\nBrowser actors · shared auth · working memory\nRecovery, replay, resource inventory"]
     C --> D
 
-    D["🔧 37 Native Security Tools\nSQLi · XSS · SSRF · Auth · IDOR · CSRF\nRace · Upload · SSTI · GraphQL · ..."]
+    D["🔧 37 Native Security Tools\nRecon · auth · injection · browser · replay\nBuilt to keep pushing, not just probe once"]
     D --> E
 
-    E["🔍 Findings + Attack Paths\nEvidence graph · CWE → CVSS → OWASP → ATT&CK\nDeduplicated · Chained · Scored"]
+    E["🧠 Evidence Graph\nNodes + edges for evidence, hypotheses,\nfindings, resources, and attack paths"]
     E --> F
 
     F["📄 Report\nSARIF · HTML · Markdown"]
@@ -170,6 +170,8 @@ graph TD
     style F fill:#1a1a2e,color:#e0e0e0,stroke:#DC143C
 ```
 
+Every serious run now leaves behind graph nodes and edges — evidence, hypotheses, findings, resources, attack paths — so numasec remembers what it proved instead of rediscovering the same app every turn.
+
 Reports include executive summary, risk score, OWASP coverage matrix, attack paths, and per-finding remediation. SARIF plugs into GitHub Code Scanning and GitLab SAST.
 
 <p align="center">
@@ -180,7 +182,7 @@ Reports include executive summary, risk score, OWASP coverage matrix, attack pat
 
 ## LLM Providers
 
-All 37 tools execute inside numasec. You bring any LLM. Pick your provider from the TUI.
+All 37 tools execute inside numasec. You bring any LLM. Today that means 22 built-in provider integrations, plus OpenAI-compatible endpoints.
 
 | Provider / model | Cost profile | Why |
 |---|---|---|
@@ -193,9 +195,9 @@ All 37 tools execute inside numasec. You bring any LLM. Pick your provider from 
 > **DeepSeek is no longer the default recommendation.** Recent live runs favored **Grok 4 Fast** as the best cheap operator model for numasec.
 
 <details>
-<summary><b>All 60+ supported providers</b></summary>
+<summary><b>22 built-in provider integrations + OpenAI-compatible endpoints</b></summary>
 <br>
-Anthropic · OpenAI · Google Gemini · AWS Bedrock · Azure OpenAI · Mistral · DeepSeek · Ollama Cloud · OpenRouter · GitHub Copilot · GitHub Models · Google Vertex · Groq · Fireworks AI · Together AI · Cohere · Cerebras · Nvidia · Perplexity · xAI · Hugging Face · LM Studio · and 40+ more via OpenAI-compatible endpoints.
+Anthropic · OpenAI · Google Gemini · AWS Bedrock · Azure OpenAI · Mistral · DeepSeek · OpenRouter · GitHub Copilot · GitHub Models · Google Vertex · Groq · Cohere · Cerebras · Perplexity · Together AI · xAI · GitLab · Vercel AI Gateway · plus Ollama, LM Studio, and other OpenAI-compatible backends.
 </details>
 
 ---
@@ -229,7 +231,7 @@ bun run build
 
 ### Optional: external tools
 
-numasec works standalone, but external tools extend its capabilities when available:
+numasec works standalone, but the browser runtime and external probes get much better with this setup:
 
 ```bash
 # Recommended
@@ -240,6 +242,8 @@ bunx playwright install chromium
 apt install sqlmap
 apt install ffuf
 ```
+
+Chromium is what unlocks the full browser side of numasec: login flows, SPA work, authenticated replay, and browser-driven attack paths.
 
 ---
 
