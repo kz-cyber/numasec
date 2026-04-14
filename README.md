@@ -17,13 +17,10 @@
   37 native security tools · 48 templates, payload packs, and playbooks · evidence graph + attack paths
 </p>
 
----
-
 ## Table of Contents
 
 - [Quickstart](#quickstart)
 - [Why numasec](#why-numasec)
-- [Benchmarks](#benchmarks)
 - [What it finds](#what-it-finds)
 - [How it works](#how-it-works)
 - [LLM Providers](#llm-providers)
@@ -31,8 +28,6 @@
 - [Usage](#usage)
 - [Development](#development)
 - [Contributing](#contributing)
-
----
 
 ## Quickstart
 
@@ -44,8 +39,6 @@ numasec
 Pick your provider, type `pentest https://yourapp.com`, and it starts.
 
 **Recommended cheap model:** **Grok 4 Fast**
-
----
 
 ## Why numasec
 
@@ -64,8 +57,6 @@ Until now.
 - **Attack paths, not isolated findings.** Every serious run becomes graph nodes and edges — evidence, hypotheses, findings, resources, attack paths — not a pile of disconnected scanner output.
 - **Works with any LLM.** xAI, Anthropic, OpenAI, Gemini, OpenRouter, Bedrock, GitHub Models, Ollama, and more. **Grok 4 Fast** is the recommended cheap default right now.
 
----
-
 <p align="center">
   <a href="https://github.com/FrancescoStabile/numasec/stargazers">
     <img src="https://img.shields.io/github/stars/FrancescoStabile/numasec?style=social" alt="GitHub Stars" />
@@ -73,24 +64,6 @@ Until now.
   <br/>
   <sub>If numasec is useful to you, a star helps more people find it.</sub>
 </p>
-
----
-
-## Benchmarks
-
-| Benchmark | Result |
-|---|---|
-| **OWASP Juice Shop — standard 10 minute run** | **76 endpoints mapped** |
-| **Auth exploitation** | **critical SQL injection in login -> admin JWT issuance** |
-| **Data exposure** | **22 user records exposed through `/api/Users`** |
-| **Broken access control** | **unauthorized basket-item deletion confirmed via IDOR** |
-| **Evidence-driven Juice Shop run** | **3 high-severity findings confirmed · risk score 45/100** |
-| **Runtime validation** | **45 / 45 runtime evaluation tests passing** |
-| **Auth / recovery validation** | **15 / 15 focused auth / recovery / runtime tests passing** |
-
-These are current benchmark snapshots from real run artifacts on this branch, not marketing numbers.
-
----
 
 ## What it finds
 
@@ -141,8 +114,6 @@ Every finding includes **CWE ID**, **CVSS 3.1 score**, **OWASP Top 10 category**
   <img src="docs/attack-chain.gif" alt="numasec attack chain findings" width="900" />
 </p>
 
----
-
 ## How it works
 
 ```mermaid
@@ -178,11 +149,9 @@ Reports include executive summary, risk score, OWASP coverage matrix, attack pat
   <img src="docs/report-demo.gif" alt="numasec report output" width="900" />
 </p>
 
----
-
 ## LLM Providers
 
-All 37 tools execute inside numasec. You bring any LLM. Today that means 22 built-in provider integrations, plus OpenAI-compatible endpoints.
+All 37 tools execute inside numasec. You bring any LLM.
 
 | Provider / model | Cost profile | Why |
 |---|---|---|
@@ -191,16 +160,6 @@ All 37 tools execute inside numasec. You bring any LLM. Today that means 22 buil
 | Claude Sonnet 4 | Premium | Best reasoning for deep chains and harder investigations |
 | DeepSeek V3 | Cheap | Budget fallback |
 | **Ollama (local)** | **$0** | Run locally. Full privacy |
-
-> **DeepSeek is no longer the default recommendation.** Recent live runs favored **Grok 4 Fast** as the best cheap operator model for numasec.
-
-<details>
-<summary><b>22 built-in provider integrations + OpenAI-compatible endpoints</b></summary>
-<br>
-Anthropic · OpenAI · Google Gemini · AWS Bedrock · Azure OpenAI · Mistral · DeepSeek · OpenRouter · GitHub Copilot · GitHub Models · Google Vertex · Groq · Cohere · Cerebras · Perplexity · Together AI · xAI · GitLab · Vercel AI Gateway · plus Ollama, LM Studio, and other OpenAI-compatible backends.
-</details>
-
----
 
 ## Installation
 
@@ -245,8 +204,6 @@ apt install ffuf
 
 Chromium is what unlocks the full browser side of numasec: login flows, SPA work, authenticated replay, and browser-driven attack paths.
 
----
-
 ## Usage
 
 ```bash
@@ -289,8 +246,6 @@ Legacy aliases still supported in v1.x:
 | `/evidence` | `/evidence list` |
 | `/evidence <id-or-title>` | `/evidence show <id-or-title>` |
 
----
-
 ## Development
 
 ```bash
@@ -310,16 +265,12 @@ cd packages/numasec && bun run test:runtime
 cd packages/numasec && bun run build
 ```
 
----
-
 ## Contributing
 
 Issues, PRs, and ideas are welcome.
 
 - **Found a bug?** Open an issue with steps to reproduce.
 - **Want to contribute code?** Fork, branch from `main`, open a PR.
-
----
 
 <p align="center">
   Built by <a href="https://www.linkedin.com/in/francesco-stabile-dev">Francesco Stabile</a>.
