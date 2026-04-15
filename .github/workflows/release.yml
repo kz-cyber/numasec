@@ -21,6 +21,7 @@ permissions:
 
 env:
   HUSKY: "0"
+  GH_TOKEN: ${{ github.token }}
 
 jobs:
   version:
