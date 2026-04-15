@@ -15,6 +15,10 @@ on:
           - patch
           - minor
           - major
+      version:
+        description: Existing version or tag to republish
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -43,7 +47,7 @@ jobs:
         env:
           GH_REPO: ${{ github.repository }}
           NUMASEC_BUMP: ${{ inputs.bump }}
-          NUMASEC_VERSION: ${{ github.event_name == 'push' && github.ref_name || '' }}
+          NUMASEC_VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version || '' }}
         run: bun run script/version.ts
         working-directory: agent
 
@@ -299,6 +303,9 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - id: ghcr
+        shell: bash
+        run: echo "owner=$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -308,5 +315,5 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/numasec:${{ needs.version.outputs.version }}
             ${{ secrets.DOCKERHUB_USERNAME }}/numasec:latest
-            ghcr.io/${{ github.repository_owner }}/numasec:${{ needs.version.outputs.version }}
-            ghcr.io/${{ github.repository_owner }}/numasec:latest
+            ghcr.io/${{ steps.ghcr.outputs.owner }}/numasec:${{ needs.version.outputs.version }}
+            ghcr.io/${{ steps.ghcr.outputs.owner }}/numasec:latest
