@@ -47,6 +47,40 @@ Avoid:
 - universal cyber capability claims without benchmark coverage;
 - container/lab-image work for this release unless the user reopens that decision.
 
+## Product Messaging Direction
+
+Public-facing docs should make people want to try numasec before asking them to understand the full architecture.
+
+The correct README/launch shape is:
+
+```text
+I want it.
+I get it.
+I trust it.
+I can try it.
+I can contribute.
+```
+
+Above the fold, lead with desire and clarity:
+
+- `The open source AI security agent.`
+- `Give your terminal a security brain.`
+- local tools, agents, runbooks, findings, evidence, replay and reports.
+
+Then explain why it is serious: authorized security work, scope, operation state, evidence, replay, finding lifecycle, knowledge, maturity labels and reports from actual operation state.
+
+Keep this balance:
+
+- magic above, rigor below;
+- simple language before internal architecture;
+- product value before implementation vocabulary;
+- human writing over AI-slop;
+- confidence never replaces proof.
+
+Avoid opening public docs with heavy internal terms like kernel-first state, proof semantics, structured replay exemption or benchmark gates. Those are real and important, but they belong after the reader already understands the product and wants to trust it.
+
+Do not market numasec as an "AI hacker", "autonomous pentester", "bug bounty money printer", Burp/Kali replacement, or universal mature cyber platform. The durable public thesis is: security agents should live inside the operator workflow and report from evidence, not vibes.
+
 ## Architecture Direction
 
 The current codebase already has a TUI, server, providers, agents, tools, operations, evidence, replay, plays, scanner, browser, vault, permissions and plugins. Do not replace that foundation casually.

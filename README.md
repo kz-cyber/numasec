@@ -1,15 +1,19 @@
-<p align="center">
-  <img src="assets/topreadme.png" alt="numasec terminal home" width="920" />
-</p>
-
 <h1 align="center">numasec</h1>
 
 <p align="center">
-  <b>The security-native AI Agent.</b>
+  <b>The open source AI security agent.</b>
 </p>
 
 <p align="center">
-  Give an AI agent the environment security work actually needs: <b>scope, opsec, local tools, evidence, replay, findings, cyber knowledge, and reports</b>.
+  Give your terminal a security brain.
+</p>
+
+<p align="center">
+  Run security workflows with your local tools, agents, runbooks, findings, evidence, replay and reports.
+</p>
+
+<p align="center">
+  <code>npm install -g numasec</code>
 </p>
 
 <p align="center">
@@ -22,115 +26,164 @@
 </p>
 
 <p align="center">
-  <a href="#why-numasec">Why</a> |
+  <img src="assets/topreadme.png" alt="numasec AI security agent running in the terminal" width="920" />
+</p>
+
+<p align="center">
   <a href="#demo">Demo</a> |
-  <a href="#product-tour">Product Tour</a> |
-  <a href="#what-it-does">What It Does</a> |
-  <a href="#install">Install</a> |
+  <a href="#why-numasec">Why</a> |
+  <a href="#what-it-feels-like">What it feels like</a> |
+  <a href="#try-it">Try it</a> |
+  <a href="#what-it-does">What it does</a> |
   <a href="#commands">Commands</a> |
   <a href="#architecture">Architecture</a> |
-  <a href="#quality-bar">Quality Bar</a> |
   <a href="#roadmap">Roadmap</a>
 </p>
 
 ---
 
-## Why numasec
+## What is numasec?
 
-AI coding agents got a real terminal workflow. They can inspect a repo, edit files, run tests, and ship a patch.
+numasec is an AI security agent that runs in your terminal.
 
-Security work is different. A good operator does not just "find bugs". They keep scope clear, choose tools carefully, preserve evidence, separate suspicion from proof, replay what matters, and write reports that can survive review.
+It uses the tools already installed on your machine, follows security runbooks, switches between cyber agents, keeps the operation context alive, tracks findings, stores evidence and helps turn the work into reports.
 
-That is the gap numasec is built for.
+It is built for people who already live between shell, browser, HTTP requests, scanners, advisories, notes and reports.
 
-> **numasec is a cyber operator harness:** it wraps the model with a terminal, browser, HTTP execution, installed security tools, operation memory, evidence storage, replay material, permission modes, cyber knowledge, and report generation.
+- Not a chatbot.
+- Not a scanner wrapper.
+- Not a Burp or Kali replacement.
 
-The model can think, hypothesize, search, and decide what to try next. **numasec makes the work operational.** It keeps the target, scope, artifacts, findings, and report state together so the agent is not just producing fluent security prose.
-
-It is built for authorized AppSec, pentest, bug bounty, OSINT, CTF, and security research workflows where **proof matters more than confidence**.
-
-## Why now
-
-AI agents are becoming normal for software work. Security needs the same shift, but it cannot reuse the same wrapper unchanged.
-
-Cyber work needs things a generic assistant does not naturally carry:
-
-- **scope and opsec**, because the difference between useful and reckless is often the boundary;
-- **local tool awareness**, because security work depends on the machine you are actually on;
-- **evidence and replay**, because a finding without proof is just a claim;
-- **fresh cyber knowledge**, because CVEs, advisories, exploit signals, and tool behavior move faster than model training;
-- **finding lifecycle**, because candidate, observed, verified, rejected, stale, and reportable are not the same thing.
-
-numasec is the open-source attempt to build that missing layer: **a terminal-native workbench for AI-assisted security operations**, not another scanner dashboard and not a generic chat window with a few tools bolted on.
+A security agent for the workflow you already have.
 
 ## Demo
 
 <p align="center">
   <a href="assets/demo.mp4">
-    <img src="assets/demo-preview.gif" alt="numasec running a cyber operation from the terminal" width="940" />
+    <img src="assets/demo-preview.gif" alt="numasec running a scoped security operation from the terminal" width="940" />
   </a>
   <br />
   <sub>Click the preview for the full terminal recording.</sub>
 </p>
 
+## Why numasec
+
+Security work does not happen in one clean place.
+
+You move between terminal commands, browser work, HTTP requests, local tools, scanners, advisories, notes, screenshots, findings and reports.
+
+AI can help, but only if it lives inside that workflow.
+
+numasec gives the model a security workspace instead of just a chat box. It keeps the target, scope, tools, runbooks, findings, evidence, replay and report state together while the work is happening.
+
+The goal is simple:
+
+**make security work feel faster, sharper and less scattered.**
+
+numasec is strongest today for authorized AppSec and Pentest workflows. Other cyber surfaces exist or are possible, but they are not marketed as equally mature yet.
+
+## Why now
+
+Coding agents changed how developers work.
+
+They read code, run commands, edit files, execute tests and stay inside the development loop.
+
+Security needs the same shift, but security work has different constraints.
+
+A security agent needs to know the target, stay inside scope, use the local toolchain, remember what happened, separate noise from findings and keep enough context to produce useful output later.
+
+That is what numasec is trying to become:
+
+**the open source AI security agent for the terminal.**
+
+## What it feels like
+
+Open numasec inside the workspace you are testing, pick the right security agent, check which local tools are available, then start a runbook and let the agent help you move through the workflow.
+
+When the work changes, switch posture. When something matters, keep the finding, evidence, replay and report context close to the operation instead of scattering it across shell history, screenshots and notes.
+
+Then come back later and resume without starting from zero.
+
 ## Product tour
 
-numasec starts as a chat-first terminal agent, then turns into an operation console as soon as real security work begins.
+numasec starts like a terminal agent, then the security work begins, and it becomes a workspace.
 
 <p align="center">
-  <img src="assets/dashboard.png" alt="numasec chat-first cyber console home screen" width="840" />
+  <img src="assets/dashboard.png" alt="numasec chat-first security console home screen" width="840" />
 </p>
 
-The usage stays simple on purpose, you get the model, current agent, command palette, working directory, and prompt, once you start work, numasec keeps the engagement visible.
+You get the model, the active agent, the command palette, the working directory and the prompt. The point is not to leave your terminal; the point is to make the terminal smarter.
 
 <p align="center">
   <img src="assets/findings.png" alt="numasec findings lens with evidence, replay, reportability and operation sidebar" width="940" />
 </p>
 
-The findings lens is where the product becomes more than "LLM output": each claim has a state, severity, evidence count, replay status, and next action. **Weak signals can stay weak. Rejected claims remain visible. Reportable findings need proof.**
+Findings are not dumped into chat: they live in the operation, where each one can carry state, severity, evidence, replay status and next action, so the agent can keep working without losing the thread.
 
-The sidebar keeps the important pressure points in view: target, scope, opsec posture, runbook progress, evidence volume, replay coverage, local tool readiness, recent activity, and report status. You should not have to dig through chat history to know the operation informations.
+Weak signals can stay weak. Rejected claims remain visible. Reportable findings need proof.
 
 <p align="center">
   <img src="assets/switchagents.gif" alt="switching between numasec cyber specialist agents" width="760" />
 </p>
 
-Switch agents when the work changes: Security is the general operator, AppSec focuses on application review, Pentest keeps scoped offensive work disciplined, OSINT handles public-source investigation, Hacking is for raw lab-style work. The point is not roleplay, it is keeping the model in the right operating posture.
+Security work changes shape. AppSec, Pentest, OSINT, CTF/lab and research do not need the same posture, so you can switch the agent when the work changes instead of forcing one generic assistant to behave the same way everywhere.
 
 <p align="center">
   <img src="assets/operations.png" alt="numasec operation selector with rename support" width="760" />
 </p>
 
-Operations are durable engagements: Name them, rename them, resume them, share them, and come back later without pretending that a markdown note or chat transcript is the source of truth.
+Operations are durable. Name them, rename them, resume them and export them. A security workflow should not disappear because the chat ended.
+
+## Try it
+
+```bash
+npm install -g numasec
+numasec
+```
+
+Then start with a local lab, CTF, owned app or authorized target:
+
+```text
+/doctor
+/mode appsec
+/runbook run appsec-web-triage http://localhost:3000
+/share
+```
+
+Run numasec from the workspace you are testing and keep the target scope explicit.
 
 ## What it does
 
-numasec turns a terminal session into a cyber operation.
-
-| Capability | Why it matters |
+| Capability | What it gives you |
 | --- | --- |
-| **Scoped operations** | Work starts with a target, operation name, autonomy posture, opsec policy, and durable state instead of an unbounded chat. |
-| **Operation console** | Findings, evidence, replay, workflow, activity, local tool readiness, and report status stay visible while the agent works. |
-| **Runbooks** | Named cyber workflows keep the agent from turning security work into random tool calls. |
-| **Local tools** | numasec uses the tools installed on your machine and degrades visibly when something is missing. |
-| **Evidence-first findings** | Tool output, HTTP traces, browser artifacts, screenshots, files, and observations are stored before claims become durable findings. |
-| **Finding lifecycle** | Candidate, observed, verified, rejected, stale, and reportable are handled as different states, not flattened into noise. |
-| **Replay-aware reporting** | A reportable finding needs evidence plus replay material, or an explicit structured replay exemption. |
-| **Cyber knowledge broker** | Vulnerability intelligence, KEV/EPSS, package advisories, methodology, tradecraft, exploit signals, and tool docs flow through one provenance-aware surface. |
-| **Operator control** | Use permissioned mode with allow, deny, and allow-always, or switch to auto mode inside the operation boundary. |
-| **Deliverables** | Reports and share bundles are built from operation state, not from model confidence. |
+| **AI security agent** | A model that works inside your terminal instead of sitting in a separate chat window. |
+| **Local tools** | numasec uses the tools installed on your machine and shows what is available, missing or degraded. |
+| **Runbooks** | Security workflows that keep the agent moving through a real task instead of random tool calls. |
+| **Agents** | Switch posture with TAB for AppSec, Pentest, OSINT, CTF/lab and research-style work. |
+| **Operation memory** | Keep target, scope, activity, findings, evidence, replay and report state together. |
+| **Findings workflow** | Track security signals as they move from weak ideas to useful findings. |
+| **Evidence and replay** | Keep the material needed to understand, verify and reproduce important work. |
+| **Cyber knowledge** | Bring vulnerability intelligence, advisories, methodology and tool docs into the workflow. |
+| **Reports** | Generate deliverables from the operation instead of reconstructing everything at the end. |
+| **Share bundles** | Export the work so it can be reviewed, resumed or handed off. |
 
 ## Built for
 
-- **Bug bounty hunters** who want faster triage without losing proof.
-- **Pentesters** who want an AI operator inside the terminal workflow they already use.
-- **AppSec engineers** who need evidence-backed reports instead of scanner noise.
-- **Security researchers** who move between shell, browser, HTTP, advisories, tradecraft, and notes.
-- **CTF and lab users** who want structure without giving up direct tool control.
+numasec is for people who want an AI agent inside their security workflow, not beside it.
 
-numasec is for authorized security work. Keep scope explicit and use it only where you have permission to test.
+- **AppSec engineers** triaging web apps, APIs, dependencies, auth flows and reports.
+- **Pentesters** moving through scoped work with terminal tools, notes, evidence and deliverables.
+- **Bug bounty hunters** who want to move faster without losing target context.
+- **Security researchers** jumping between shell, browser, HTTP, advisories, tradecraft and notes.
+- **CTF and lab users** who want structure while still keeping direct control of the tools.
 
-## The operator loop
+numasec is for authorized security work. Use it only on systems you own, labs, CTFs, or targets where you have permission to test.
+
+## How the workflow fits together
+
+numasec is not just a prompt with tools.
+
+It keeps the security workflow connected: target, operation, posture, runbook, local tools, observations, findings, evidence, replay and report.
 
 ```mermaid
 flowchart LR
@@ -161,7 +214,39 @@ flowchart LR
   class findings findingNode;
 ```
 
-The important bit: **the operation is not a chat transcript**, numasec keeps a kernel-backed record of what happened, what was observed, what was proven, and what is safe to report.
+The important part: the operation does not live only in chat. numasec keeps a durable record of the work so the agent can continue, the operator can review, and the report can come from what actually happened.
+
+## How numasec is different
+
+Most AI security tools fall into one of two traps: they only talk, or they only wrap tools. numasec tries to do something different: keep the workflow alive while the agent works.
+
+| Compared with | What usually happens | What numasec does |
+| --- | --- | --- |
+| **Generic AI chats** | Good advice, but detached from the actual work. | Runs inside the terminal workflow with tools, memory and operation state. |
+| **Generic coding agents** | Great for repos and tests, but not shaped around security work. | Adds security agents, runbooks, scope, findings, evidence, replay and reports. |
+| **Scanner wrappers** | Fast output, weak context. | Turns tool output into part of a larger operation. |
+| **Manual notes** | Flexible, but everything drifts apart. | Keeps findings, evidence, replay and reports connected. |
+| **Tool servers** | Expose capabilities, but leave workflow and memory to the user. | Adds the security workflow around the tools. |
+
+## Commands
+
+numasec is designed to stay fast from the keyboard: start an operation, switch agents, run workflows, inspect tools, tighten opsec, export the work and come back later.
+
+```text
+/doctor                        inspect local tool readiness
+/mode appsec                   switch to the AppSec agent
+/mode pentest                  switch to the Pentest agent
+/agents                        open the agent switcher
+/runbook list                  show available security workflows
+/runbook run appsec-web-triage <target>
+/runbook run web-surface <target>
+/operations                    inspect, rename, resume or switch operations
+/opsec strict                  tighten operation boundaries
+/models                        switch provider or model
+/share                         export the active operation bundle
+/remediate <observation_id>    turn an observation into remediation guidance
+/pwn <target>                  create a scoped pentest operation for a target
+```
 
 ## Install
 
@@ -195,47 +280,13 @@ cd packages/numasec
 bun run build
 ```
 
-## Quick start
-
-```bash
-numasec
-```
-
-Then try:
-
-```text
-/doctor
-/mode appsec
-/pwn http://localhost:3000
-/runbook run web-surface http://localhost:3000
-/share
-```
-
-For best results, run numasec from the workspace you are testing and keep the target scope explicit.
-
-## Commands
-
-```text
-/pwn <target>                  create a scoped pentest operation for a target
-/runbook list                  show available cyber workflows
-/runbook run web-surface <x>   map routes, forms, browser surface and candidate risks
-/runbook run appsec-web-triage <x>
-/operations                    inspect, rename, resume or switch operations
-/mode appsec                   switch to the AppSec agent
-/mode pentest                  switch to the Pentest agent
-/agents                        open the agent switcher
-/doctor                        inspect local tool readiness and degraded capabilities
-/opsec strict                  tighten operation boundaries
-/models                        switch provider or model
-/share                         export the active operation bundle
-/remediate <observation_id>    turn an observation into remediation guidance
-```
-
 ## Tool surface
 
-The model sees a small set of useful operator surfaces. Under the hood, numasec connects them to local tools, parsers, evidence storage, and kernel state.
+numasec does not try to replace your tools.
 
-Core surfaces:
+It gives the agent a controlled way to use and reason around the environment you already have: shell, files, browser, HTTP, scanners, evidence, reports, knowledge and workspace state.
+
+The agent sees a small set of useful security surfaces:
 
 - **terminal and files:** `bash`, `read`, `write`, `edit`, `apply_patch`, `grep`, `glob`
 - **web and application testing:** `http_request`, `browser`, `scanner`, `appsec_probe`
@@ -244,7 +295,9 @@ Core surfaces:
 - **security intelligence:** `knowledge`, `methodology`, `cve`
 - **environment:** `doctor`, `workspace`, `vault`, `net`, `crypto`, `analyze`
 
-`knowledge` is the preferred cyber research surface. It routes vulnerability intelligence, package advisories, methodology, tradecraft, exploit signals, and installed tool docs through one provenance-aware broker. For observed components like `nginx 1.18.0`, `OpenSSH_8.2p1`, or `npm:react@18.2.0`, it separates **possibility** from **applicability**, enriches with KEV/EPSS where available, and suggests safe next actions without turning intelligence into a finding.
+`knowledge` is the preferred cyber research surface. It routes vulnerability intelligence, package advisories, methodology, tradecraft, exploit signals and installed tool docs through one provenance-aware broker.
+
+For observed components like `nginx 1.18.0`, `OpenSSH_8.2p1` or `npm:react@18.2.0`, it separates **possibility** from **applicability**, enriches with KEV/EPSS where available, and suggests safe next actions without turning intelligence into a finding.
 
 `cve` remains as a compatibility alias for CVE-style lookup. New cyber research should use `knowledge`.
 
@@ -260,26 +313,17 @@ brew install nmap sqlmap ffuf gobuster nikto nuclei trivy checksec
 
 Use `/doctor` to see what is available, degraded, or missing on the current machine.
 
-## How numasec is different
-
-| Compared with | The usual problem | What numasec adds |
-| --- | --- | --- |
-| **Generic terminal agents** | They are strong at reasoning and shell work, but they do not naturally track cyber scope, proof, replay, and reportability. | A cyber-specific operation layer around the model. |
-| **Scanner wrappers** | They produce output fast, but often lose context and blur weak signals with real findings. | Scanner output becomes evidence and candidate facts inside an operation. |
-| **Tool servers** | They expose capabilities, then leave memory, lifecycle, and reporting to the user. | A full operator loop: runbook, kernel state, evidence, findings, replay, report. |
-| **Manual notes** | Flexible, but screenshots, shell history, browser state, and report claims drift apart. | Human-readable context is derived from operation state instead of replacing it. |
-
 ## Models and providers
 
-numasec is model-agnostic. It wraps the model you choose with a cyber-ready runtime.
+Bring the model you trust. numasec is model-agnostic and wraps the model you choose with a security workflow: terminal, tools, agents, runbooks, operation memory, findings, evidence and reports.
 
 Supported provider families include OpenAI, Anthropic, Google, xAI, Bedrock, OpenRouter, Ollama, Vercel AI Gateway, OpenAI-compatible endpoints, and other providers supported through the local model stack.
 
-The bet is not that one model magically solves security. **The bet is that strong models become far more useful when they operate inside the right security environment.**
+The bet is not that one model magically solves security. The bet is that good models become much more useful when they work inside the right security environment.
 
 ## Architecture
 
-numasec wraps the model instead of trying to change the model.
+numasec wraps the model with a security workflow. The model can reason and act; numasec keeps the operation around it: tools, runbooks, events, facts, evidence, replay, findings and deliverables.
 
 ```mermaid
 flowchart TB
@@ -344,15 +388,17 @@ flowchart TB
   class lifecycle findingNode;
 ```
 
-### Kernel-first state
+### Operation memory
 
-An operation is stored as ledger events, projected cyber facts, relations, evidence, replay artifacts, workflow state, and deliverables.
+An operation is stored as events, facts, relations, evidence, replay artifacts, workflow state and deliverables.
 
-`numasec.md` can exist as a derived context pack. It is useful for orientation, but it is not canonical state.
+`numasec.md` can exist as a derived context pack. It helps orient the model, but it is not the source of truth.
 
 ### Finding lifecycle
 
-numasec separates signal from proof:
+Security work has messy intermediate states. Something can look interesting without being true. Something can be observed without being ready for a report. Something can be verified and later become stale.
+
+numasec keeps those states visible instead of flattening everything into chat output.
 
 ```mermaid
 flowchart LR
@@ -375,13 +421,13 @@ flowchart LR
   class rejected,stale stop;
 ```
 
-Reportable means evidence-backed and replay-backed, or evidence-backed with a structured replay exemption. **The model is allowed to suspect. The report is not allowed to pretend.**
+The model is allowed to explore. The workflow is not allowed to pretend every idea is a finding.
 
-### Runbooks over raw tool spam
+### Runbooks instead of random tool spam
 
-The primary workflow surface is `runbook`: a named cyber workflow that coordinates lower-level tools and keeps the agent inside a clear task shape.
+Security agents get noisy when they can call tools without a workflow. numasec uses runbooks to keep the agent moving through a recognizable task shape: surface mapping, AppSec triage, scoped pentest work and future domain-specific workflows.
 
-Benchmark-backed today:
+Strongest today:
 
 - `appsec-web-triage`
 - `web-surface`
@@ -396,45 +442,51 @@ Maturity-labeled surfaces:
 - CTF and lab workflows
 - cloud, container, IaC and binary triage
 
-## Quality bar
+## Built to avoid AI security slop
 
-numasec is built around one rule:
+numasec is built around a simple rule: **the agent can help you move faster, but the workflow should not let it overclaim.**
 
-> **Do not claim more than the operation state can support.**
+That is why numasec tracks scope, operation state, findings, evidence, replay and report output.
 
-Benchmark-backed domains today:
+Mature focus:
 
-- **AppSec**
-- **Pentest**
+- AppSec
+- Pentest
 
-The release gate is intentionally proof-oriented:
+Other cyber surfaces exist or are planned, but they are not marketed as equally mature yet.
 
-- operation state must exist;
-- workflow state must complete;
-- observations must be projected;
-- findings must not overclaim;
-- reports must not promote unsupported claims;
-- AppSec/Pentest benchmark runs are manual evidence for public maturity claims.
-
-What numasec does not claim yet:
-
-- it does not prove exploitability without evidence;
-- it is not a replacement for authorization, scope, or operator judgment.
+numasec does not claim to replace authorization, operator judgment, manual review or specialized tools.
 
 That honesty is not marketing modesty. It is part of the product. Security tools lose trust when they confuse confidence with proof.
 
 ## Roadmap
 
-The long-term vision is a multi-domain cyber operator:
+The long-term vision is simple:
 
-- **AppSec:** DAST, SAST, SCA, authz, API, remediation
-- **Pentest:** recon, web, network, credentials, evidence, reporting
-- **OSINT:** passive target intelligence with provenance
-- **CTF and labs:** structured exploit, reversing and forensics workflows
-- **Cloud/container/IaC:** adapter-backed posture and misconfiguration triage
-- **Team operations:** shareable bundles, redaction, handoff, review
+**an open source AI security agent that can grow with the community.**
 
-The short-term rule is stricter: every domain that claims maturity needs proof semantics and benchmark evidence.
+Short term, numasec is staying focused:
+
+- better AppSec workflows
+- better Pentest workflows
+- stronger local tool adapters
+- better evidence and replay capture
+- cleaner report generation
+- more useful agents
+- better operation sharing
+- clearer maturity labels
+
+Longer term:
+
+- OSINT workflows with provenance
+- CTF and lab workflows
+- cloud, container and IaC triage
+- team operations
+- review and handoff
+- richer knowledge packs
+- community runbooks
+
+The rule stays the same: every mature domain needs real workflow support, not just a prompt.
 
 ## Documentation
 
@@ -454,6 +506,12 @@ bun typecheck
 cd packages/numasec
 bun test --timeout 30000
 bun run build
+```
+
+AppSec and Pentest benchmarks are local/manual release-confidence tools:
+
+```bash
+cd packages/numasec
 bun run bench:cyber --domain appsec
 bun run bench:cyber --domain pentest
 ```
@@ -475,21 +533,29 @@ If a change creates a confirmed security claim, it needs evidence. If a finding 
 
 ## Community
 
-The best feedback comes from real workflows:
+The best feedback is not "cool project".
 
-- what target class you tested;
-- what numasec helped you do faster;
-- where it overclaimed, stalled, or missed context;
-- which local tools should get first-class adapters;
-- which runbook should exist next.
+The best feedback is:
 
-Use GitHub issues and discussions for bugs, ideas, security workflow feedback, and release questions.
+- I tried it on this kind of authorized workflow
+- this part made me faster
+- this part got in my way
+- this tool should be better supported
+- this runbook should exist
+- this finding flow felt wrong
+- this report output was useful or useless
 
-## Star the project
+Use GitHub issues and discussions for bugs, workflow feedback, runbook ideas, adapters and release questions.
 
-If you believe security deserves a serious AI Agent, star the repo and share the workflow you tried.
+Please keep examples authorized, lab-based or safely anonymized.
 
-numasec is early, but the direction is clear: **make AI agents useful for real security work by giving them the environment, memory, tools, and proof discipline the domain requires.**
+## Help shape numasec
+
+numasec is early, but the direction is clear:
+
+**make security work feel faster, sharper and less scattered with an AI agent that lives in the terminal.**
+
+If that feels useful, star the repo, try it on an authorized workflow and tell me where it breaks.
 
 ## License
 
