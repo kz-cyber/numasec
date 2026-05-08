@@ -496,7 +496,8 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
         name: "operations",
       },
       onSelect: () => {
-        dialog.replace(() => <DialogOperation />)
+        const sessionID = route.data.type === "session" ? route.data.sessionID : undefined
+        dialog.replace(() => <DialogOperation sessionID={sessionID} />)
       },
     },
     {

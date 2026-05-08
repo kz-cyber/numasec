@@ -22,6 +22,7 @@ type Metadata = {
 }
 
 export const persistDoctorProjection = Effect.fn("Doctor.persistDoctorProjection")(function* (input: {
+  operationSlug?: string
   report: DoctorReport
   eventID?: string
 }) {
@@ -30,6 +31,7 @@ export const persistDoctorProjection = Effect.fn("Doctor.persistDoctorProjection
   const verticals_ready = input.report.capability.verticals.filter((item) => item.status === "ready").length
 
   yield* Cyber.upsertFact({
+    operation_slug: input.operationSlug,
     entity_kind: "environment",
     entity_key: "local",
     fact_name: "doctor_summary",
@@ -55,6 +57,7 @@ export const persistDoctorProjection = Effect.fn("Doctor.persistDoctorProjection
 
   for (const binary of input.report.binaries) {
     yield* Cyber.upsertFact({
+      operation_slug: input.operationSlug,
       entity_kind: "tool_adapter",
       entity_key: binary.name,
       fact_name: "presence",
@@ -65,6 +68,7 @@ export const persistDoctorProjection = Effect.fn("Doctor.persistDoctorProjection
       source_event_id: input.eventID || undefined,
     }).pipe(Effect.catch(() => Effect.succeed("")))
     yield* Cyber.upsertRelation({
+      operation_slug: input.operationSlug,
       src_kind: "environment",
       src_key: "local",
       relation: binary.present ? "has_tool" : "missing_tool",
@@ -79,6 +83,7 @@ export const persistDoctorProjection = Effect.fn("Doctor.persistDoctorProjection
 
   for (const item of input.report.capability.plays) {
     yield* Cyber.upsertFact({
+      operation_slug: input.operationSlug,
       entity_kind: "play",
       entity_key: item.id,
       fact_name: "readiness",
@@ -92,6 +97,7 @@ export const persistDoctorProjection = Effect.fn("Doctor.persistDoctorProjection
 
   for (const item of input.report.capability.verticals) {
     yield* Cyber.upsertFact({
+      operation_slug: input.operationSlug,
       entity_kind: "vertical",
       entity_key: item.id,
       fact_name: "readiness",
@@ -113,10 +119,12 @@ export const DoctorTool = Tool.define<typeof parameters, Metadata, never>(
       execute: (_args: z.infer<typeof parameters>, _ctx: Tool.Context<Metadata>) =>
         Effect.gen(function* () {
           const report = yield* Doctor.probe(Instance.directory)
+          const slug = yield* Tool.resolveOperationSlug(_ctx, Instance.directory)
           const present = report.binaries.filter((b) => b.present).length
           const plays_ready = report.capability.plays.filter((item) => item.status === "ready").length
           const verticals_ready = report.capability.verticals.filter((item) => item.status === "ready").length
           const eventID = yield* Cyber.appendLedger({
+            operation_slug: slug,
             kind: "fact.observed",
             source: "doctor",
             session_id: _ctx.sessionID,
@@ -136,7 +144,7 @@ export const DoctorTool = Tool.define<typeof parameters, Metadata, never>(
               knowledge_cache: report.knowledge.cache_path,
             },
           }).pipe(Effect.catch(() => Effect.succeed("")))
-          yield* persistDoctorProjection({ report, eventID })
+          yield* persistDoctorProjection({ operationSlug: slug, report, eventID })
           return {
             title: `doctor · ${present}/${report.binaries.length} tools`,
             output: Doctor.format(report),

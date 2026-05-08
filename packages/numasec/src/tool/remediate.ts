@@ -7,7 +7,6 @@ import DESCRIPTION from "./remediate.txt"
 import { Cyber } from "@/core/cyber"
 import { Evidence } from "@/core/evidence"
 import { Observation } from "@/core/observation"
-import { Operation } from "@/core/operation"
 import { Instance } from "@/project/instance"
 
 const parameters = z.object({
@@ -123,6 +122,7 @@ function recordRemediation(input: {
     ).pipe(Effect.catch(() => Effect.succeed(undefined)))
     const evidenceRefs = evidence ? [evidence.sha256] : undefined
     const eventID = yield* Cyber.appendLedger({
+      operation_slug: input.slug,
       kind: "fact.observed",
       source: "remediate",
       summary: `remediate ${input.mode} ${input.observation_id}`,
@@ -138,6 +138,7 @@ function recordRemediation(input: {
       },
     }).pipe(Effect.catch(() => Effect.succeed("")))
     yield* Cyber.upsertFact({
+      operation_slug: input.slug,
       entity_kind: "observation",
       entity_key: input.observation_id,
       fact_name: input.mode === "patch" ? "remediation_patch_scaffold" : "remediation_advice",
@@ -174,7 +175,7 @@ export const RemediateTool = Tool.define<typeof parameters, Metadata, never>(
             metadata: { observation_id: params.observation_id, mode },
           })
 
-          const slug = yield* Effect.promise(() => Operation.activeSlug(workspace).catch(() => undefined))
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
           if (!slug) {
             const payload = {
               error: "no_active_operation",

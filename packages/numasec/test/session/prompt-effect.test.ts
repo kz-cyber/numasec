@@ -249,6 +249,25 @@ function providerCfg(url: string) {
   }
 }
 
+function timeoutProviderCfg(url: string) {
+  return {
+    ...cfg,
+    provider: {
+      ...cfg.provider,
+      test: {
+        ...cfg.provider.test,
+        options: {
+          ...cfg.provider.test.options,
+          baseURL: url,
+          timeout: false as const,
+          chunkTimeout: false as const,
+          semanticTimeout: { initial: 25, idle: 25 },
+        },
+      },
+    },
+  }
+}
+
 const user = Effect.fn("test.user")(function* (sessionID: SessionID, text: string) {
   const session = yield* Session.Service
   const msg = yield* session.updateMessage({
@@ -699,6 +718,30 @@ it.live(
         expect((yield* status.get(chat.id)).type).toBe("idle")
       }),
       { git: true, config: providerCfg },
+    ),
+  3_000,
+)
+
+it.live(
+  "loop fails silent provider streams with a semantic timeout and returns idle",
+  () =>
+    provideTmpdirServer(
+      Effect.fnUntraced(function* ({ llm }) {
+        const prompt = yield* SessionPrompt.Service
+        const sessions = yield* Session.Service
+        const status = yield* SessionStatus.Service
+        const chat = yield* sessions.create({ title: "Pinned" })
+        yield* llm.hang
+        yield* user(chat.id, "hello")
+
+        const result = yield* prompt.loop({ sessionID: chat.id })
+        expect(result.info.role).toBe("assistant")
+        if (result.info.role === "assistant") {
+          expect(result.info.error?.name).toBe("ProviderSilentTimeoutError")
+        }
+        expect((yield* status.get(chat.id)).type).toBe("idle")
+      }),
+      { git: true, config: timeoutProviderCfg },
     ),
   3_000,
 )

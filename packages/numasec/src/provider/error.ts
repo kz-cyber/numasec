@@ -1,7 +1,24 @@
 import { APICallError } from "ai"
+import { NamedError } from "@numasec/shared/util/error"
 import { STATUS_CODES } from "http"
 import { iife } from "@/util/iife"
 import type { ProviderID } from "./schema"
+import z from "zod"
+
+const TimeoutData = z.object({
+  providerID: z.string(),
+  modelID: z.string().optional(),
+  variant: z.string().optional(),
+  timeoutMs: z.number().int().positive().optional(),
+  elapsedMs: z.number().int().nonnegative().optional(),
+  lastEventType: z.string().optional(),
+  message: z.string(),
+})
+
+export const ProviderTimeoutError = NamedError.create("ProviderTimeoutError", TimeoutData)
+export const ProviderChunkTimeoutError = NamedError.create("ProviderChunkTimeoutError", TimeoutData)
+export const ProviderSilentTimeoutError = NamedError.create("ProviderSilentTimeoutError", TimeoutData)
+export const ProviderIdleTimeoutError = NamedError.create("ProviderIdleTimeoutError", TimeoutData)
 
 // Adapted from overflow detection patterns in:
 // https://github.com/badlogic/pi-mono/blob/main/packages/ai/src/utils/overflow.ts

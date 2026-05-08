@@ -5,7 +5,6 @@ import DESCRIPTION from "./cloud-posture.txt"
 import { runProcess } from "./process"
 import { Cyber } from "@/core/cyber"
 import { Evidence } from "@/core/evidence"
-import { Operation } from "@/core/operation"
 import { Instance } from "@/project/instance"
 
 const parameters = z.object({
@@ -113,7 +112,7 @@ export const CloudPostureTool = Tool.define<typeof parameters, Metadata, never>(
             } satisfies Metadata,
           }
           const workspace = Instance.directory
-          const slug = yield* Effect.promise(() => Operation.activeSlug(workspace).catch(() => undefined))
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
           const evidence =
             !slug
               ? undefined
@@ -129,6 +128,7 @@ export const CloudPostureTool = Tool.define<typeof parameters, Metadata, never>(
           const accountKey = `${params.provider}:${params.profile ?? "default"}:${params.region ?? "all"}`
           const summary = summarize(toolResult.output)
           const eventID = yield* Cyber.appendLedger({
+            operation_slug: slug,
             kind: "fact.observed",
             source: "cloud_posture",
             summary: `cloud posture ${accountKey}`,
@@ -146,6 +146,7 @@ export const CloudPostureTool = Tool.define<typeof parameters, Metadata, never>(
             },
           }).pipe(Effect.catch(() => Effect.succeed("")))
           yield* Cyber.upsertFact({
+            operation_slug: slug,
             entity_kind: "cloud_account",
             entity_key: accountKey,
             fact_name: "prowler_summary",
@@ -159,6 +160,7 @@ export const CloudPostureTool = Tool.define<typeof parameters, Metadata, never>(
           for (const line of summary.findings) {
             const entityKey = `${accountKey}:${line.slice(0, 120)}`
             yield* Cyber.upsertFact({
+              operation_slug: slug,
               entity_kind: "finding_candidate",
               entity_key: entityKey,
               fact_name: "cloud_posture_signal",
@@ -176,6 +178,7 @@ export const CloudPostureTool = Tool.define<typeof parameters, Metadata, never>(
               evidence_refs: evidenceRefs,
             }).pipe(Effect.catch(() => Effect.succeed("")))
             yield* Cyber.upsertRelation({
+              operation_slug: slug,
               src_kind: "cloud_account",
               src_key: accountKey,
               relation: "has_candidate",

@@ -9,7 +9,7 @@ import { Instance } from "@/project/instance"
 import { Operation } from "@/core/operation"
 
 const parameters = z.object({
-  action: z.enum(["list", "status", "run"]).default("list"),
+  action: z.enum(["list", "status", "run", "refresh_readiness"]).default("list"),
   id: z.string().optional(),
   args: z.record(z.string(), z.unknown()).optional(),
 })
@@ -172,7 +172,7 @@ export const RunbookTool = Tool.define<typeof parameters, Metadata, never>(
   Effect.gen(function* () {
     return {
       description:
-        "Run or inspect structured security runbooks. This is the semantic workflow surface for built-in plays and future domain capsules.",
+        "Run or inspect structured security runbooks. list is read-only; use refresh_readiness to persist readiness facts for the active operation.",
       parameters,
       execute: (params: Params, ctx: Tool.Context) =>
         Effect.gen(function* () {
@@ -182,19 +182,13 @@ export const RunbookTool = Tool.define<typeof parameters, Metadata, never>(
             runtimes: { browser: report.browser.present } as Record<string, boolean | undefined>,
           }
           const workspace = Instance.directory
-          const active = yield* Effect.promise(() => Operation.active(workspace).catch(() => undefined))
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
+          const active = slug
+            ? yield* Effect.promise(() => Operation.read(workspace, slug).catch(() => undefined))
+            : undefined
 
           if (params.action === "list") {
             const plays = PlayRegistry.list().map((play) => summarizePlay(play, environment))
-            if (active) {
-              yield* persistCapsuleReadiness({
-                operation_slug: active.slug,
-                ctx,
-                source: "runbook",
-                summary: "runbook inventory refreshed",
-                capsules: plays,
-              })
-            }
             return {
               title: "runbook · list",
               output:
@@ -213,6 +207,36 @@ export const RunbookTool = Tool.define<typeof parameters, Metadata, never>(
                 ready: plays.filter((play) => play.status === "ready").length,
                 degraded: plays.filter((play) => play.status === "degraded").length,
                 unavailable: plays.filter((play) => play.status === "unavailable").length,
+                side_effects: Tool.sideEffects("read_only"),
+              },
+            }
+          }
+
+          if (params.action === "refresh_readiness") {
+            const plays = PlayRegistry.list().map((play) => summarizePlay(play, environment))
+            if (active) {
+              yield* persistCapsuleReadiness({
+                operation_slug: active.slug,
+                ctx,
+                source: "runbook",
+                summary: "runbook inventory refreshed",
+                capsules: plays,
+              })
+            }
+            return {
+              title: "runbook · readiness refreshed",
+              output:
+                active
+                  ? `Refreshed readiness for ${plays.length} runbooks in ${active.slug}.`
+                  : "No active operation; readiness was inspected but not persisted.",
+              metadata: {
+                action: "refresh_readiness",
+                count: plays.length,
+                ready: plays.filter((play) => play.status === "ready").length,
+                degraded: plays.filter((play) => play.status === "degraded").length,
+                unavailable: plays.filter((play) => play.status === "unavailable").length,
+                persisted: Boolean(active),
+                side_effects: active ? Tool.sideEffects("writes_ledger", "writes_facts") : Tool.sideEffects("read_only"),
               },
             }
           }

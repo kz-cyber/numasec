@@ -107,7 +107,10 @@ export const PlayTool = Tool.define<typeof parameters, Metadata, never>(
           const result = outcome.result
           const availability = availabilityOf(result)
           const workspace = Instance.directory
-          const active = yield* Effect.promise(() => Operation.active(workspace).catch(() => undefined))
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
+          const active = slug
+            ? yield* Effect.promise(() => Operation.read(workspace, slug).catch(() => undefined))
+            : undefined
           if (active) {
             yield* Effect.promise(() =>
               Operation.writeWorkflow(workspace, active.slug, {

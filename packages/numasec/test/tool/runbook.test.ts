@@ -63,6 +63,41 @@ describe("tool/runbook", () => {
     })
   })
 
+  test("list is read-only and refresh_readiness persists readiness facts", async () => {
+    await using fixture = await tmpdir({ git: true })
+
+    await Instance.provide({
+      directory: fixture.path,
+      fn: async () => {
+        const op = await Operation.create({ workspace: fixture.path, label: "Runbook Readonly", kind: "pentest" })
+        const listed: any = await exec({ action: "list" })
+        let facts = await AppRuntime.runPromise(Cyber.listFacts({ operation_slug: op.slug, limit: 200 }))
+
+        expect(listed.metadata.side_effects).toEqual(["read_only"])
+        expect(
+          facts.some(
+            (item) =>
+              item.entity_kind === "runbook" &&
+              item.fact_name === "capsule_readiness",
+          ),
+        ).toBe(false)
+
+        const refreshed: any = await exec({ action: "refresh_readiness" })
+        facts = await AppRuntime.runPromise(Cyber.listFacts({ operation_slug: op.slug, limit: 200 }))
+
+        expect(refreshed.metadata.action).toBe("refresh_readiness")
+        expect(refreshed.metadata.persisted).toBe(true)
+        expect(
+          facts.some(
+            (item) =>
+              item.entity_kind === "runbook" &&
+              item.fact_name === "capsule_readiness",
+          ),
+        ).toBe(true)
+      },
+    })
+  })
+
   test("status writes capsule readiness into the cyber kernel when an operation is active", async () => {
     await using fixture = await tmpdir({ git: true })
 

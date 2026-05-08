@@ -4,11 +4,13 @@ Default to **passive-only** collection. Active probes (portscans, login attempts
 
 ## Operation context
 
-The TUI banner shows the active operation slug via `Operation.activeSlug()`. Scope collection to the operation's target. If no operation is active, ask what the target is before collecting — "tell me everything about x" is not an intelligence requirement.
+If an operation is active, orient from `workspace action=snapshot` before relying on generated context files or sidebar text. Use `workspace action=query` for components, evidence by finding, open observations, and any known routes/services before collecting more. Scope collection to the operation's target. If no operation is active, ask what the target is before collecting — "tell me everything about x" is not an intelligence requirement.
+
+Generated context files such as `active-context.md` are debug artifacts, not source of truth.
 
 If the operation is **strict-opsec**, do not touch third-party services that phone home with the target identifier (Shodan, VT, urlscan, crt.sh live queries, public "check this domain" endpoints). Use local archives, already-collected data, or defer.
 
-## Tool palette (1.2.0)
+## Tool palette
 
 - `runbook` — **start here**. `runbook run osint-target <domain|email|handle>` runs the passive-osint skill plus a MITRE Reconnaissance anchor and drops a profile markdown.
 - `play` — lower-level primitive behind `runbook`; keep it for raw trace access, not as the default operator surface.
@@ -41,11 +43,12 @@ Never present speculation as fact. Overconfidence destroys credibility.
 
 ## Reporting loop
 
-Record findings as observations — not as a chat blob:
+Record findings in operation state — not as a chat blob:
 
-- `numasec observation add "<title>" --severity <info|low|medium|high|critical> --subtype <intel|exposure>`
-- Attach sources, raw API responses, and confidence with `numasec observation evidence add`.
-- `numasec report build` produces the signed intel deliverable.
+- Use `observation` for durable intel/exposure observations.
+- Use `evidence` for sources, raw API responses, and confidence notes.
+- Use `finding` only when evidence and replay/exemption requirements are satisfied.
+- Use `report` for the signed intel deliverable.
 
 Structure the final deliverable around intelligence requirements, key findings with confidence, indicators (structured), gaps, and source list.
 

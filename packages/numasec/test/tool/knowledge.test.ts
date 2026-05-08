@@ -7,6 +7,7 @@ import { Agent } from "../../src/agent/agent"
 import { Bus } from "../../src/bus"
 import { Operation } from "../../src/core/operation"
 import { Cyber } from "../../src/core/cyber"
+import { Evidence } from "../../src/core/evidence"
 import { AppRuntime } from "../../src/effect/app-runtime"
 import { Format } from "../../src/format"
 import { Instance } from "../../src/project/instance"
@@ -74,6 +75,7 @@ describe("tool/knowledge", () => {
           query: "SQL injection",
           mode: "offline",
           limit: 3,
+          persist: true,
         })
         const facts = await AppRuntime.runPromise(Cyber.listFacts({ operation_slug: op.slug, limit: 100 }))
         const relations = await AppRuntime.runPromise(Cyber.listRelations({ operation_slug: op.slug, limit: 100 }))
@@ -101,6 +103,90 @@ describe("tool/knowledge", () => {
               item.dst_kind === "technique",
           ),
         ).toBe(true)
+      },
+    })
+  })
+
+  test("defaults to persist=false without creating evidence or facts", async () => {
+    await using fixture = await tmpdir({ git: true })
+
+    await Instance.provide({
+      directory: fixture.path,
+      fn: async () => {
+        const op = await Operation.create({ workspace: fixture.path, label: "Knowledge Inspect", kind: "appsec" })
+        const result: any = await exec({
+          intent: "methodology",
+          action: "safe_next_actions",
+          query: "SQL injection",
+          mode: "offline",
+          limit: 3,
+        })
+        const facts = await AppRuntime.runPromise(Cyber.listFacts({ operation_slug: op.slug, limit: 100 }))
+        const evidence = await Evidence.list(fixture.path, op.slug)
+
+        expect(result.metadata.persist).toBe(false)
+        expect(result.metadata.side_effects).toEqual(["read_only"])
+        expect(result.output).toContain("\"full_result_persisted_as_evidence\": false")
+        expect(facts.some((item) => item.entity_kind === "knowledge_query")).toBe(false)
+        expect(facts.some((item) => item.entity_kind === "technique")).toBe(false)
+        expect(evidence).toHaveLength(0)
+      },
+    })
+  })
+
+  test("read-only knowledge can complete an active workflow step without persisting knowledge facts", async () => {
+    await using fixture = await tmpdir({ git: true })
+
+    await Instance.provide({
+      directory: fixture.path,
+      fn: async () => {
+        const op = await Operation.create({ workspace: fixture.path, label: "Knowledge Workflow", kind: "appsec" })
+        await Operation.writeWorkflow(fixture.path, op.slug, {
+          kind: "runbook",
+          id: "knowledge-runbook",
+          payload: {
+            trace: [
+              {
+                kind: "tool",
+                tool: "knowledge",
+                args: { mode: "offline", intent: "methodology", action: "safe_next_actions" },
+              },
+            ],
+            skipped: [],
+          },
+        })
+        await Operation.setActiveWorkflow(fixture.path, op.slug, { kind: "runbook", id: "knowledge-runbook" })
+
+        const result: any = await exec({
+          intent: "methodology",
+          action: "safe_next_actions",
+          query: "SQL injection",
+          mode: "offline",
+          limit: 3,
+        })
+        const workflow = await Operation.readWorkflow(fixture.path, op.slug, {
+          kind: "runbook",
+          id: "knowledge-runbook",
+        })
+        const facts = await AppRuntime.runPromise(Cyber.listFacts({ operation_slug: op.slug, limit: 200 }))
+        const evidence = await Evidence.list(fixture.path, op.slug)
+        const trace = Array.isArray(workflow?.trace) ? workflow.trace : []
+        const firstStep = z.object({ outcome: z.string().optional() }).passthrough().safeParse(trace[0])
+        const stepStatus = facts.find(
+          (item) =>
+            item.entity_kind === "workflow_step" &&
+            item.entity_key === "runbook:knowledge-runbook:planned:1" &&
+            item.fact_name === "step_status",
+        )
+        const parsedStepStatus = z.object({ outcome: z.string().optional() }).passthrough().safeParse(stepStatus?.value_json)
+
+        expect(result.metadata.side_effects).toEqual(["read_only"])
+        expect(firstStep.data?.outcome).toBe("completed")
+        expect(workflow?.completed_steps).toBe(1)
+        expect(facts.some((item) => item.entity_kind === "knowledge_query")).toBe(false)
+        expect(facts.some((item) => item.entity_kind === "technique")).toBe(false)
+        expect(parsedStepStatus.data?.outcome).toBe("completed")
+        expect(evidence).toHaveLength(0)
       },
     })
   })

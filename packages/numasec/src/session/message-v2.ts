@@ -8,7 +8,7 @@ import { Snapshot } from "@/snapshot"
 import { SyncEvent } from "../sync"
 import { Database, NotFoundError, and, desc, eq, inArray, lt, or } from "@/storage"
 import { MessageTable, PartTable, SessionTable } from "./session.sql"
-import { ProviderError } from "@/provider"
+import * as ProviderError from "@/provider/error"
 import { iife } from "@/util/iife"
 import { errorMessage } from "@/util/error"
 import type { SystemError } from "bun"
@@ -420,6 +420,10 @@ export namespace MessageV2 {
         AbortedError.Schema,
         StructuredOutputError.Schema,
         ContextOverflowError.Schema,
+        ProviderError.ProviderTimeoutError.Schema,
+        ProviderError.ProviderChunkTimeoutError.Schema,
+        ProviderError.ProviderSilentTimeoutError.Schema,
+        ProviderError.ProviderIdleTimeoutError.Schema,
         APIError.Schema,
       ])
       .optional(),
@@ -953,7 +957,7 @@ export namespace MessageV2 {
 
   export function fromError(
     e: unknown,
-    ctx: { providerID: ProviderID; aborted?: boolean },
+    ctx: { providerID: ProviderID; modelID?: ModelID; aborted?: boolean },
   ): NonNullable<Assistant["error"]> {
     switch (true) {
       case e instanceof DOMException && e.name === "AbortError":
@@ -973,6 +977,20 @@ export namespace MessageV2 {
           },
           { cause: e },
         ).toObject()
+      case e instanceof DOMException && e.name === "TimeoutError":
+        return new ProviderError.ProviderTimeoutError(
+          {
+            providerID: ctx.providerID,
+            modelID: ctx.modelID,
+            message: e.message || "Provider request timed out; timeout duration unavailable",
+          },
+          { cause: e },
+        ).toObject()
+      case ProviderError.ProviderTimeoutError.isInstance(e):
+      case ProviderError.ProviderChunkTimeoutError.isInstance(e):
+      case ProviderError.ProviderSilentTimeoutError.isInstance(e):
+      case ProviderError.ProviderIdleTimeoutError.isInstance(e):
+        return e.toObject()
       case (e as SystemError)?.code === "ECONNRESET":
         return new MessageV2.APIError(
           {

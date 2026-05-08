@@ -5,7 +5,6 @@ import DESCRIPTION_WRITE from "./todowrite.txt"
 import { Todo } from "../session/todo"
 import { Instance } from "../project/instance"
 import { Plan } from "@/core/plan"
-import { Operation } from "@/core/operation"
 import { Cyber } from "@/core/cyber"
 
 const parameters = z.object({
@@ -25,14 +24,13 @@ function mapTodoStatus(s: string): Plan.NodeStatus {
   return "planned"
 }
 
-async function syncTodosToPlan(todos: Todo.Info[]): Promise<{
+async function syncTodosToPlan(todos: Todo.Info[], slug?: string): Promise<{
   slug?: string
   nodes: Plan.Node[]
   removed_ids: string[]
 }> {
   const dir = Instance.directory
   if (!dir) return { nodes: [], removed_ids: [] }
-  const slug = await Operation.activeSlug(dir).catch(() => undefined)
   if (!slug) return { nodes: [], removed_ids: [] }
   const existing = await Plan.list(dir, slug).catch(() => [] as Plan.Node[])
   const want = todos.map((t) => ({
@@ -95,7 +93,8 @@ export const TodoWriteTool = Tool.define<typeof parameters, Metadata, Todo.Servi
             todos: params.todos,
           })
 
-          const planSync = yield* Effect.tryPromise(() => syncTodosToPlan(params.todos)).pipe(
+          const slug = yield* Tool.resolveOperationSlug(ctx, Instance.directory)
+          const planSync = yield* Effect.tryPromise(() => syncTodosToPlan(params.todos, slug)).pipe(
             Effect.catch(() => Effect.succeed({ slug: undefined, nodes: [] as Plan.Node[], removed_ids: [] as string[] })),
           )
           if (planSync.slug) {

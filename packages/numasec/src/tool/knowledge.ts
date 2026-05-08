@@ -2,13 +2,10 @@ import z from "zod"
 import { Effect } from "effect"
 import { HttpClient } from "effect/unstable/http"
 import * as Tool from "./tool"
+import * as McpExa from "./mcp-exa"
 import DESCRIPTION from "./knowledge.txt"
-import { WebSearchTool } from "./websearch"
-import { Agent } from "@/agent/agent"
-import * as Truncate from "./truncate"
 import { Cyber } from "@/core/cyber"
 import { Evidence } from "@/core/evidence"
-import { Operation } from "@/core/operation"
 import { Instance } from "@/project/instance"
 import { KnowledgeActions, KnowledgeBroker, KnowledgeIntents, KnowledgeModes, persistKnowledgeResult, workspaceKnowledgeCache } from "@/core/knowledge"
 
@@ -26,6 +23,7 @@ const parameters = z
     livecrawl: z.enum(["fallback", "preferred"]).optional().describe("live crawl preference"),
     type: z.enum(["auto", "fast", "deep"]).optional().describe("search depth"),
     contextMaxCharacters: z.number().optional().describe("max web context size"),
+    persist: z.boolean().default(false).describe("Persist the full result as evidence and cyber facts. Defaults to false for inspection-style calls."),
   })
   .superRefine((value, issue) => {
     if (value.source === "web" && value.severity) {
@@ -93,10 +91,11 @@ type Metadata = {
   possible?: number
   kev_checked?: boolean
   epss_checked?: boolean
+  persist?: boolean
   [key: string]: unknown
 }
 
-function brokerOutput(result: Awaited<ReturnType<typeof KnowledgeBroker.query>>) {
+function brokerOutput(result: Awaited<ReturnType<typeof KnowledgeBroker.query>>, persisted: boolean) {
   return JSON.stringify(
     {
       operator_summary: result.operator_summary ?? result.summary,
@@ -111,7 +110,7 @@ function brokerOutput(result: Awaited<ReturnType<typeof KnowledgeBroker.query>>)
       })),
       degraded: result.degraded,
       errors: result.errors,
-      full_result_persisted_as_evidence: true,
+      full_result_persisted_as_evidence: persisted,
     },
     null,
     2,
@@ -129,16 +128,10 @@ function vulnStateCounts(result: Awaited<ReturnType<typeof KnowledgeBroker.query
   return counts
 }
 
-export const KnowledgeTool = Tool.define<
-  typeof parameters,
-  Metadata,
-  Agent.Service | Truncate.Service | HttpClient.HttpClient
->(
+export const KnowledgeTool = Tool.define<typeof parameters, Metadata, HttpClient.HttpClient>(
   "knowledge",
   Effect.gen(function* () {
-    const websearch = yield* WebSearchTool
-
-    const webTool = yield* Tool.init(websearch)
+    const http = yield* HttpClient.HttpClient
 
     return {
       description: DESCRIPTION,
@@ -146,23 +139,40 @@ export const KnowledgeTool = Tool.define<
       execute: (params: Params, ctx: Tool.Context<Metadata>) =>
         Effect.gen(function* () {
           const workspace = Instance.directory
-          const slug = yield* Effect.promise(() => Operation.activeSlug(workspace).catch(() => undefined))
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
+          const persist = params.persist ?? false
           if (params.source === "web" && !params.intent) {
-            const result = yield* webTool.execute(
-              {
+            yield* ctx.ask({
+              permission: "websearch",
+              patterns: [params.query],
+              always: ["*"],
+              metadata: {
                 query: params.query,
                 numResults: params.numResults,
                 livecrawl: params.livecrawl,
                 type: params.type,
                 contextMaxCharacters: params.contextMaxCharacters,
               },
-              ctx as any,
-            )
+            })
+            const raw = yield* McpExa.call(
+              http,
+              "web_search_exa",
+              McpExa.SearchArgs,
+              {
+                query: params.query,
+                type: params.type || "auto",
+                numResults: params.numResults || 8,
+                livecrawl: params.livecrawl || "fallback",
+                contextMaxCharacters: params.contextMaxCharacters,
+              },
+              "25 seconds",
+            ).pipe(Effect.orDie)
+            const output = raw ?? "No search results found. Please try a different query."
             const evidence =
-              !slug
+              !slug || !persist
                 ? undefined
                 : yield* Effect.promise(() =>
-                    Evidence.put(workspace, slug, result.output, {
+                    Evidence.put(workspace, slug, output, {
                       mime: "text/plain",
                       ext: "txt",
                       label: `knowledge web ${params.query}`,
@@ -170,46 +180,52 @@ export const KnowledgeTool = Tool.define<
                     }),
                   )
             const evidenceRefs = evidence ? [evidence.sha256] : undefined
-            const eventID = yield* Cyber.appendLedger({
-              operation_slug: slug,
-              kind: "fact.observed",
-              source: "knowledge",
-              summary: `web knowledge query ${params.query}`,
-              session_id: ctx.sessionID,
-              message_id: ctx.messageID,
-              evidence_refs: evidenceRefs,
-              data: {
-                query: params.query,
-                num_results: params.numResults ?? null,
-                livecrawl: params.livecrawl ?? "fallback",
-                type: params.type ?? "auto",
-              },
-            }).pipe(Effect.catch(() => Effect.succeed("")))
-            yield* Cyber.upsertFact({
-              operation_slug: slug,
-              entity_kind: "knowledge_query",
-              entity_key: `web:${params.query}`,
-              fact_name: "web_result",
-              value_json: {
-                query: params.query,
-                output: result.output,
-                num_results: params.numResults ?? null,
-                livecrawl: params.livecrawl ?? "fallback",
-                type: params.type ?? "auto",
-              },
-              writer_kind: "tool",
-              status: "observed",
-              confidence: 700,
-              source_event_id: eventID || undefined,
-              evidence_refs: evidenceRefs,
-            }).pipe(Effect.catch(() => Effect.succeed("")))
+            if (persist) {
+              const eventID = yield* Cyber.appendLedger({
+                operation_slug: slug,
+                kind: "fact.observed",
+                source: "knowledge",
+                summary: `web knowledge query ${params.query}`,
+                session_id: ctx.sessionID,
+                message_id: ctx.messageID,
+                evidence_refs: evidenceRefs,
+                data: {
+                  query: params.query,
+                  num_results: params.numResults ?? null,
+                  livecrawl: params.livecrawl ?? "fallback",
+                  type: params.type ?? "auto",
+                },
+              }).pipe(Effect.catch(() => Effect.succeed("")))
+              yield* Cyber.upsertFact({
+                operation_slug: slug,
+                entity_kind: "knowledge_query",
+                entity_key: `web:${params.query}`,
+                fact_name: "web_result",
+                value_json: {
+                  query: params.query,
+                  output,
+                  num_results: params.numResults ?? null,
+                  livecrawl: params.livecrawl ?? "fallback",
+                  type: params.type ?? "auto",
+                },
+                writer_kind: "tool",
+                status: raw ? "observed" : "stale",
+                confidence: raw ? 700 : 300,
+                source_event_id: eventID || undefined,
+                evidence_refs: evidenceRefs,
+              }).pipe(Effect.catch(() => Effect.succeed("")))
+            }
             return {
-              ...result,
+              title: `Web search: ${params.query}`,
+              output,
               metadata: {
-                ...result.metadata,
                 surface: "knowledge",
                 delegated_to: "websearch",
                 source: "web",
+                persist,
+                side_effects: persist
+                  ? Tool.sideEffects("network", "writes_ledger", "writes_evidence", "writes_facts")
+                  : Tool.sideEffects("read_only", "network"),
               } satisfies Metadata,
             }
           }
@@ -237,20 +253,22 @@ export const KnowledgeTool = Tool.define<
             limit: params.limit,
           })
           const result = yield* Effect.promise(() => KnowledgeBroker.query(request, workspaceKnowledgeCache(workspace)))
-          yield* persistKnowledgeResult({
-            workspace,
-            operation_slug: slug,
-            result,
-            session_id: ctx.sessionID,
-            message_id: ctx.messageID,
-            source: "knowledge",
-            fact_name: params.source === "cve" && !params.intent ? "cve_result" : "result",
-            legacy_query_key: params.source === "cve" && !params.intent ? `cve:${params.query}` : undefined,
-          })
+          if (persist) {
+            yield* persistKnowledgeResult({
+              workspace,
+              operation_slug: slug,
+              result,
+              session_id: ctx.sessionID,
+              message_id: ctx.messageID,
+              source: "knowledge",
+              fact_name: params.source === "cve" && !params.intent ? "cve_result" : "result",
+              legacy_query_key: params.source === "cve" && !params.intent ? `cve:${params.query}` : undefined,
+            })
+          }
 
           return {
             title: `${result.request.intent}: ${result.cards.length} card${result.cards.length === 1 ? "" : "s"} for "${result.request.query}"`,
-            output: brokerOutput(result),
+            output: brokerOutput(result, persist),
             metadata: {
               surface: "knowledge",
               delegated_to: "broker",
@@ -261,9 +279,15 @@ export const KnowledgeTool = Tool.define<
               cards: result.cards.length,
               degraded: result.degraded,
               available: !result.degraded,
+              persist,
               ...vulnStateCounts(result),
               kev_checked: result.sources.some((item) => item.name.includes("cisa.gov")),
               epss_checked: result.sources.some((item) => item.name.includes("api.first.org")),
+              side_effects: persist
+                ? Tool.sideEffects("network", "writes_ledger", "writes_evidence", "writes_facts")
+                : result.request.mode === "offline"
+                  ? Tool.sideEffects("read_only")
+                  : Tool.sideEffects("read_only", "network"),
             } satisfies Metadata,
           }
         }),

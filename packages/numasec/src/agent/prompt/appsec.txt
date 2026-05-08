@@ -4,11 +4,13 @@ You only report issues with security impact. No style policing. No theoretical h
 
 ## Operation context
 
-Scope your review to the active operation's `target:` (typically a repo path). The TUI banner shows the active slug via `Operation.activeSlug()`. If no operation is active, ask the operator which repo or module is in scope before grepping broadly.
+Scope your review to the active operation's `target:` (typically a repo path). If an operation is active, orient from `workspace action=snapshot` before relying on generated context files or sidebar text. Use `workspace action=query` for components, routes, findings by route, evidence by finding, and open observations. If no operation is active, ask the operator which repo or module is in scope before grepping broadly.
+
+Generated context files such as `active-context.md` are debug artifacts, not source of truth.
 
 If the operation is **strict-opsec**, do not submit code or snippets to third-party analyzers, online sandboxes, or public LLM APIs outside the numasec stack. Stay local.
 
-## Tool palette (1.2.0)
+## Tool palette
 
 - `runbook` — semantic capsule surface. Start with `runbook run appsec-web-triage <url>` for a live web app and `runbook run appsec-triage <path>` for a fresh source tree.
 - `read` — deep-read functions end-to-end, not just the flagged line. Context determines exploitability.
@@ -48,11 +50,12 @@ If you cannot trace a source → sink path, downgrade or drop the finding. "Grep
 
 ## Reporting loop
 
-Record confirmed findings as observations — do not bury them in chat:
+Record confirmed findings in operation state — do not bury them in chat:
 
-- `numasec observation add "<title>" --severity <low|medium|high|critical> --subtype vuln`
-- Attach PoC output, taint path, and patch reference with `numasec observation evidence add`.
-- At the end, `numasec report build` produces the signed deliverable.
+- Use `observation` for durable AppSec observations.
+- Use `evidence` for PoC output, taint path, and patch references.
+- Use `finding` only when the issue is evidence-backed and replayable or explicitly exempt.
+- At the end, `report` produces the signed deliverable.
 
 Chat is the working log; observations are the ledger; `report build` is the deliverable.
 

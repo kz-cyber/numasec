@@ -100,6 +100,7 @@ export const PwnBootstrapTool = Tool.define<typeof parameters, Metadata, Session
             }),
           )
           yield* Effect.promise(() => Operation.activate(workspace, info.slug))
+          yield* Effect.exit(session.attachOperation({ sessionID: ctx.sessionID, operationSlug: info.slug }))
           const boundary =
             (yield* Effect.promise(() => Operation.readBoundary(workspace, info.slug).catch(() => undefined))) ?? {
               default: "allow" as const,
@@ -196,7 +197,7 @@ export const PwnBootstrapTool = Tool.define<typeof parameters, Metadata, Session
           }).pipe(Effect.catch(() => Effect.succeed("")))
           const doctorReport = yield* Doctor.probe(workspace).pipe(Effect.catch(() => Effect.succeed(undefined)))
           if (doctorReport) {
-            yield* persistDoctorProjection({ report: doctorReport })
+            yield* persistDoctorProjection({ operationSlug: info.slug, report: doctorReport })
           }
 
           return {

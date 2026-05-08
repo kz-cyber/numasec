@@ -54,7 +54,7 @@ export const KIND_AGENT: Record<Kind, AgentID> = {
   research: "security",
 }
 
-export const KINDS: ReadonlyArray<Kind> = [
+export const KINDS = [
   "pentest",
   "appsec",
   "osint",
@@ -62,7 +62,7 @@ export const KINDS: ReadonlyArray<Kind> = [
   "bughunt",
   "ctf",
   "research",
-] as const
+] as const satisfies ReadonlyArray<Kind>
 
 export function defaultAgentFor(kind: Kind): AgentID {
   return KIND_AGENT[kind]
@@ -795,6 +795,16 @@ export async function attachSession(workspace: string, slug: string, sessionID: 
     "utf8",
   )
   await touch(workspace, slug)
+}
+
+export async function findSessionOperation(workspace: string, sessionID: string): Promise<string | undefined> {
+  await ensureMigrated(workspace)
+  const operations = await list(workspace)
+  for (const operation of operations) {
+    const attachment = path.join(sessionDir(workspace, operation.slug), `${sessionID}.json`)
+    if (existsSync(attachment)) return operation.slug
+  }
+  return undefined
 }
 
 export async function writeWorkflow(

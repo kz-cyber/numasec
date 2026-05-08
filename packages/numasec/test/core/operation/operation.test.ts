@@ -4,6 +4,8 @@ import { existsSync } from "fs"
 import { tmpdir } from "os"
 import path from "path"
 import { Operation } from "@/core/operation"
+import * as OperationSnapshot from "@/core/operation/snapshot"
+import { Evidence } from "@/core/evidence"
 
 describe("Operation v3 core", () => {
   let ws: string
@@ -428,5 +430,106 @@ describe("Operation v3 core", () => {
     expect(projectedState?.opsec).toBe("strict")
     expect(projectedScope?.default).toBe("ask")
     expect(projectedScope?.in_scope).toEqual(["target.test"])
+  })
+
+  it("builds a read-only snapshot and renders context from projected operation state", async () => {
+    const info = await Operation.create({ workspace: ws, label: "Snapshot Context", kind: "appsec" })
+    const cyberDir = path.join(ws, ".numasec", "operation", info.slug, "cyber")
+    const factsFile = path.join(cyberDir, "facts.jsonl")
+    const ledgerFile = path.join(cyberDir, "ledger.jsonl")
+    const evidence = await Evidence.put(ws, info.slug, "snapshot proof", {
+      mime: "text/plain",
+      ext: "txt",
+      label: "snapshot proof",
+      source: "test",
+    })
+    const now = Date.now()
+    const previousFacts = await Bun.file(factsFile).text()
+    await Bun.write(
+      factsFile,
+      previousFacts +
+        [
+          JSON.stringify({
+            id: "fact_snapshot_finding",
+            entity_kind: "finding",
+            entity_key: "app:xss",
+            fact_name: "record",
+            status: "verified",
+            writer_kind: "operator",
+            confidence: 1000,
+            evidence_refs: [evidence.sha256],
+            time_created: now,
+            time_updated: now,
+            value_json: {
+              title: "Verified XSS",
+              summary: "stored proof",
+              severity: "high",
+              replay_present: true,
+            },
+          }),
+          JSON.stringify({
+            id: "fact_snapshot_observation",
+            entity_kind: "observation",
+            entity_key: "obs_xss",
+            fact_name: "record",
+            status: "observed",
+            writer_kind: "tool",
+            confidence: 900,
+            time_created: now,
+            time_updated: now,
+            value_json: {
+              title: "Open XSS observation",
+              status: "open",
+              severity: "high",
+              evidence: [evidence.sha256],
+            },
+          }),
+          JSON.stringify({
+            id: "fact_snapshot_deliverable",
+            entity_kind: "deliverable",
+            entity_key: "bundle-snapshot",
+            fact_name: "report_bundle",
+            status: "verified",
+            writer_kind: "tool",
+            confidence: 1000,
+            time_created: now,
+            time_updated: now,
+            value_json: {
+              report_path: "/tmp/snapshot-context-report.md",
+              counts: { reportable_findings: 1 },
+            },
+          }),
+          "",
+        ].join("\n"),
+    )
+    const beforeFacts = await Bun.file(factsFile).text()
+    const beforeLedger = await Bun.file(ledgerFile).text()
+    const beforeEvidence = await Bun.file(path.join(ws, ".numasec", "operation", info.slug, "evidence", "manifest.jsonl")).text()
+
+    const snapshot = await OperationSnapshot.build(ws, { slug: info.slug, includeDoctor: false })
+    const rendered = OperationSnapshot.renderContext(snapshot)
+    const renderedForWrite = OperationSnapshot.renderContext(snapshot, { mode: "write_context" })
+
+    expect(snapshot.findings.reportable).toHaveLength(1)
+    expect(snapshot.observations).toHaveLength(1)
+    expect(snapshot.deliverables.count).toBe(1)
+    expect(snapshot.source_latest?.at).toBeGreaterThan(0)
+    expect(snapshot.source_evidence_latest?.id).toBe(evidence.sha256)
+    expect(typeof snapshot.projection_lag_ms).toBe("number")
+    expect(rendered).toContain("generated_at:")
+    expect(rendered).toContain("source_fact_latest:")
+    expect(rendered).toContain("source_evidence_latest:")
+    expect(rendered).toContain("stale_context:")
+    expect(rendered).toContain("stale_capability_readiness:")
+    expect(rendered).toContain("Verified XSS")
+    expect(rendered).toContain("Open XSS observation")
+    expect(rendered).toContain("/tmp/snapshot-context-report.md")
+    expect(renderedForWrite).toContain("stale_context: false")
+    expect(renderedForWrite).toContain("context_file_stale: false")
+    expect(renderedForWrite).not.toContain("active-context.md is older")
+    expect(renderedForWrite).not.toContain("Regenerate active-context.md")
+    expect(await Bun.file(factsFile).text()).toBe(beforeFacts)
+    expect(await Bun.file(ledgerFile).text()).toBe(beforeLedger)
+    expect(await Bun.file(path.join(ws, ".numasec", "operation", info.slug, "evidence", "manifest.jsonl")).text()).toBe(beforeEvidence)
   })
 })

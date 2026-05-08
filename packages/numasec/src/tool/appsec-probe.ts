@@ -8,7 +8,6 @@ import type { Fact } from "@/core/cyber/cyber"
 import { Evidence } from "@/core/evidence"
 import { autoEnrichKnowledge } from "@/core/knowledge"
 import { Observation } from "@/core/observation"
-import { Operation } from "@/core/operation"
 import { Instance } from "@/project/instance"
 
 const MAX_BODY = 64_000
@@ -644,8 +643,10 @@ export const AppsecProbeTool = Tool.define<typeof parameters, Metadata, never>(
           const origin = target.origin
           const checks = uniqueChecks(params.checks)
           const timeout = Math.min(params.timeout ?? DEFAULT_TIMEOUT, MAX_TIMEOUT)
+          const workspace = Instance.directory
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
           const scope = yield* Effect.tryPromise({
-            try: () => Guard.checkUrl(Instance.directory, origin),
+            try: () => Guard.checkUrl(workspace, origin, slug),
             catch: (e) => (e instanceof ScopeDeniedError ? e : new Error(String(e))),
           })
           yield* ctx.ask({
@@ -661,8 +662,6 @@ export const AppsecProbeTool = Tool.define<typeof parameters, Metadata, never>(
             },
           })
 
-          const workspace = Instance.directory
-          const slug = yield* Effect.promise(() => Operation.activeSlug(workspace).catch(() => undefined))
           const surface = slug ? yield* Effect.promise(() => observedSurface(workspace, slug, target)) : { routes: [], forms: [] }
           const probePlanDraft = buildProbePlan(origin, surface.routes, surface.forms)
           const probePlan = probePlanDraft.plan.filter((item) => checks.includes(item.check))

@@ -7,13 +7,13 @@ import { InstanceState } from "@/effect"
 import { Flag } from "@/flag/flag"
 import { AppFileSystem } from "@numasec/shared/filesystem"
 import { withTransientReadRetry } from "@/util/effect-http-client"
-import { Operation } from "@/core/operation"
-import { Cyber } from "@/core/cyber"
+import * as OperationResolver from "@/core/operation/resolver"
+import * as OperationSnapshot from "@/core/operation/snapshot"
 import { Global } from "../global"
 import { Instance } from "../project/instance"
 import { Log } from "../util"
 import type { MessageV2 } from "./message-v2"
-import type { MessageID } from "./schema"
+import type { MessageID, SessionID } from "./schema"
 
 const log = Log.create({ service: "instruction" })
 
@@ -54,26 +54,11 @@ function extract(messages: MessageV2.WithParts[]) {
   return paths
 }
 
-function formatBoundary(parsed?: { default?: string; in_scope?: string[]; out_of_scope?: string[] }) {
-  if (!parsed) return undefined
-  const inScope = parsed.in_scope ?? []
-  const outOfScope = parsed.out_of_scope ?? []
-  const lines = ["## Scope"]
-  if (inScope.length === 0 && outOfScope.length === 0) {
-    lines.push(`- default: ${parsed.default ?? "allow"}`)
-    return lines.join("\n")
-  }
-  lines.push(`- default: ${parsed.default ?? "ask"}`)
-  if (inScope.length > 0) lines.push(...inScope.map((item) => `- in: ${item}`))
-  if (outOfScope.length > 0) lines.push(...outOfScope.map((item) => `- out: ${item}`))
-  return lines.join("\n")
-}
-
 export namespace Instruction {
   export interface Interface {
     readonly clear: (messageID: MessageID) => Effect.Effect<void>
     readonly systemPaths: () => Effect.Effect<Set<string>, AppFileSystem.Error>
-    readonly system: () => Effect.Effect<string[], AppFileSystem.Error>
+    readonly system: (sessionID?: SessionID | string) => Effect.Effect<string[], AppFileSystem.Error>
     readonly find: (dir: string) => Effect.Effect<string | undefined, AppFileSystem.Error>
     readonly resolve: (
       messages: MessageV2.WithParts[],
@@ -191,58 +176,30 @@ export namespace Instruction {
           return paths
         })
 
-        const system = Effect.fn("Instruction.system")(function* () {
+        const system = Effect.fn("Instruction.system")(function* (sessionID?: SessionID | string) {
           const config = yield* cfg.get()
           const paths = yield* systemPaths()
           const urls = (config.instructions ?? []).filter(
             (item) => item.startsWith("https://") || item.startsWith("http://"),
           )
-          const active = yield* Effect.tryPromise({
-            try: () => Operation.active(Instance.directory),
-            catch: () => undefined,
-          }).pipe(Effect.catch(() => Effect.succeed(undefined)))
-          const boundary =
-            !active
+          const operation: OperationResolver.OperationResolution = yield* Effect.tryPromise({
+            try: () => OperationResolver.resolveOperation({ workspace: Instance.directory, sessionID }),
+            catch: () => ({ source: "none" as const }),
+          }).pipe(Effect.catch(() => Effect.succeed({ source: "none" as const })))
+          const snapshot =
+            !operation.slug
               ? undefined
               : yield* Effect.tryPromise({
-                  try: () => Operation.readBoundary(Instance.directory, active.slug),
+                  try: () => OperationSnapshot.build(Instance.directory, { slug: operation.slug, includeDoctor: false }),
                   catch: () => undefined,
                 }).pipe(Effect.catch(() => Effect.succeed(undefined)))
-          const operationBlock =
-            !active
-              ? undefined
-              : [
-                  "Active operation",
-                  `slug: ${active.slug}`,
-                  `label: ${active.label}`,
-                  `kind: ${active.kind}`,
-                  ...(active.target ? [`target: ${active.target}`] : []),
-                  `opsec: ${active.opsec}`,
-                  "",
-                  formatBoundary(boundary),
-                ]
-                  .filter(Boolean)
-                  .join("\n")
-          const contextPack = yield* Cyber.contextPack().pipe(Effect.catch(() => Effect.succeed(undefined)))
-          if (active && (operationBlock || contextPack)) {
-            const derived = [
-              "# Active Operation Context",
-              "",
-              ...(operationBlock ? [operationBlock, ""] : []),
-              ...(contextPack ? [`Active cyber context\n${contextPack}`] : []),
-            ].join("\n")
-            yield* Effect.tryPromise({
-              try: () => Operation.writeContextPack(Instance.directory, active.slug, derived),
-              catch: () => undefined,
-            }).pipe(Effect.catch(() => Effect.succeed(undefined)))
-          }
+          const contextPack = snapshot ? OperationSnapshot.renderContext(snapshot) : undefined
 
           const files = yield* Effect.forEach(Array.from(paths), read, { concurrency: 8 })
           const remote = yield* Effect.forEach(urls, fetch, { concurrency: 4 })
 
           return [
-            ...(operationBlock ? [operationBlock] : []),
-            ...(contextPack ? [`Active cyber context\n${contextPack}`] : []),
+            ...(contextPack ? [contextPack] : []),
             ...Array.from(paths).flatMap((item, i) => (files[i] ? [`Instructions from: ${item}\n${files[i]}`] : [])),
             ...urls.flatMap((item, i) => (remote[i] ? [`Instructions from: ${item}\n${remote[i]}`] : [])),
           ]

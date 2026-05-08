@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { APICallError } from "ai"
 import { MessageV2 } from "../../src/session/message-v2"
-import type { Provider } from "../../src/provider"
+import { ProviderError, type Provider } from "../../src/provider"
 import { ModelID, ProviderID } from "../../src/provider/schema"
 import { SessionID, MessageID, PartID } from "../../src/session/schema"
 import { Question } from "../../src/question"
@@ -990,6 +990,45 @@ describe("session.message-v2.fromError", () => {
         message: "123",
       },
     })
+  })
+
+  test("preserves provider stream timeout errors", () => {
+    const result = MessageV2.fromError(
+      new ProviderError.ProviderSilentTimeoutError({
+        providerID,
+        modelID: model.id,
+        timeoutMs: 25,
+        elapsedMs: 26,
+        message: "Model stream produced no semantic output within 25ms",
+      }),
+      { providerID, modelID: model.id },
+    )
+
+    expect(result).toMatchObject({
+      name: "ProviderSilentTimeoutError",
+      data: {
+        providerID,
+        modelID: model.id,
+        timeoutMs: 25,
+      },
+    })
+  })
+
+  test("does not invent a timeout duration for DOM TimeoutError", () => {
+    const result = MessageV2.fromError(new DOMException("runtime timeout", "TimeoutError"), {
+      providerID,
+      modelID: model.id,
+    })
+
+    expect(result).toMatchObject({
+      name: "ProviderTimeoutError",
+      data: {
+        providerID,
+        modelID: model.id,
+        message: "runtime timeout",
+      },
+    })
+    expect("timeoutMs" in result.data).toBe(false)
   })
 
   test("serializes tagged errors with their message", () => {

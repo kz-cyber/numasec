@@ -58,7 +58,7 @@ export namespace SessionRunState {
             data.runners.delete(sessionID)
             yield* status.set(sessionID, { type: "idle" })
           }),
-          onBusy: status.set(sessionID, { type: "busy" }),
+          onBusy: status.set(sessionID, { type: "busy", phase: "preparing", startedAt: Date.now() }),
           onInterrupt,
           busy: () => {
             throw new Session.BusyError(sessionID)
@@ -81,7 +81,8 @@ export namespace SessionRunState {
           yield* status.set(sessionID, { type: "idle" })
           return
         }
-        yield* existing.cancel
+        yield* status.set(sessionID, { type: "aborting", startedAt: Date.now() })
+        yield* existing.cancel.pipe(Effect.ensuring(status.set(sessionID, { type: "idle" })))
       })
 
       const ensureRunning = Effect.fn("SessionRunState.ensureRunning")(function* (

@@ -1,10 +1,10 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@numasec/sdk",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "SDK for the numasec AI agent harness for AppSec and pentest operations",
   "type": "module",
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
     "url": "https://github.com/FrancescoStabile/numasec"

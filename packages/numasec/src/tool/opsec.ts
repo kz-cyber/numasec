@@ -43,7 +43,8 @@ export const OpsecTool = Tool.define<typeof parameters, Metadata, never>(
       execute: (params: Params, ctx: Tool.Context<Metadata>) =>
         Effect.gen(function* () {
           const workspace = Instance.directory
-          const active = yield* Effect.promise(() => Operation.active(workspace).catch(() => undefined))
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
+          const active = slug ? yield* Effect.promise(() => Operation.read(workspace, slug).catch(() => undefined)) : undefined
 
           if (params.action === "set") {
             if (!params.level) {

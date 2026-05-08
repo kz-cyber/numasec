@@ -4,7 +4,6 @@ import * as Tool from "./tool"
 import DESCRIPTION from "./cve.txt"
 import { KnowledgeBroker, persistKnowledgeResult, workspaceKnowledgeCache } from "@/core/knowledge"
 import type { KnowledgeResult } from "@/core/knowledge"
-import { Operation } from "@/core/operation"
 import { Instance } from "@/project/instance"
 
 const parameters = z.object({
@@ -54,7 +53,7 @@ export const CVETool = Tool.define<typeof parameters, Metadata, never>(
           })
 
           const workspace = Instance.directory
-          const slug = yield* Effect.promise(() => Operation.activeSlug(workspace).catch(() => undefined))
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
           const request = KnowledgeBroker.normalize({
             source: "cve",
             query: params.query,

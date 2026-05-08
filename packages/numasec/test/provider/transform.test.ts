@@ -488,6 +488,40 @@ describe("ProviderTransform.providerOptions", () => {
       groq: { reasoningFormat: "parsed" },
     })
   })
+
+  test("uses OpenRouter namespace for DeepSeek thinking options", () => {
+    const model = createModel({
+      id: "openrouter/deepseek/deepseek-v4-flash",
+      providerID: "openrouter",
+      api: {
+        id: "deepseek/deepseek-v4-flash",
+        url: "https://openrouter.ai",
+        npm: "@openrouter/ai-sdk-provider",
+      },
+    })
+
+    expect(ProviderTransform.providerOptions(model, { reasoning: { effort: "xhigh" } })).toEqual({
+      openrouter: { reasoning: { effort: "xhigh" } },
+    })
+  })
+
+  test("uses generic and provider-specific namespaces for openai-compatible passthrough options", () => {
+    const model = createModel({
+      id: "deepseek-v4-test/deepseek-v4-pro",
+      providerID: "deepseek-v4-test",
+      api: {
+        id: "deepseek-v4-pro",
+        url: "https://api.deepseek.com",
+        npm: "@ai-sdk/openai-compatible",
+      },
+    })
+
+    const options = { thinking: { type: "enabled" }, reasoningEffort: "high" }
+    expect(ProviderTransform.providerOptions(model, options)).toEqual({
+      openaiCompatible: options,
+      "deepseek-v4-test": options,
+    })
+  })
 })
 
 describe("ProviderTransform.schema - gemini array items", () => {
@@ -2224,7 +2258,7 @@ describe("ProviderTransform.variants", () => {
     expect(result).toEqual({})
   })
 
-  test("deepseek returns empty object", () => {
+  test("deepseek legacy chat returns empty object", () => {
     const model = createMockModel({
       id: "deepseek/deepseek-chat",
       providerID: "deepseek",
@@ -2236,6 +2270,55 @@ describe("ProviderTransform.variants", () => {
     })
     const result = ProviderTransform.variants(model)
     expect(result).toEqual({})
+  })
+
+  test("deepseek reasoner legacy remains without fake effort variants", () => {
+    const model = createMockModel({
+      id: "deepseek/deepseek-reasoner",
+      providerID: "deepseek",
+      api: {
+        id: "deepseek-reasoner",
+        url: "https://api.deepseek.com",
+        npm: "@ai-sdk/openai-compatible",
+      },
+    })
+    const result = ProviderTransform.variants(model)
+    expect(result).toEqual({})
+  })
+
+  test("deepseek v3 remains without fake effort variants", () => {
+    const model = createMockModel({
+      id: "deepseek/deepseek-v3.2-thinking",
+      providerID: "deepseek",
+      api: {
+        id: "deepseek-v3.2-thinking",
+        url: "https://api.deepseek.com",
+        npm: "@ai-sdk/openai-compatible",
+      },
+    })
+    const result = ProviderTransform.variants(model)
+    expect(result).toEqual({})
+  })
+
+  test("deepseek v4 direct returns high and max thinking variants only", () => {
+    const model = createMockModel({
+      id: "deepseek/deepseek-v4-flash",
+      providerID: "deepseek",
+      name: "DeepSeek V4 Flash",
+      api: {
+        id: "deepseek-v4-flash",
+        url: "https://api.deepseek.com",
+        npm: "@ai-sdk/openai-compatible",
+      },
+    })
+    const result = ProviderTransform.variants(model)
+    expect(Object.keys(result)).toEqual(["high", "max"])
+    expect(result.low).toBeUndefined()
+    expect(result.medium).toBeUndefined()
+    expect(result.high).toEqual({ thinking: { type: "enabled" }, reasoningEffort: "high" })
+    expect(result.max).toEqual({ thinking: { type: "enabled" }, reasoningEffort: "max" })
+    expect(ProviderTransform.variantDescription(model, "high")).toBe("DeepSeek thinking effort")
+    expect(ProviderTransform.variantDescription(model, "max")).toBe("DeepSeek max thinking")
   })
 
   test("minimax returns empty object", () => {
@@ -2353,6 +2436,25 @@ describe("ProviderTransform.variants", () => {
       expect(Object.keys(result)).toEqual(["low", "high"])
       expect(result.low).toEqual({ reasoning: { effort: "low" } })
       expect(result.high).toEqual({ reasoning: { effort: "high" } })
+    })
+
+    test("deepseek v4 returns high and max with OpenRouter reasoning effort shape", () => {
+      const model = createMockModel({
+        id: "openrouter/deepseek/deepseek-v4-pro",
+        providerID: "openrouter",
+        name: "DeepSeek V4 Pro",
+        api: {
+          id: "deepseek/deepseek-v4-pro",
+          url: "https://openrouter.ai",
+          npm: "@openrouter/ai-sdk-provider",
+        },
+      })
+      const result = ProviderTransform.variants(model)
+      expect(Object.keys(result)).toEqual(["high", "max"])
+      expect(result.high).toEqual({ reasoning: { effort: "high" } })
+      expect(result.max).toEqual({ reasoning: { effort: "xhigh" } })
+      expect(result.max.reasoningEffort).toBeUndefined()
+      expect(ProviderTransform.variantDescription(model, "max")).toBe("OpenRouter xhigh mapped from DeepSeek max")
     })
   })
 

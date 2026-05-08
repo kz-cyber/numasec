@@ -3,7 +3,6 @@ import z from "zod"
 import * as Tool from "./tool"
 import DESCRIPTION from "./observation.txt"
 import { Observation } from "@/core/observation"
-import { Operation } from "@/core/operation"
 import { Instance } from "@/project/instance"
 
 const parameters = z.object({
@@ -38,20 +37,16 @@ function formatObservation(item: Observation.Observation) {
     .join("\n")
 }
 
-async function readActiveSlug(workspace: string) {
-  return Operation.activeSlug(workspace).catch(() => undefined)
-}
-
 export const ObservationTool = Tool.define<typeof parameters, Metadata, never>(
   "observation",
   Effect.gen(function* () {
     return {
       description: DESCRIPTION,
       parameters,
-      execute: (params: Params) =>
+      execute: (params: Params, ctx: Tool.Context) =>
         Effect.gen(function* () {
           const workspace = Instance.directory
-          const slug = yield* Effect.promise(() => readActiveSlug(workspace))
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
           if (!slug) {
             return {
               title: "observation · no active operation",

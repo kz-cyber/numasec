@@ -1407,7 +1407,7 @@ At the end of planning, after questions are resolved and the plan file is comple
           const session = yield* sessions.get(sessionID)
 
           while (true) {
-            yield* status.set(sessionID, { type: "busy" })
+            yield* status.set(sessionID, { type: "busy", phase: "preparing", startedAt: Date.now() })
             yield* slog.info("loop", { step })
 
             let msgs = yield* MessageV2.filterCompactedEffect(sessionID)
@@ -1571,7 +1571,7 @@ At the end of planning, after questions are resolved and the plan file is comple
               const [skills, env, instructions, modelMsgs] = yield* Effect.all([
                 sys.skills(agent),
                 Effect.sync(() => sys.environment(model)),
-                instruction.system().pipe(Effect.orDie),
+                instruction.system(sessionID).pipe(Effect.orDie),
                 MessageV2.toModelMessagesEffect(msgs, model),
               ])
               const system = [...env, ...(skills ? [skills] : []), ...instructions]

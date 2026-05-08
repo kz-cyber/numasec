@@ -16,6 +16,7 @@ import { SessionRetry } from "./retry"
 import { SessionStatus } from "./status"
 import { SessionSummary } from "./summary"
 import type { Provider } from "@/provider"
+import * as ProviderError from "@/provider/error"
 import { Question } from "@/question"
 import { errorMessage } from "@/util/error"
 import { Log } from "@/util"
@@ -24,6 +25,8 @@ import { isRecord } from "@/util/record"
 export namespace SessionProcessor {
   const DOOM_LOOP_THRESHOLD = 3
   const log = Log.create({ service: "session.processor" })
+  const STANDARD_SEMANTIC_TIMEOUT = { initial: 90_000, idle: 120_000 }
+  const REASONING_SEMANTIC_TIMEOUT = { initial: 180_000, idle: 180_000 }
 
   export type Result = "compact" | "stop" | "continue"
 
@@ -124,13 +127,45 @@ export namespace SessionProcessor {
           reasoningMap: {},
         }
         let aborted = false
+        let runStartedAt = Date.now()
+        let firstSemanticAt: number | undefined
+        let lastSemanticAt = runStartedAt
+        let lastEventType: string | undefined
         const slog = log.clone().tag("sessionID", input.sessionID).tag("messageID", input.assistantMessage.id)
 
         const parse = (e: unknown) =>
           MessageV2.fromError(e, {
             providerID: input.model.providerID,
+            modelID: input.model.id,
             aborted,
           })
+
+        const setBusy = Effect.fn("SessionProcessor.setBusy")(function* (
+          phase: NonNullable<Extract<SessionStatus.Info, { type: "busy" }>["phase"]>,
+          detail?: string,
+        ) {
+          yield* status.set(ctx.sessionID, {
+            type: "busy",
+            phase,
+            providerID: ctx.model.providerID,
+            modelID: ctx.model.id,
+            variant: ctx.assistantMessage.variant,
+            startedAt: runStartedAt,
+            lastEventAt: Date.now(),
+            firstSemanticAt,
+            detail,
+          })
+        })
+
+        const markSemantic = Effect.fn("SessionProcessor.markSemantic")(function* (
+          phase: NonNullable<Extract<SessionStatus.Info, { type: "busy" }>["phase"]>,
+          detail?: string,
+        ) {
+          const now = Date.now()
+          firstSemanticAt = firstSemanticAt ?? now
+          lastSemanticAt = now
+          yield* setBusy(phase, detail)
+        })
 
         const settleToolCall = Effect.fn("SessionProcessor.settleToolCall")(function* (toolCallID: string) {
           const done = ctx.toolcalls[toolCallID]?.done
@@ -215,9 +250,10 @@ export namespace SessionProcessor {
         })
 
         const handleEvent = Effect.fn("SessionProcessor.handleEvent")(function* (value: StreamEvent) {
+          lastEventType = value.type
           switch (value.type) {
             case "start":
-              yield* status.set(ctx.sessionID, { type: "busy" })
+              yield* setBusy("waiting_for_model")
               return
 
             case "reasoning-start":
@@ -236,6 +272,7 @@ export namespace SessionProcessor {
 
             case "reasoning-delta":
               if (!(value.id in ctx.reasoningMap)) return
+              yield* markSemantic("streaming", "reasoning")
               ctx.reasoningMap[value.id].text += value.text
               if (value.providerMetadata) ctx.reasoningMap[value.id].metadata = value.providerMetadata
               yield* session.updatePartDelta({
@@ -289,6 +326,7 @@ export namespace SessionProcessor {
               if (ctx.assistantMessage.summary) {
                 throw new Error(`Tool call not allowed while generating summary: ${value.toolName}`)
               }
+              yield* markSemantic("tool", value.toolName)
               yield* updateToolCall(value.toolCallId, (match) => ({
                 ...match,
                 tool: value.toolName,
@@ -332,6 +370,7 @@ export namespace SessionProcessor {
             }
 
             case "tool-result": {
+              yield* markSemantic("tool")
               yield* completeToolCall(value.toolCallId, value.output)
               return
             }
@@ -356,6 +395,7 @@ export namespace SessionProcessor {
               return
 
             case "finish-step": {
+              yield* markSemantic("finalizing")
               const usage = Session.getUsage({
                 model: ctx.model,
                 usage: value.usage,
@@ -419,6 +459,7 @@ export namespace SessionProcessor {
 
             case "text-delta":
               if (!ctx.currentText) return
+              yield* markSemantic("streaming", "text")
               ctx.currentText.text += value.text
               if (value.providerMetadata) ctx.currentText.metadata = value.providerMetadata
               yield* session.updatePartDelta({
@@ -462,63 +503,66 @@ export namespace SessionProcessor {
         })
 
         const cleanup = Effect.fn("SessionProcessor.cleanup")(function* () {
-          if (ctx.snapshot) {
-            const patch = yield* snapshot.patch(ctx.snapshot)
-            if (patch.files.length) {
+          yield* setBusy("finalizing").pipe(Effect.ignore)
+          yield* Effect.gen(function* () {
+            if (ctx.snapshot) {
+              const patch = yield* snapshot.patch(ctx.snapshot)
+              if (patch.files.length) {
+                yield* session.updatePart({
+                  id: PartID.ascending(),
+                  messageID: ctx.assistantMessage.id,
+                  sessionID: ctx.sessionID,
+                  type: "patch",
+                  hash: patch.hash,
+                  files: patch.files,
+                })
+              }
+              ctx.snapshot = undefined
+            }
+
+            if (ctx.currentText) {
+              const end = Date.now()
+              ctx.currentText.time = { start: ctx.currentText.time?.start ?? end, end }
+              yield* session.updatePart(ctx.currentText)
+              ctx.currentText = undefined
+            }
+
+            for (const part of Object.values(ctx.reasoningMap)) {
+              const end = Date.now()
               yield* session.updatePart({
-                id: PartID.ascending(),
-                messageID: ctx.assistantMessage.id,
-                sessionID: ctx.sessionID,
-                type: "patch",
-                hash: patch.hash,
-                files: patch.files,
+                ...part,
+                time: { start: part.time.start ?? end, end },
               })
             }
-            ctx.snapshot = undefined
-          }
+            ctx.reasoningMap = {}
 
-          if (ctx.currentText) {
-            const end = Date.now()
-            ctx.currentText.time = { start: ctx.currentText.time?.start ?? end, end }
-            yield* session.updatePart(ctx.currentText)
-            ctx.currentText = undefined
-          }
+            yield* Effect.forEach(
+              Object.values(ctx.toolcalls),
+              (call) => Deferred.await(call.done).pipe(Effect.timeout("250 millis"), Effect.ignore),
+              { concurrency: "unbounded" },
+            )
 
-          for (const part of Object.values(ctx.reasoningMap)) {
-            const end = Date.now()
-            yield* session.updatePart({
-              ...part,
-              time: { start: part.time.start ?? end, end },
-            })
-          }
-          ctx.reasoningMap = {}
-
-          yield* Effect.forEach(
-            Object.values(ctx.toolcalls),
-            (call) => Deferred.await(call.done).pipe(Effect.timeout("250 millis"), Effect.ignore),
-            { concurrency: "unbounded" },
-          )
-
-          for (const toolCallID of Object.keys(ctx.toolcalls)) {
-            const match = yield* readToolCall(toolCallID)
-            if (!match) continue
-            const part = match.part
-            const end = Date.now()
-            const metadata = "metadata" in part.state && isRecord(part.state.metadata) ? part.state.metadata : {}
-            yield* session.updatePart({
-              ...part,
-              state: {
-                ...part.state,
-                status: "error",
-                error: "Tool execution aborted",
-                metadata: { ...metadata, interrupted: true },
-                time: { start: "time" in part.state ? part.state.time.start : end, end },
-              },
-            })
-          }
-          ctx.toolcalls = {}
-          ctx.assistantMessage.time.completed = Date.now()
-          yield* session.updateMessage(ctx.assistantMessage)
+            for (const toolCallID of Object.keys(ctx.toolcalls)) {
+              const match = yield* readToolCall(toolCallID)
+              if (!match) continue
+              const part = match.part
+              const end = Date.now()
+              const metadata = "metadata" in part.state && isRecord(part.state.metadata) ? part.state.metadata : {}
+              yield* session.updatePart({
+                ...part,
+                state: {
+                  ...part.state,
+                  status: "error",
+                  error: "Tool execution aborted",
+                  metadata: { ...metadata, interrupted: true },
+                  time: { start: "time" in part.state ? part.state.time.start : end, end },
+                },
+              })
+            }
+            ctx.toolcalls = {}
+            ctx.assistantMessage.time.completed = Date.now()
+            yield* session.updateMessage(ctx.assistantMessage)
+          }).pipe(Effect.ensuring(status.set(ctx.sessionID, { type: "idle" })))
         })
 
         const halt = Effect.fn("SessionProcessor.halt")(function* (e: unknown) {
@@ -537,22 +581,78 @@ export namespace SessionProcessor {
           yield* status.set(ctx.sessionID, { type: "idle" })
         })
 
+        const resolveSemanticTimeout = Effect.fn("SessionProcessor.resolveSemanticTimeout")(function* (
+          streamInput: LLM.StreamInput,
+        ) {
+          const cfg = yield* config.get()
+          const raw = cfg.provider?.[streamInput.model.providerID]?.options?.semanticTimeout
+          if (raw === false) return false
+          const heavyReasoning =
+            streamInput.model.providerID.includes("openrouter") ||
+            streamInput.model.capabilities.reasoning ||
+            ["high", "max", "xhigh"].includes(streamInput.user.model.variant ?? "")
+          const defaults = heavyReasoning ? REASONING_SEMANTIC_TIMEOUT : STANDARD_SEMANTIC_TIMEOUT
+          if (!raw || typeof raw !== "object") return defaults
+          return {
+            initial: typeof raw.initial === "number" && raw.initial > 0 ? raw.initial : defaults.initial,
+            idle: typeof raw.idle === "number" && raw.idle > 0 ? raw.idle : defaults.idle,
+          }
+        })
+
+        const semanticWatchdog = Effect.fn("SessionProcessor.semanticWatchdog")(function* (
+          streamInput: LLM.StreamInput,
+        ) {
+          const timeout = yield* resolveSemanticTimeout(streamInput)
+          if (timeout === false) return yield* Effect.never
+          while (true) {
+            const idle = firstSemanticAt !== undefined
+            const timeoutMs = idle ? timeout.idle : timeout.initial
+            const base = idle ? lastSemanticAt : runStartedAt
+            const sleepMs = Math.max(1, base + timeoutMs - Date.now())
+            yield* Effect.sleep(`${sleepMs} millis`)
+            const elapsedMs = Date.now() - base
+            if (elapsedMs < timeoutMs) continue
+            const payload = {
+              providerID: streamInput.model.providerID,
+              modelID: streamInput.model.id,
+              variant: streamInput.user.model.variant,
+              timeoutMs,
+              elapsedMs,
+              lastEventType,
+              message: idle
+                ? `Model stream produced no semantic output for ${timeoutMs}ms`
+                : `Model stream produced no semantic output within ${timeoutMs}ms`,
+            }
+            return yield* Effect.fail(
+              idle
+                ? new ProviderError.ProviderIdleTimeoutError(payload)
+                : new ProviderError.ProviderSilentTimeoutError(payload),
+            )
+          }
+        })
+
         const process = Effect.fn("SessionProcessor.process")(function* (streamInput: LLM.StreamInput) {
           slog.info("process")
           ctx.needsCompaction = false
           ctx.shouldBreak = (yield* config.get()).experimental?.continue_loop_on_deny !== true
+          runStartedAt = Date.now()
+          firstSemanticAt = undefined
+          lastSemanticAt = runStartedAt
+          lastEventType = undefined
 
           return yield* Effect.gen(function* () {
             yield* Effect.gen(function* () {
               ctx.currentText = undefined
               ctx.reasoningMap = {}
+              yield* setBusy("connecting")
               const stream = llm.stream(streamInput)
 
-              yield* stream.pipe(
+              const drain = stream.pipe(
                 Stream.tap((event) => handleEvent(event)),
                 Stream.takeUntil(() => ctx.needsCompaction),
                 Stream.runDrain,
               )
+              yield* Effect.raceFirst(drain, semanticWatchdog(streamInput))
             }).pipe(
               Effect.onInterrupt(() =>
                 Effect.gen(function* () {

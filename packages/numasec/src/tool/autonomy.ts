@@ -88,7 +88,8 @@ export const AutonomyTool = Tool.define<typeof parameters, Metadata, Session.Ser
           })
 
           const workspace = Instance.directory
-          const active = yield* Effect.promise(() => Operation.active(workspace).catch(() => undefined))
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
+          const active = slug ? yield* Effect.promise(() => Operation.read(workspace, slug).catch(() => undefined)) : undefined
           if (active) {
             const eventID = yield* Cyber.appendLedger({
               operation_slug: active.slug,

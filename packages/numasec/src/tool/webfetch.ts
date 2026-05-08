@@ -7,7 +7,6 @@ import DESCRIPTION from "./webfetch.txt"
 import { Guard, ScopeDeniedError } from "@/core/boundary"
 import { Cyber } from "@/core/cyber"
 import { Evidence } from "@/core/evidence"
-import { Operation } from "@/core/operation"
 import { Instance } from "@/project/instance"
 
 const MAX_RESPONSE_SIZE = 5 * 1024 * 1024 // 5MB
@@ -38,8 +37,10 @@ export const WebFetchTool = Tool.define(
             throw new Error("URL must start with http:// or https://")
           }
 
+          const workspace = Instance.directory
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
           const scope = yield* Effect.tryPromise({
-            try: () => Guard.checkUrl(Instance.directory, params.url),
+            try: () => Guard.checkUrl(workspace, params.url, slug),
             catch: (e) => (e instanceof ScopeDeniedError ? e : new Error(String(e))),
           })
 
@@ -116,8 +117,6 @@ export const WebFetchTool = Tool.define(
           const contentType = response.headers["content-type"] || ""
           const mime = contentType.split(";")[0]?.trim().toLowerCase() || ""
           const title = `${params.url} (${contentType})`
-          const workspace = Instance.directory
-          const slug = yield* Effect.promise(() => Operation.activeSlug(workspace).catch(() => undefined))
           const hostKey = new URL(params.url).hostname
 
           // Check if response is an image

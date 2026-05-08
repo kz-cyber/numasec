@@ -27,8 +27,6 @@ When you work here, optimize for that product shape.
 
 ## Product Direction
 
-Build toward the PRD in `packages/numasec/FINAL_NUMASEC_PRD.md`.
-
 Core thesis:
 
 - numasec is a cyber operator harness, not an authz scanner.

@@ -217,7 +217,7 @@ export function Session() {
     }
     snapshotInflight = true
     try {
-      const next = await loadOperationConsoleSnapshot(sync.path.directory)
+      const next = await loadOperationConsoleSnapshot(sync.path.directory, { sessionID: route.sessionID })
       stableOperationSnapshot = stabilizeOperationConsoleSnapshot(stableOperationSnapshot, next)
       return stableOperationSnapshot
     } finally {
@@ -1359,7 +1359,7 @@ export function Session() {
         }}
       >
         <box flexDirection="column" flexGrow={1}>
-          <OperationBanner />
+          <OperationBanner sessionID={route.sessionID} />
           <box flexDirection="row" flexGrow={1}>
             <box flexDirection="column" flexGrow={1} paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1}>
               <Show when={session()}>

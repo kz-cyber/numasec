@@ -7,11 +7,25 @@ import * as Truncate from "./truncate"
 import { Agent } from "@/agent/agent"
 import { Cyber } from "@/core/cyber"
 import { Operation } from "@/core/operation"
+import * as OperationResolver from "@/core/operation/resolver"
+import * as OperationSnapshot from "@/core/operation/snapshot"
 import { Instance } from "@/project/instance"
 
 interface Metadata {
   [key: string]: any
 }
+
+export const SIDE_EFFECT_CATEGORIES = [
+  "read_only",
+  "writes_ledger",
+  "writes_facts",
+  "writes_evidence",
+  "network",
+  "mutates_target",
+  "mutates_workspace",
+] as const
+
+export type SideEffectCategory = (typeof SIDE_EFFECT_CATEGORIES)[number]
 
 // TODO: remove this hack
 export type DynamicDescription = (agent: Agent.Info) => Effect.Effect<string>
@@ -22,6 +36,7 @@ export type Context<M extends Metadata = Metadata> = {
   agent: string
   abort: AbortSignal
   callID?: string
+  operation?: OperationResolver.OperationResolution
   extra?: { [key: string]: any }
   messages: MessageV2.WithParts[]
   metadata(input: { title?: string; metadata?: M }): Effect.Effect<void>
@@ -68,44 +83,113 @@ export type InferDef<T> =
       ? Def<P, M>
       : never
 
-function formatBoundary(parsed?: { default?: string; in_scope?: string[]; out_of_scope?: string[] }) {
-  if (!parsed) return undefined
-  const inScope = parsed.in_scope ?? []
-  const outOfScope = parsed.out_of_scope ?? []
-  const lines = ["## Scope"]
-  if (inScope.length === 0 && outOfScope.length === 0) {
-    lines.push(`- default: ${parsed.default ?? "allow"}`)
-    return lines.join("\n")
-  }
-  lines.push(`- default: ${parsed.default ?? "ask"}`)
-  if (inScope.length > 0) lines.push(...inScope.map((item) => `- in: ${item}`))
-  if (outOfScope.length > 0) lines.push(...outOfScope.map((item) => `- out: ${item}`))
-  return lines.join("\n")
+export function sideEffects(...categories: SideEffectCategory[]) {
+  return categories
 }
 
-function refreshDerivedContext(workspace: string) {
-  return Effect.gen(function* () {
-    const active = yield* Effect.promise(() => Operation.active(workspace).catch(() => undefined))
-    if (!active) return
-    const boundary = yield* Effect.promise(() => Operation.readBoundary(workspace, active.slug).catch(() => undefined))
-    const operationBlock = [
-      "Active operation",
-      `slug: ${active.slug}`,
-      `label: ${active.label}`,
-      `kind: ${active.kind}`,
-      ...(active.target ? [`target: ${active.target}`] : []),
-      `opsec: ${active.opsec}`,
-      "",
-      formatBoundary(boundary),
-    ]
-      .filter(Boolean)
-      .join("\n")
-    const contextPack = yield* Cyber.contextPack({ operation_slug: active.slug }).pipe(
-      Effect.catch(() => Effect.succeed(undefined)),
+export function resolveOperationSlug(ctx: Context, workspace: string, explicitSlug?: string) {
+  if (explicitSlug) return Effect.succeed(explicitSlug)
+  if (ctx.operation?.slug) return Effect.succeed(ctx.operation.slug)
+  return Effect.promise(() =>
+    OperationResolver.resolveOperation({
+      workspace,
+      sessionID: ctx.sessionID,
+      allowWorkspaceDefault: true,
+    }).then((operation) => operation.slug),
+  )
+}
+
+function normalizedSideEffects(metadata: Metadata) {
+  const effects = Array.isArray(metadata.side_effects) ? metadata.side_effects.map(String) : []
+  return effects
+}
+
+function sideEffectContract<M extends Metadata>(
+  metadata: M,
+  input: {
+    auditLogged: boolean
+    contextWritten: boolean
+    workflowProgressWritten: boolean
+  },
+) {
+  const effects = normalizedSideEffects(metadata)
+  const domainWrites = effects.filter((effect) => !["read_only", "network", "writes_ledger"].includes(effect))
+  return {
+    ...metadata,
+    side_effects: effects,
+    audit_logged: input.auditLogged,
+    domain_writes: domainWrites,
+    context_written: input.contextWritten,
+    evidence_written: effects.includes("writes_evidence"),
+    facts_written: effects.includes("writes_facts"),
+    workflow_progress_written: input.workflowProgressWritten,
+  } as M
+}
+
+function isReadOnlyResult(metadata: Metadata) {
+  const effects = normalizedSideEffects(metadata)
+  return (
+    effects.includes("read_only") &&
+    !effects.some((item) =>
+      ["writes_facts", "writes_evidence", "mutates_target", "mutates_workspace"].includes(item),
     )
-    const derived = ["# Active Operation Context", "", operationBlock, contextPack].filter(Boolean).join("\n\n")
-    yield* Effect.promise(() => Operation.writeContextPack(workspace, active.slug, derived)).pipe(
-      Effect.catch(() => Effect.void),
+  )
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
+  return Object.fromEntries(Object.entries(value))
+}
+
+function asRecordArray(value: unknown): Array<Record<string, unknown>> | undefined {
+  if (!Array.isArray(value)) return undefined
+  const items = value.map(asRecord)
+  if (!items.every((item): item is Record<string, unknown> => Boolean(item))) return undefined
+  return items
+}
+
+function formatUnknownError(error: unknown) {
+  if (error instanceof Error) return error.message
+  if (typeof error === "string") return error
+  try {
+    return JSON.stringify(error)
+  } catch {
+    return "unknown error"
+  }
+}
+
+function isOrientationToolCall(id: string, args: unknown) {
+  const parsed = z.record(z.string(), z.unknown()).safeParse(args)
+  const action = parsed.success && typeof parsed.data["action"] === "string" ? parsed.data["action"] : undefined
+  if (id === "workspace") {
+    return ["status", "list", "snapshot", "capabilities", "query", "graph_digest", "timeline"].includes(action ?? "status")
+  }
+  if (id === "report") return (action ?? "status") === "status"
+  if (id === "share") return (action ?? "status") === "status"
+  if (id === "evidence") return ["list", "search", "get"].includes(action ?? "list")
+  if (id === "runbook") return (action ?? "list") === "list"
+  return false
+}
+
+function explicitOperationSlug(args: unknown) {
+  const parsed = z.record(z.string(), z.unknown()).safeParse(args)
+  if (!parsed.success) return undefined
+  return typeof parsed.data["slug"] === "string" ? parsed.data["slug"] : undefined
+}
+
+function refreshDerivedContext(workspace: string, slug?: string) {
+  return Effect.gen(function* () {
+    const active = yield* Effect.promise(() =>
+      slug ? Operation.read(workspace, slug).catch(() => undefined) : Operation.active(workspace).catch(() => undefined),
+    )
+    if (!active) return false
+    const snapshot = yield* Effect.promise(() =>
+      OperationSnapshot.build(workspace, { slug: active.slug, includeDoctor: false }).catch(() => undefined),
+    )
+    if (!snapshot) return false
+    const derived = OperationSnapshot.renderContext(snapshot, { mode: "write_context" })
+    return yield* Effect.promise(() => Operation.writeContextPack(workspace, active.slug, derived).then(() => true)).pipe(
+      Effect.catch(() => Effect.succeed(false)),
     )
   })
 }
@@ -137,6 +221,17 @@ function wrap<Parameters extends z.ZodType, Result extends Metadata>(
           ...(ctx.callID ? { "tool.call_id": ctx.callID } : {}),
         }
         return Effect.gen(function* () {
+          const instance = currentInstance()
+          const operation: OperationResolver.OperationResolution = instance
+            ? yield* Effect.promise(() =>
+                OperationResolver.resolveOperation({
+                  workspace: instance.directory,
+                  sessionID: ctx.sessionID,
+                  explicitSlug: explicitOperationSlug(args),
+                }),
+              ).pipe(Effect.catch(() => Effect.succeed({ source: "none" as const })))
+            : { source: "none" as const }
+          const toolCtx = { ...ctx, operation }
           yield* Effect.try({
             try: () => toolInfo.parameters.parse(args),
             catch: (error) => {
@@ -144,12 +239,13 @@ function wrap<Parameters extends z.ZodType, Result extends Metadata>(
                 return new Error(toolInfo.formatValidationError(error), { cause: error })
               }
               return new Error(
-                `The ${id} tool was called with invalid arguments: ${error}.\nPlease rewrite the input so it satisfies the expected schema.`,
+                `The ${id} tool was called with invalid arguments: ${formatUnknownError(error)}.\nPlease rewrite the input so it satisfies the expected schema.`,
                 { cause: error },
               )
             },
           })
           const callEvent = yield* Cyber.appendLedger({
+              operation_slug: operation.slug,
               kind: "tool.called",
               source: id,
               session_id: ctx.sessionID,
@@ -162,9 +258,10 @@ function wrap<Parameters extends z.ZodType, Result extends Metadata>(
               },
             })
             .pipe(Effect.catch(() => Effect.succeed("")))
-          const exit = yield* Effect.exit(execute(args, ctx))
+          const exit = yield* Effect.exit(execute(args, toolCtx))
           if (Exit.isFailure(exit)) {
             yield* Cyber.appendLedger({
+                operation_slug: operation.slug,
                 kind: "tool.error",
                 source: id,
                 session_id: ctx.sessionID,
@@ -178,10 +275,9 @@ function wrap<Parameters extends z.ZodType, Result extends Metadata>(
                 },
               })
               .pipe(Effect.catch(() => Effect.void))
-	            const instance = currentInstance()
-	            if (workflowAware && instance) {
+	            if (workflowAware && instance && !isOrientationToolCall(id, args)) {
 	              const workspace = instance.directory
-	              const slug = yield* Effect.promise(() => Operation.activeSlug(workspace).catch(() => undefined))
+	              const slug = operation.slug
               if (slug) {
                 const match = yield* Effect.promise(() =>
                   Operation.recordWorkflowStep(workspace, slug, {
@@ -198,16 +294,19 @@ function wrap<Parameters extends z.ZodType, Result extends Metadata>(
                       id: match.id,
                     }).catch(() => undefined),
                   ).pipe(Effect.catch(() => Effect.succeed(undefined)))
-                  if (workflow && Array.isArray(workflow["trace"]) && Array.isArray(workflow["skipped"])) {
+                  const workflowRecord = asRecord(workflow)
+                  const trace = asRecordArray(workflowRecord?.trace)
+                  const skipped = asRecordArray(workflowRecord?.skipped)
+                  if (workflowRecord && trace && skipped) {
                     yield* Cyber.syncWorkflowProgress({
                       operation_slug: slug,
                       workflow_kind: match.kind,
                       workflow_id: match.id,
-                      trace: workflow["trace"] as Array<Record<string, unknown>>,
-                      skipped: workflow["skipped"] as Array<Record<string, unknown>>,
-                      completed_steps: Number(workflow["completed_steps"] ?? 0),
-                      failed_steps: Number(workflow["failed_steps"] ?? 0),
-                      pending_steps: Number(workflow["pending_steps"] ?? 0),
+                      trace,
+                      skipped,
+                      completed_steps: Number(workflowRecord.completed_steps ?? 0),
+                      failed_steps: Number(workflowRecord.failed_steps ?? 0),
+                      pending_steps: Number(workflowRecord.pending_steps ?? 0),
                       session_id: ctx.sessionID,
                       message_id: ctx.messageID,
                       source: "workflow",
@@ -231,14 +330,19 @@ function wrap<Parameters extends z.ZodType, Result extends Metadata>(
 	                  }).pipe(Effect.catch(() => Effect.succeed("")))
 	                }
 	                if (id !== "report") {
-	                  yield* refreshDerivedContext(workspace).pipe(Effect.catch(() => Effect.void))
+	                  yield* refreshDerivedContext(workspace, slug).pipe(Effect.catch(() => Effect.void))
 	                }
 	              }
 	            }
 	            return yield* Effect.failCause(exit.cause)
           }
           const result = exit.value
+          const readOnlyResult = isReadOnlyResult(result.metadata)
+          const workflowProgressEligible = workflowAware && !isOrientationToolCall(id, args)
+          let workflowProgressWritten = false
+          let contextWritten = false
           yield* Cyber.appendLedger({
+              operation_slug: operation.slug,
               kind: "tool.completed",
               source: id,
               session_id: ctx.sessionID,
@@ -250,14 +354,13 @@ function wrap<Parameters extends z.ZodType, Result extends Metadata>(
                 call_id: ctx.callID,
                 source_event_id: callEvent,
                 title: result.title,
-                metadata: result.metadata,
+                metadata: { ...result.metadata, operation },
               },
             })
             .pipe(Effect.catch(() => Effect.succeed("")))
-	          const instance = currentInstance()
-	          if (workflowAware && instance) {
+	          if (workflowProgressEligible && instance) {
 	            const workspace = instance.directory
-	            const slug = yield* Effect.promise(() => Operation.activeSlug(workspace).catch(() => undefined))
+	            const slug = operation.slug
             if (slug) {
               const match = yield* Effect.promise(() =>
                 Operation.recordWorkflowStep(workspace, slug, {
@@ -274,16 +377,19 @@ function wrap<Parameters extends z.ZodType, Result extends Metadata>(
                     id: match.id,
                   }).catch(() => undefined),
                 ).pipe(Effect.catch(() => Effect.succeed(undefined)))
-                if (workflow && Array.isArray(workflow["trace"]) && Array.isArray(workflow["skipped"])) {
+                const workflowRecord = asRecord(workflow)
+                const trace = asRecordArray(workflowRecord?.trace)
+                const skipped = asRecordArray(workflowRecord?.skipped)
+                if (workflowRecord && trace && skipped) {
                   yield* Cyber.syncWorkflowProgress({
                     operation_slug: slug,
                     workflow_kind: match.kind,
                     workflow_id: match.id,
-                    trace: workflow["trace"] as Array<Record<string, unknown>>,
-                    skipped: workflow["skipped"] as Array<Record<string, unknown>>,
-                    completed_steps: Number(workflow["completed_steps"] ?? 0),
-                    failed_steps: Number(workflow["failed_steps"] ?? 0),
-                    pending_steps: Number(workflow["pending_steps"] ?? 0),
+                    trace,
+                    skipped,
+                    completed_steps: Number(workflowRecord.completed_steps ?? 0),
+                    failed_steps: Number(workflowRecord.failed_steps ?? 0),
+                    pending_steps: Number(workflowRecord.pending_steps ?? 0),
                     session_id: ctx.sessionID,
                     message_id: ctx.messageID,
                     source: "workflow",
@@ -305,22 +411,34 @@ function wrap<Parameters extends z.ZodType, Result extends Metadata>(
                     tool: id,
                   },
 	                }).pipe(Effect.catch(() => Effect.succeed("")))
+                  workflowProgressWritten = true
 	              }
-	              if (id !== "report") {
-	                yield* refreshDerivedContext(workspace).pipe(Effect.catch(() => Effect.void))
+	              if (id !== "report" && (match || !readOnlyResult)) {
+	                contextWritten = yield* refreshDerivedContext(workspace, slug).pipe(Effect.catch(() => Effect.succeed(false)))
 	              }
 	            }
 	          }
-          if (result.metadata.truncated !== undefined) {
-            return result
+          const finalResult = {
+            ...result,
+            metadata: sideEffectContract(result.metadata, {
+              auditLogged: Boolean(callEvent),
+              contextWritten,
+              workflowProgressWritten,
+            }),
+          }
+          const finalMetadata = finalResult.metadata as Record<string, unknown>
+          finalMetadata.operation_slug = operation.slug
+          finalMetadata.operation_source = operation.source
+          if (finalResult.metadata.truncated !== undefined) {
+            return finalResult
           }
           const agent = yield* agents.get(ctx.agent)
-          const truncated = yield* truncate.output(result.output, {}, agent)
+          const truncated = yield* truncate.output(finalResult.output, {}, agent)
           return {
-            ...result,
+            ...finalResult,
             output: truncated.content,
             metadata: {
-              ...result.metadata,
+              ...finalResult.metadata,
               truncated: truncated.truncated,
               ...(truncated.truncated && { outputPath: truncated.outputPath }),
             },

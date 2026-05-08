@@ -6,7 +6,6 @@ import { runProcess } from "./process"
 import { Cyber } from "@/core/cyber"
 import { Evidence } from "@/core/evidence"
 import { autoEnrichKnowledge } from "@/core/knowledge"
-import { Operation } from "@/core/operation"
 import { Instance } from "@/project/instance"
 
 const parameters = z.object({
@@ -182,7 +181,7 @@ export const ContainerSurfaceTool = Tool.define<typeof parameters, Metadata, nev
             } satisfies Metadata,
           }
           const workspace = Instance.directory
-          const slug = yield* Effect.promise(() => Operation.activeSlug(workspace).catch(() => undefined))
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
           const evidence =
             !slug
               ? undefined
@@ -197,6 +196,7 @@ export const ContainerSurfaceTool = Tool.define<typeof parameters, Metadata, nev
           const evidenceRefs = evidence ? [evidence.sha256] : undefined
           const summary = summarize(toolResult.output)
           const eventID = yield* Cyber.appendLedger({
+            operation_slug: slug,
             kind: "fact.observed",
             source: "container_surface",
             summary: `container surface ${params.image}`,
@@ -214,6 +214,7 @@ export const ContainerSurfaceTool = Tool.define<typeof parameters, Metadata, nev
             },
           }).pipe(Effect.catch(() => Effect.succeed("")))
           yield* Cyber.upsertFact({
+            operation_slug: slug,
             entity_kind: "container_image",
             entity_key: params.image,
             fact_name: "trivy_summary",
@@ -230,6 +231,7 @@ export const ContainerSurfaceTool = Tool.define<typeof parameters, Metadata, nev
             if (!findingID) continue
             const entityKey = `${params.image}:${findingID}`
             yield* Cyber.upsertFact({
+              operation_slug: slug,
               entity_kind: "finding_candidate",
               entity_key: entityKey,
               fact_name: item.kind === "secret" ? "container_secret" : "container_vulnerability",
@@ -241,6 +243,7 @@ export const ContainerSurfaceTool = Tool.define<typeof parameters, Metadata, nev
               evidence_refs: evidenceRefs,
             }).pipe(Effect.catch(() => Effect.succeed("")))
             yield* Cyber.upsertRelation({
+              operation_slug: slug,
               src_kind: "container_image",
               src_key: params.image,
               relation: "has_candidate",

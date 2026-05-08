@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import path from "path"
+import { stat } from "fs/promises"
 import { Effect } from "effect"
 import { ModelID, ProviderID } from "../../src/provider/schema"
 import { Instruction } from "../../src/session/instruction"
@@ -300,9 +301,12 @@ describe("Instruction.system", () => {
               expect(rules.some((item) => item.includes(`slug: ${op.slug}`))).toBe(true)
               expect(rules.some((item) => item.includes("opsec: strict"))).toBe(true)
               expect(rules.some((item) => item.includes("- in: target.test"))).toBe(true)
-              const derived = yield* Effect.promise(() => Operation.readContextPack(projectTmp.path, op.slug))
-              expect(derived).toContain("# Active Operation Context")
-              expect(derived).toContain(`slug: ${op.slug}`)
+              const contextFile = path.join(projectTmp.path, ".numasec", "operation", op.slug, "context", "active-context.md")
+              const before = yield* Effect.promise(() => stat(contextFile))
+              yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 5)))
+              yield* svc.system()
+              const after = yield* Effect.promise(() => stat(contextFile))
+              expect(after.mtimeMs).toBe(before.mtimeMs)
             }),
           ),
         )

@@ -7,7 +7,6 @@ import { buildPassiveAppSecResult } from "../browser/passive-run"
 import { Cyber } from "@/core/cyber"
 import { Evidence } from "@/core/evidence"
 import { Observation } from "@/core/observation"
-import { Operation } from "@/core/operation"
 import { activeIdentity } from "@/core/vault"
 import { Instance } from "@/project/instance"
 
@@ -403,7 +402,7 @@ export function persistBrowserObservation(params: Params, result: Tool.ExecuteRe
           ? result.metadata.currentUrl
           : params.url
     const workspace = Instance.directory
-    const slug = yield* Effect.promise(() => Operation.activeSlug(workspace).catch(() => undefined))
+    const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
     const evidence =
       !slug
         ? undefined
@@ -417,6 +416,7 @@ export function persistBrowserObservation(params: Params, result: Tool.ExecuteRe
           )
     const evidenceRefs = evidence ? [evidence.sha256] : undefined
     const eventID = yield* Cyber.appendLedger({
+      operation_slug: slug,
       kind: "fact.observed",
       source: "browser",
       summary: result.title,
@@ -434,6 +434,7 @@ export function persistBrowserObservation(params: Params, result: Tool.ExecuteRe
 
     const route = routeOf(currentUrl)
     yield* Cyber.upsertFact({
+      operation_slug: slug,
       entity_kind: "host",
       entity_key: route.host,
       fact_name: "browser_seen_url",
@@ -445,6 +446,7 @@ export function persistBrowserObservation(params: Params, result: Tool.ExecuteRe
       evidence_refs: evidenceRefs,
     }).pipe(Effect.catch(() => Effect.succeed("")))
     yield* Cyber.upsertFact({
+      operation_slug: slug,
       entity_kind: "service",
       entity_key: route.service,
       fact_name: "transport",
@@ -456,6 +458,7 @@ export function persistBrowserObservation(params: Params, result: Tool.ExecuteRe
       evidence_refs: evidenceRefs,
     }).pipe(Effect.catch(() => Effect.succeed("")))
     yield* Cyber.upsertFact({
+      operation_slug: slug,
       entity_kind: "http_route",
       entity_key: route.route,
       fact_name: `browser_action:${params.action}`,
@@ -470,6 +473,7 @@ export function persistBrowserObservation(params: Params, result: Tool.ExecuteRe
       evidence_refs: evidenceRefs,
     }).pipe(Effect.catch(() => Effect.succeed("")))
     yield* Cyber.upsertRelation({
+      operation_slug: slug,
       src_kind: "host",
       src_key: route.host,
       relation: "exposes",
@@ -482,6 +486,7 @@ export function persistBrowserObservation(params: Params, result: Tool.ExecuteRe
       evidence_refs: evidenceRefs,
     }).pipe(Effect.catch(() => Effect.succeed("")))
     yield* Cyber.upsertRelation({
+      operation_slug: slug,
       src_kind: "service",
       src_key: route.service,
       relation: "serves",
@@ -495,6 +500,7 @@ export function persistBrowserObservation(params: Params, result: Tool.ExecuteRe
     }).pipe(Effect.catch(() => Effect.succeed("")))
     if (typeof result.metadata?.activeIdentity === "string") {
       yield* Cyber.upsertRelation({
+        operation_slug: slug,
         src_kind: "identity",
         src_key: result.metadata.activeIdentity,
         relation: "used_on",
@@ -514,6 +520,7 @@ export function persistBrowserObservation(params: Params, result: Tool.ExecuteRe
         | undefined
       for (const link of summary?.links ?? []) {
         yield* Cyber.upsertFact({
+          operation_slug: slug,
           entity_kind: "http_route",
           entity_key: link,
           fact_name: "dom_link",
@@ -527,6 +534,7 @@ export function persistBrowserObservation(params: Params, result: Tool.ExecuteRe
       }
       for (const script of summary?.scripts ?? []) {
         yield* Cyber.upsertFact({
+          operation_slug: slug,
           entity_kind: "artifact",
           entity_key: script,
           fact_name: "javascript_resource",
@@ -542,6 +550,7 @@ export function persistBrowserObservation(params: Params, result: Tool.ExecuteRe
         const item = form as { action?: string; method?: string; inputs?: unknown[] }
         if (!item.action || !item.method) continue
         yield* Cyber.upsertFact({
+          operation_slug: slug,
           entity_kind: "http_form",
           entity_key: `${item.method}:${item.action}`,
           fact_name: "shape",
@@ -559,6 +568,7 @@ export function persistBrowserObservation(params: Params, result: Tool.ExecuteRe
       const parsed = summarizePassiveFindings(result.output)
       for (const item of (result.metadata?.request_urls as string[] | undefined) ?? []) {
         yield* Cyber.upsertFact({
+          operation_slug: slug,
           entity_kind: "http_route",
           entity_key: item,
           fact_name: "browser_request",
@@ -572,6 +582,7 @@ export function persistBrowserObservation(params: Params, result: Tool.ExecuteRe
       }
       for (const item of (result.metadata?.form_actions as string[] | undefined) ?? []) {
         yield* Cyber.upsertFact({
+          operation_slug: slug,
           entity_kind: "http_form",
           entity_key: item,
           fact_name: "passive_form_action",
@@ -591,6 +602,7 @@ export function persistBrowserObservation(params: Params, result: Tool.ExecuteRe
       }> | undefined) ?? []) {
         if (!form.action || !form.method) continue
         yield* Cyber.upsertFact({
+          operation_slug: slug,
           entity_kind: "http_form",
           entity_key: `${form.method}:${form.action}:${form.source ?? "form"}`,
           fact_name: "shape",
@@ -609,6 +621,7 @@ export function persistBrowserObservation(params: Params, result: Tool.ExecuteRe
       }
       for (const item of (result.metadata?.script_urls as string[] | undefined) ?? []) {
         yield* Cyber.upsertFact({
+          operation_slug: slug,
           entity_kind: "artifact",
           entity_key: item,
           fact_name: "javascript_resource",
@@ -622,6 +635,7 @@ export function persistBrowserObservation(params: Params, result: Tool.ExecuteRe
       }
       for (const finding of parsed?.findings ?? []) {
         yield* Cyber.upsertFact({
+          operation_slug: slug,
           entity_kind: "finding_candidate",
           entity_key: `${route.host}:${finding.id}`,
           fact_name: "passive_appsec",

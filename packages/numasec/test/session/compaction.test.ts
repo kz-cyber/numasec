@@ -253,6 +253,88 @@ function defer() {
   return { promise, resolve }
 }
 
+function seedPruneSession(input: {
+  dir: string
+  tool: string
+  toolInput?: Record<string, unknown>
+  metadata?: Record<string, unknown>
+}) {
+  return Effect.gen(function* () {
+    const ssn = yield* SessionNs.Service
+    const info = yield* ssn.create({})
+    const first = yield* ssn.updateMessage({
+      id: MessageID.ascending(),
+      role: "user",
+      sessionID: info.id,
+      agent: "security",
+      model: ref,
+      time: { created: Date.now() },
+    })
+    yield* ssn.updatePart({
+      id: PartID.ascending(),
+      messageID: first.id,
+      sessionID: info.id,
+      type: "text",
+      text: "first",
+    })
+    const reply: MessageV2.Assistant = {
+      id: MessageID.ascending(),
+      role: "assistant",
+      sessionID: info.id,
+      mode: "build",
+      agent: "security",
+      path: { cwd: input.dir, root: input.dir },
+      cost: 0,
+      tokens: {
+        output: 0,
+        input: 0,
+        reasoning: 0,
+        cache: { read: 0, write: 0 },
+      },
+      modelID: ref.modelID,
+      providerID: ref.providerID,
+      parentID: first.id,
+      time: { created: Date.now() },
+      finish: "end_turn",
+    }
+    yield* ssn.updateMessage(reply)
+    yield* ssn.updatePart({
+      id: PartID.ascending(),
+      messageID: reply.id,
+      sessionID: info.id,
+      type: "tool",
+      callID: crypto.randomUUID(),
+      tool: input.tool,
+      state: {
+        status: "completed",
+        input: input.toolInput ?? {},
+        output: "x".repeat(200_000),
+        title: "done",
+        metadata: input.metadata ?? {},
+        time: { start: Date.now(), end: Date.now() },
+      },
+    })
+    for (const text of ["second", "third"]) {
+      const msg = yield* ssn.updateMessage({
+        id: MessageID.ascending(),
+        role: "user",
+        sessionID: info.id,
+        agent: "security",
+        model: ref,
+        time: { created: Date.now() },
+      })
+      yield* ssn.updatePart({
+        id: PartID.ascending(),
+        messageID: msg.id,
+        sessionID: info.id,
+        type: "text",
+        text,
+      })
+    }
+    return info.id
+  })
+}
+
 function plugin(ready: ReturnType<typeof defer>) {
   return Layer.mock(Plugin.Service)({
     trigger: <Name extends string, Input, Output>(name: Name, _input: Input, output: Output) => {
@@ -544,7 +626,7 @@ describe("session.compaction.prune", () => {
           sessionID: info.id,
           type: "tool",
           callID: crypto.randomUUID(),
-          tool: "bash",
+          tool: "read",
           state: {
             status: "completed",
             input: {},
@@ -665,6 +747,143 @@ describe("session.compaction.prune", () => {
         yield* compact.prune({ sessionID: info.id })
 
         const msgs = yield* ssn.messages({ sessionID: info.id })
+        const part = msgs.flatMap((msg) => msg.parts).find((part) => part.type === "tool")
+        expect(part?.type).toBe("tool")
+        if (part?.type === "tool" && part.state.status === "completed") {
+          expect(part.state.time.compacted).toBeUndefined()
+        }
+      }),
+    ),
+  )
+
+  it.live(
+    "skips cyber-critical tool output",
+    provideTmpdirInstance((dir) =>
+      Effect.gen(function* () {
+        const compact = yield* SessionCompaction.Service
+        const ssn = yield* SessionNs.Service
+        const info = yield* ssn.create({})
+        const a = yield* ssn.updateMessage({
+          id: MessageID.ascending(),
+          role: "user",
+          sessionID: info.id,
+          agent: "security",
+          model: ref,
+          time: { created: Date.now() },
+        })
+        yield* ssn.updatePart({
+          id: PartID.ascending(),
+          messageID: a.id,
+          sessionID: info.id,
+          type: "text",
+          text: "first",
+        })
+        const b: MessageV2.Assistant = {
+          id: MessageID.ascending(),
+          role: "assistant",
+          sessionID: info.id,
+          mode: "build",
+          agent: "security",
+          path: { cwd: dir, root: dir },
+          cost: 0,
+          tokens: {
+            output: 0,
+            input: 0,
+            reasoning: 0,
+            cache: { read: 0, write: 0 },
+          },
+          modelID: ref.modelID,
+          providerID: ref.providerID,
+          parentID: a.id,
+          time: { created: Date.now() },
+          finish: "end_turn",
+        }
+        yield* ssn.updateMessage(b)
+        yield* ssn.updatePart({
+          id: PartID.ascending(),
+          messageID: b.id,
+          sessionID: info.id,
+          type: "tool",
+          callID: crypto.randomUUID(),
+          tool: "workspace",
+          state: {
+            status: "completed",
+            input: {},
+            output: "x".repeat(200_000),
+            title: "snapshot",
+            metadata: { side_effects: ["read_only"], evidence: 2 },
+            time: { start: Date.now(), end: Date.now() },
+          },
+        })
+        for (const text of ["second", "third"]) {
+          const msg = yield* ssn.updateMessage({
+            id: MessageID.ascending(),
+            role: "user",
+            sessionID: info.id,
+            agent: "security",
+            model: ref,
+            time: { created: Date.now() },
+          })
+          yield* ssn.updatePart({
+            id: PartID.ascending(),
+            messageID: msg.id,
+            sessionID: info.id,
+            type: "text",
+            text,
+          })
+        }
+
+        yield* compact.prune({ sessionID: info.id })
+
+        const msgs = yield* ssn.messages({ sessionID: info.id })
+        const part = msgs.flatMap((msg) => msg.parts).find((part) => part.type === "tool")
+        expect(part?.type).toBe("tool")
+        if (part?.type === "tool" && part.state.status === "completed") {
+          expect(part.state.time.compacted).toBeUndefined()
+        }
+      }),
+    ),
+  )
+
+  it.live(
+    "compacts bash output without provenance",
+    provideTmpdirInstance((dir) =>
+      Effect.gen(function* () {
+        const compact = yield* SessionCompaction.Service
+        const ssn = yield* SessionNs.Service
+        const sessionID = yield* seedPruneSession({
+          dir,
+          tool: "bash",
+          metadata: { exit: 0, description: "large terminal output" },
+        })
+
+        yield* compact.prune({ sessionID })
+
+        const msgs = yield* ssn.messages({ sessionID })
+        const part = msgs.flatMap((msg) => msg.parts).find((part) => part.type === "tool")
+        expect(part?.type).toBe("tool")
+        if (part?.type === "tool" && part.state.status === "completed") {
+          expect(part.state.time.compacted).toBeNumber()
+        }
+      }),
+    ),
+  )
+
+  it.live(
+    "preserves bash output with evidence provenance",
+    provideTmpdirInstance((dir) =>
+      Effect.gen(function* () {
+        const compact = yield* SessionCompaction.Service
+        const ssn = yield* SessionNs.Service
+        const sessionID = yield* seedPruneSession({
+          dir,
+          tool: "bash",
+          metadata: { exit: 0, evidence_refs: ["sha256:proof"] },
+        })
+
+        yield* compact.prune({ sessionID })
+
+        const msgs = yield* ssn.messages({ sessionID })
         const part = msgs.flatMap((msg) => msg.parts).find((part) => part.type === "tool")
         expect(part?.type).toBe("tool")
         if (part?.type === "tool" && part.state.status === "completed") {

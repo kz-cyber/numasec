@@ -3,7 +3,6 @@ import z from "zod"
 import * as Tool from "./tool"
 import DESCRIPTION from "./identity.txt"
 import { Cyber } from "@/core/cyber"
-import { Operation } from "@/core/operation"
 import { Instance } from "@/project/instance"
 import { loadVault, resolveIdentityValue, saveVault } from "@/core/vault"
 
@@ -95,7 +94,9 @@ export const IdentityTool = Tool.define<typeof parameters, Metadata, never>(
             vault.active_identity = null
             vault.active_identity_set_at = null
             yield* Effect.promise(() => saveVault(vault))
+            const slug = yield* Tool.resolveOperationSlug(ctx, Instance.directory)
             const eventID = yield* Cyber.appendLedger({
+              operation_slug: slug,
               kind: "fact.observed",
               source: "identity",
               session_id: ctx.sessionID,
@@ -105,6 +106,7 @@ export const IdentityTool = Tool.define<typeof parameters, Metadata, never>(
             }).pipe(Effect.catch(() => Effect.succeed("")))
             if (previous) {
               yield* Cyber.upsertFact({
+                operation_slug: slug,
                 entity_kind: "identity",
                 entity_key: previous,
                 fact_name: "active",
@@ -141,7 +143,9 @@ export const IdentityTool = Tool.define<typeof parameters, Metadata, never>(
             vault.secrets[params.key] = { value: params.value, updated_at: new Date().toISOString() }
             yield* Effect.promise(() => saveVault(vault))
             const descriptor = summarizeDescriptor(params.value)
+            const slug = yield* Tool.resolveOperationSlug(ctx, Instance.directory)
             const eventID = yield* Cyber.appendLedger({
+              operation_slug: slug,
               kind: "fact.observed",
               source: "identity",
               session_id: ctx.sessionID,
@@ -156,6 +160,7 @@ export const IdentityTool = Tool.define<typeof parameters, Metadata, never>(
               },
             }).pipe(Effect.catch(() => Effect.succeed("")))
             yield* Cyber.upsertFact({
+              operation_slug: slug,
               entity_kind: "identity",
               entity_key: params.key,
               fact_name: "descriptor",
@@ -190,7 +195,9 @@ export const IdentityTool = Tool.define<typeof parameters, Metadata, never>(
           vault.active_identity_set_at = new Date().toISOString()
           yield* Effect.promise(() => saveVault(vault))
           const descriptor = summarizeDescriptor(vault.secrets[params.key]!.value)
+          const slug = yield* Tool.resolveOperationSlug(ctx, Instance.directory)
           const eventID = yield* Cyber.appendLedger({
+            operation_slug: slug,
             kind: "fact.observed",
             source: "identity",
             session_id: ctx.sessionID,
@@ -200,6 +207,7 @@ export const IdentityTool = Tool.define<typeof parameters, Metadata, never>(
           }).pipe(Effect.catch(() => Effect.succeed("")))
           if (previous && previous !== params.key) {
             yield* Cyber.upsertFact({
+              operation_slug: slug,
               entity_kind: "identity",
               entity_key: previous,
               fact_name: "active",
@@ -211,6 +219,7 @@ export const IdentityTool = Tool.define<typeof parameters, Metadata, never>(
             }).pipe(Effect.catch(() => Effect.succeed("")))
           }
           yield* Cyber.upsertFact({
+            operation_slug: slug,
             entity_kind: "identity",
             entity_key: params.key,
             fact_name: "descriptor",
@@ -221,6 +230,7 @@ export const IdentityTool = Tool.define<typeof parameters, Metadata, never>(
             source_event_id: eventID || undefined,
           }).pipe(Effect.catch(() => Effect.succeed("")))
           yield* Cyber.upsertFact({
+            operation_slug: slug,
             entity_kind: "identity",
             entity_key: params.key,
             fact_name: "active",
@@ -230,9 +240,6 @@ export const IdentityTool = Tool.define<typeof parameters, Metadata, never>(
             confidence: 1000,
             source_event_id: eventID || undefined,
           }).pipe(Effect.catch(() => Effect.succeed("")))
-          const slug = yield* Effect.promise(() => Operation.activeSlug(Instance.directory).catch(() => undefined)).pipe(
-            Effect.catch(() => Effect.succeed(undefined)),
-          )
           if (slug) {
             yield* Cyber.upsertRelation({
               operation_slug: slug,

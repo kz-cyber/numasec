@@ -10,6 +10,7 @@ import DESCRIPTION from "./share.txt"
 import { Operation } from "@/core/operation"
 import { Cyber } from "@/core/cyber"
 import { Deliverable } from "@/core/deliverable"
+import * as OperationSnapshot from "@/core/operation/snapshot"
 import { Instance } from "@/project/instance"
 import { redactString } from "@/core/replay/redact"
 import { which } from "@/util/which"
@@ -23,13 +24,18 @@ const parameters = z.object({
 type Params = z.infer<typeof parameters>
 
 type Metadata = {
+  action?: string
   slug?: string
   path?: string
   size?: number
   sha256?: string
-  signed: boolean
-  redacted: boolean
+  signed?: boolean
+  redacted?: boolean
   warning?: string
+  available?: boolean
+  counts?: unknown
+  warnings?: string[]
+  side_effects?: string[]
 }
 
 const REDACT_EXTS = new Set([".md", ".txt", ".json", ".log", ".yml", ".yaml", ".csv"])
@@ -111,6 +117,7 @@ export interface ShareResult {
 
 export async function run(input: {
   workspace: string
+  slug?: string
   redact?: boolean
   sign?: boolean
 }): Promise<ShareResult> {
@@ -118,7 +125,7 @@ export async function run(input: {
   const sign = input.sign ?? false
   const workspace = input.workspace
 
-  const slug = await Operation.activeSlug(workspace)
+  const slug = input.slug ?? (await Operation.activeSlug(workspace))
   if (!slug) throw new Error("no active operation — start one with /pwn first")
 
   const opDir = Operation.opDir(workspace, slug)
@@ -152,7 +159,8 @@ export async function run(input: {
       await copyFile(built.reportPath, path.join(stagingDir, "deliverable-report.md"))
     }
   } catch (e) {
-    deliverableWarning = `deliverable.build failed: ${(e as Error).message}`
+    const message = e instanceof Error ? e.message : typeof e === "string" ? e : "unknown error"
+    deliverableWarning = `deliverable.build failed: ${message}`
   }
 
   if (redact) {
@@ -224,27 +232,43 @@ export const ShareTool = Tool.define<typeof parameters, Metadata, never>(
     return {
       description: DESCRIPTION,
       parameters,
-      execute: (params: Params, ctx: Tool.Context<Metadata>) =>
+      execute: (params: Params, ctx: Tool.Context) =>
         Effect.gen(function* () {
           const workspace = Instance.directory
-          const slug = yield* Effect.promise(() => Operation.activeSlug(workspace))
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
           if (!slug) {
             return {
               title: "share: no active operation",
               output: "No active operation. Start one with /pwn first.",
-              metadata: { signed: false, redacted: params.redact },
+              metadata: { action: params.action, signed: false, redacted: params.redact, side_effects: Tool.sideEffects("read_only") },
             }
           }
           if (params.action === "status") {
-            const facts = yield* Cyber.listFacts({ operation_slug: slug, limit: 200 }).pipe(
-              Effect.catch(() => Effect.succeed([])),
-            )
-            const latest = Cyber.latestShareBundleFromFacts(facts)
+            const snapshot = yield* Effect.promise(() => OperationSnapshot.build(workspace, { slug, includeDoctor: false }))
+            const latest = snapshot.sharing.latest
             if (!latest) {
               return {
                 title: "share · none",
-                output: "No share bundle generated yet.",
-                metadata: { slug, signed: false, redacted: true },
+                output: [
+                  "No share bundle generated yet.",
+                  `Snapshot: ${snapshot.generated_at}`,
+                  `Counts: findings=${snapshot.counts.findings} reportable=${snapshot.counts.reportable_findings} evidence=${snapshot.counts.evidence} relations=${snapshot.counts.relations}`,
+                  ...(snapshot.warnings.length ? ["Warnings:", ...snapshot.warnings.map((item) => `- ${item}`)] : []),
+                ].join("\n"),
+                metadata: {
+                  action: "status",
+                  slug,
+                  available: false,
+                  signed: false,
+                  redacted: true,
+                  counts: snapshot.counts,
+                  warnings: snapshot.warnings,
+                  source_latest: snapshot.source_latest,
+                  source_semantic_latest: snapshot.source_semantic_latest,
+                  source_audit_latest: snapshot.source_audit_latest,
+                  audit_after_context: snapshot.audit_after_context,
+                  side_effects: Tool.sideEffects("read_only"),
+                },
               }
             }
             return {
@@ -259,13 +283,22 @@ export const ShareTool = Tool.define<typeof parameters, Metadata, never>(
                 slug,
               }),
               metadata: {
+                action: "status",
                 slug,
+                available: true,
                 path: latest.path,
                 size: latest.size,
                 sha256: latest.sha256,
                 signed: latest.signed,
                 redacted: latest.redacted,
                 warning: latest.warning,
+                counts: snapshot.counts,
+                warnings: snapshot.warnings,
+                source_latest: snapshot.source_latest,
+                source_semantic_latest: snapshot.source_semantic_latest,
+                source_audit_latest: snapshot.source_audit_latest,
+                audit_after_context: snapshot.audit_after_context,
+                side_effects: Tool.sideEffects("read_only"),
               },
             }
           }
@@ -276,7 +309,7 @@ export const ShareTool = Tool.define<typeof parameters, Metadata, never>(
             metadata: { action: params.action, redact: params.redact, sign: params.sign },
           })
           const result = yield* Effect.promise(() =>
-            run({ workspace, redact: params.redact, sign: params.sign }),
+            run({ workspace, slug, redact: params.redact, sign: params.sign }),
           )
           const shareKey = path.basename(result.path)
           const eventID = yield* Cyber.appendLedger({
@@ -330,6 +363,7 @@ export const ShareTool = Tool.define<typeof parameters, Metadata, never>(
             title: `share · ${path.basename(result.path)}`,
             output: formatOutput(result),
             metadata: {
+              action: "build",
               slug: result.slug,
               path: result.path,
               size: result.size,
@@ -337,6 +371,7 @@ export const ShareTool = Tool.define<typeof parameters, Metadata, never>(
               signed: result.signed,
               redacted: result.redacted,
               warning: result.warning,
+              side_effects: Tool.sideEffects("writes_ledger", "writes_facts", "mutates_workspace"),
             },
           }
         }),
