@@ -418,14 +418,59 @@ export function topK(model: Provider.Model) {
 const WIDELY_SUPPORTED_EFFORTS = ["low", "medium", "high"]
 const OPENAI_EFFORTS = ["none", "minimal", ...WIDELY_SUPPORTED_EFFORTS, "xhigh"]
 
+type VariantModelInfo = {
+  id: string
+  name: string
+  family?: string
+  api: {
+    id: string
+    npm: string
+  }
+}
+
+function modelSearchText(model: VariantModelInfo) {
+  return [model.id, model.api.id, model.name, model.family ?? ""].join(" ").toLowerCase()
+}
+
+function isDeepSeekModel(model: VariantModelInfo) {
+  return /\bdeepseek\b/.test(modelSearchText(model))
+}
+
+function isDeepSeekV4(model: VariantModelInfo) {
+  const text = modelSearchText(model)
+  return /\bdeepseek\b[\s\S]*\bv?4\b/.test(text)
+}
+
+function deepSeekThinkingVariants(model: Provider.Model): Record<string, Record<string, any>> | undefined {
+  if (!isDeepSeekModel(model)) return undefined
+  if (!isDeepSeekV4(model)) return {}
+
+  if (model.api.npm === "@openrouter/ai-sdk-provider") {
+    return {
+      high: { reasoning: { effort: "high" } },
+      max: { reasoning: { effort: "xhigh" } },
+    }
+  }
+
+  if (model.api.npm === "@ai-sdk/openai-compatible") {
+    return {
+      high: { thinking: { type: "enabled" }, reasoningEffort: "high" },
+      max: { thinking: { type: "enabled" }, reasoningEffort: "max" },
+    }
+  }
+
+  return {}
+}
+
 export function variants(model: Provider.Model): Record<string, Record<string, any>> {
   if (!model.capabilities.reasoning) return {}
 
   const id = model.id.toLowerCase()
   const isAnthropicAdaptive = ["opus-4-6", "opus-4.6", "sonnet-4-6", "sonnet-4.6"].some((v) => model.api.id.includes(v))
   const adaptiveEfforts = ["low", "medium", "high", "max"]
+  const deepSeek = deepSeekThinkingVariants(model)
+  if (deepSeek) return deepSeek
   if (
-    id.includes("deepseek") ||
     id.includes("minimax") ||
     id.includes("glm") ||
     id.includes("mistral") ||
@@ -797,6 +842,16 @@ export function variants(model: Provider.Model): Record<string, Record<string, a
   return {}
 }
 
+export function variantDescription(model: VariantModelInfo, variant: string): string | undefined {
+  if (!isDeepSeekV4(model)) return undefined
+  if (variant === "high") return "DeepSeek thinking effort"
+  if (variant === "max") {
+    if (model.api.npm === "@openrouter/ai-sdk-provider") return "OpenRouter xhigh mapped from DeepSeek max"
+    return "DeepSeek max thinking"
+  }
+  return undefined
+}
+
 export function options(input: {
   model: Provider.Model
   sessionID: string
@@ -1007,6 +1062,9 @@ export function providerOptions(model: Provider.Model, options: { [x: string]: a
   // "azure" first. Pass both so model options work on either code path.
   if (model.api.npm === "@ai-sdk/azure") {
     return { openai: options, azure: options }
+  }
+  if (model.api.npm === "@ai-sdk/openai-compatible" && key !== model.providerID) {
+    return { [key]: options, [model.providerID]: options }
   }
   return { [key]: options }
 }

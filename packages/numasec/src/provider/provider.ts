@@ -27,8 +27,11 @@ import { isRecord } from "@/util/record"
 
 import * as ProviderTransform from "./transform"
 import { ModelID, ProviderID } from "./schema"
+import * as ProviderError from "./error"
 
 const log = Log.create({ service: "provider" })
+const DEFAULT_PROVIDER_TIMEOUT_MS = 300_000
+const DEFAULT_PROVIDER_CHUNK_TIMEOUT_MS = 90_000
 
 function shouldUseCopilotResponsesApi(modelID: string): boolean {
   const match = /^gpt-(\d+)/.exec(modelID)
@@ -36,7 +39,12 @@ function shouldUseCopilotResponsesApi(modelID: string): boolean {
   return Number(match[1]) >= 5 && !modelID.startsWith("gpt-5-mini")
 }
 
-function wrapSSE(res: Response, ms: number, ctl: AbortController) {
+function wrapSSE(
+  res: Response,
+  ms: number,
+  ctl: AbortController,
+  input: { providerID: ProviderID; modelID: ModelID },
+) {
   if (typeof ms !== "number" || ms <= 0) return res
   if (!res.body) return res
   if (!res.headers.get("content-type")?.includes("text/event-stream")) return res
@@ -46,7 +54,12 @@ function wrapSSE(res: Response, ms: number, ctl: AbortController) {
     async pull(ctrl) {
       const part = await new Promise<Awaited<ReturnType<typeof reader.read>>>((resolve, reject) => {
         const id = setTimeout(() => {
-          const err = new Error("SSE read timed out")
+          const err = new ProviderError.ProviderChunkTimeoutError({
+            providerID: input.providerID,
+            modelID: input.modelID,
+            timeoutMs: ms,
+            message: `No streamed SSE chunk was received for ${ms}ms`,
+          })
           ctl.abort(err)
           void reader.cancel(err)
           reject(err)
@@ -1391,19 +1404,31 @@ const layer: Layer.Layer<
         if (existing) return existing
 
         const customFetch = options["fetch"]
-        const chunkTimeout = options["chunkTimeout"]
+        const requestTimeout =
+          options["timeout"] === false
+            ? false
+            : typeof options["timeout"] === "number"
+              ? options["timeout"]
+              : DEFAULT_PROVIDER_TIMEOUT_MS
+        const chunkTimeout =
+          options["chunkTimeout"] === false
+            ? false
+            : typeof options["chunkTimeout"] === "number"
+              ? options["chunkTimeout"]
+              : DEFAULT_PROVIDER_CHUNK_TIMEOUT_MS
+        delete options["timeout"]
         delete options["chunkTimeout"]
+        delete options["semanticTimeout"]
 
         options["fetch"] = async (input: any, init?: BunFetchRequestInit) => {
           const fetchFn = customFetch ?? fetch
           const opts = init ?? {}
-          const chunkAbortCtl = typeof chunkTimeout === "number" && chunkTimeout > 0 ? new AbortController() : undefined
+          const chunkAbortCtl = chunkTimeout !== false ? new AbortController() : undefined
           const signals: AbortSignal[] = []
 
           if (opts.signal) signals.push(opts.signal)
           if (chunkAbortCtl) signals.push(chunkAbortCtl.signal)
-          if (options["timeout"] !== undefined && options["timeout"] !== null && options["timeout"] !== false)
-            signals.push(AbortSignal.timeout(options["timeout"]))
+          if (requestTimeout !== false) signals.push(AbortSignal.timeout(requestTimeout))
 
           const combined = signals.length === 0 ? null : signals.length === 1 ? signals[0] : AbortSignal.any(signals)
           if (combined) opts.signal = combined
@@ -1429,8 +1454,11 @@ const layer: Layer.Layer<
             timeout: false,
           })
 
-          if (!chunkAbortCtl) return res
-          return wrapSSE(res, chunkTimeout, chunkAbortCtl)
+          if (chunkTimeout === false || !chunkAbortCtl) return res
+          return wrapSSE(res, chunkTimeout, chunkAbortCtl, {
+            providerID: model.providerID,
+            modelID: model.id,
+          })
         }
 
         const bundledLoader = BUNDLED_PROVIDERS[model.api.npm]

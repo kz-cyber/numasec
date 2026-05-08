@@ -1,10 +1,10 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@numasec/plugin",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Plugin API for the numasec terminal-native cyber operator harness",
   "type": "module",
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
     "url": "https://github.com/FrancescoStabile/numasec"

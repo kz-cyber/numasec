@@ -22,7 +22,7 @@
   <a href="https://www.npmjs.com/package/numasec"><img src="https://img.shields.io/npm/v/numasec?style=for-the-badge&label=npm&logo=npm&logoColor=white&labelColor=0b0f0a&color=cb3837" alt="npm"></a>
   <a href="https://www.npmjs.com/package/numasec"><img src="https://img.shields.io/npm/dm/numasec?style=for-the-badge&color=00c2ff&label=downloads" alt="npm downloads"></a>
   <a href="https://github.com/FrancescoStabile/numasec/stargazers"><img src="https://img.shields.io/github/stars/FrancescoStabile/numasec.svg?style=for-the-badge&label=stars&logo=github&logoColor=white&labelColor=0b0f0a&color=f5a524&cacheSeconds=1800" alt="GitHub stars"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-00c2ff?style=for-the-badge" alt="MIT license"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-00c2ff?style=for-the-badge" alt="AGPL-3.0-or-later license"></a>
 </p>
 
 <p align="center">
@@ -559,7 +559,7 @@ If that feels useful, star the repo, try it on an authorized workflow and tell m
 
 ## License
 
-[MIT](./LICENSE). Use numasec for authorized security work, research, education, and defensive operations.
+[GNU Affero General Public License v3.0 or later](./LICENSE). Use numasec for authorized security work, research, education, and defensive operations.
 
 <p align="center">
   Built by <a href="https://www.linkedin.com/in/francesco-stabile-dev">Francesco Stabile</a>

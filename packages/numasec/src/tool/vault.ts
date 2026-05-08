@@ -4,7 +4,6 @@ import * as Tool from "./tool"
 import DESCRIPTION from "./vault.txt"
 import { Cyber } from "@/core/cyber"
 import { resolveIdentityValue, loadVault, saveVault } from "@/core/vault"
-import { Operation } from "@/core/operation"
 import { Instance } from "@/project/instance"
 
 const parameters = z.object({
@@ -40,7 +39,9 @@ export const VaultTool = Tool.define<typeof parameters, Metadata, never>(
             if (!params.key || params.value === undefined) throw new Error("set requires key and value")
             vault.secrets[params.key] = { value: params.value, updated_at: new Date().toISOString() }
             yield* Effect.promise(() => saveVault(vault))
+            const slug = yield* Tool.resolveOperationSlug(_ctx, Instance.directory)
             yield* Cyber.appendLedger({
+              operation_slug: slug,
               kind: "operation.note",
               source: "vault",
               summary: `vault set ${params.key}`,
@@ -94,7 +95,9 @@ export const VaultTool = Tool.define<typeof parameters, Metadata, never>(
               vault.active_identity_set_at = null
             }
             yield* Effect.promise(() => saveVault(vault))
+            const slug = yield* Tool.resolveOperationSlug(_ctx, Instance.directory)
             const eventID = yield* Cyber.appendLedger({
+              operation_slug: slug,
               kind: "operation.note",
               source: "vault",
               summary: `vault delete ${params.key}`,
@@ -103,6 +106,7 @@ export const VaultTool = Tool.define<typeof parameters, Metadata, never>(
               data: { action: "delete", key: params.key },
             }).pipe(Effect.catch(() => Effect.succeed("")))
             yield* Cyber.upsertFact({
+              operation_slug: slug,
               entity_kind: "identity",
               entity_key: params.key,
               fact_name: "descriptor",
@@ -114,6 +118,7 @@ export const VaultTool = Tool.define<typeof parameters, Metadata, never>(
             }).pipe(Effect.catch(() => Effect.succeed("")))
             if (wasActive) {
               yield* Cyber.upsertFact({
+                operation_slug: slug,
                 entity_kind: "identity",
                 entity_key: params.key,
                 fact_name: "active",
@@ -140,7 +145,9 @@ export const VaultTool = Tool.define<typeof parameters, Metadata, never>(
             vault.active_identity_set_at = new Date().toISOString()
             yield* Effect.promise(() => saveVault(vault))
             const descriptor = summarizeDescriptor(vault.secrets[params.key]!.value)
+            const slug = yield* Tool.resolveOperationSlug(_ctx, Instance.directory)
             const eventID = yield* Cyber.appendLedger({
+              operation_slug: slug,
               kind: "fact.observed",
               source: "vault",
               summary: `active identity set to ${params.key}`,
@@ -150,6 +157,7 @@ export const VaultTool = Tool.define<typeof parameters, Metadata, never>(
             }).pipe(Effect.catch(() => Effect.succeed("")))
             if (previous && previous !== params.key) {
               yield* Cyber.upsertFact({
+                operation_slug: slug,
                 entity_kind: "identity",
                 entity_key: previous,
                 fact_name: "active",
@@ -161,6 +169,7 @@ export const VaultTool = Tool.define<typeof parameters, Metadata, never>(
               }).pipe(Effect.catch(() => Effect.succeed("")))
             }
             yield* Cyber.upsertFact({
+              operation_slug: slug,
               entity_kind: "identity",
               entity_key: params.key,
               fact_name: "descriptor",
@@ -171,6 +180,7 @@ export const VaultTool = Tool.define<typeof parameters, Metadata, never>(
               source_event_id: eventID || undefined,
             }).pipe(Effect.catch(() => Effect.succeed("")))
             yield* Cyber.upsertFact({
+              operation_slug: slug,
               entity_kind: "identity",
               entity_key: params.key,
               fact_name: "active",
@@ -180,9 +190,6 @@ export const VaultTool = Tool.define<typeof parameters, Metadata, never>(
               confidence: 1000,
               source_event_id: eventID || undefined,
             }).pipe(Effect.catch(() => Effect.succeed("")))
-            const slug = yield* Effect.promise(() => Operation.activeSlug(Instance.directory).catch(() => undefined)).pipe(
-              Effect.catch(() => Effect.succeed(undefined)),
-            )
             if (slug) {
               yield* Cyber.upsertRelation({
                 operation_slug: slug,

@@ -194,6 +194,8 @@ describe("tool/share", () => {
 
         const status: any = await execShare({ action: "status" })
         expect(status.metadata.slug).toBe(op.slug)
+        expect(status.metadata.available).toBe(true)
+        expect(status.metadata.side_effects).toEqual(["read_only"])
         expect(String(status.metadata.path)).toContain(".tar.gz")
         expect(status.output).toContain("sha256:")
       },

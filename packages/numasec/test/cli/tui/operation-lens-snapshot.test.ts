@@ -8,10 +8,16 @@ import {
   reportGateRows,
   reportStatus,
   restoreSelectedIndex,
+  loadOperationConsoleSnapshot,
   shouldRefreshOperationConsoleSnapshotForPart,
   stabilizeOperationConsoleSnapshot,
   type OperationConsoleSnapshot,
 } from "../../../src/cli/cmd/tui/component/operation-lens/snapshot"
+import { Operation } from "../../../src/core/operation"
+import { AppRuntime } from "../../../src/effect/app-runtime"
+import { Instance } from "../../../src/project/instance"
+import { Session } from "../../../src/session"
+import { tmpdir } from "../../fixture/fixture"
 
 function makeSnapshot() {
   return {
@@ -285,5 +291,54 @@ describe("tui operation lens snapshot helpers", () => {
     const stable = stabilizeOperationConsoleSnapshot(previous, next)
     expect(stable?.active?.slug).toBe("other")
     expect(stable?.projected).toBeUndefined()
+  })
+
+  test("loadOperationConsoleSnapshot adapts OperationSnapshot as the UI source", async () => {
+    await using tmp = await tmpdir()
+    const op = await Operation.create({
+      workspace: tmp.path,
+      label: "UI Snapshot",
+      kind: "pentest",
+      target: "localhost:3000",
+    })
+
+    const loaded = await loadOperationConsoleSnapshot(tmp.path)
+
+    expect(loaded?.active?.slug).toBe(op.slug)
+    expect(loaded?.operationSnapshot?.operation?.slug).toBe(op.slug)
+    expect(loaded?.projected).toBe(loaded?.operationSnapshot?.projected)
+    expect(loaded?.evidenceCount).toBe(loaded?.operationSnapshot?.evidence.count)
+    expect(loaded?.deliverable).toBe(loaded?.operationSnapshot?.deliverables.latest)
+  })
+
+  test("loadOperationConsoleSnapshot prefers the session-bound operation over workspace active", async () => {
+    await using tmp = await tmpdir()
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const opA = await Operation.create({
+          workspace: tmp.path,
+          label: "Terminal A",
+          kind: "pentest",
+          target: "a.local",
+        })
+        const sessionA = await AppRuntime.runPromise(
+          Session.Service.use((session) => session.create({ title: "terminal-a", operationSlug: opA.slug })),
+        )
+        const opB = await Operation.create({
+          workspace: tmp.path,
+          label: "Terminal B",
+          kind: "ctf",
+          target: "b.local",
+        })
+
+        const loadedA = await loadOperationConsoleSnapshot(tmp.path, { sessionID: sessionA.id })
+        const loadedDefault = await loadOperationConsoleSnapshot(tmp.path)
+
+        expect(await Operation.activeSlug(tmp.path)).toBe(opB.slug)
+        expect(loadedA?.active?.slug).toBe(opA.slug)
+        expect(loadedDefault?.active?.slug).toBe(opB.slug)
+      },
+    })
   })
 })

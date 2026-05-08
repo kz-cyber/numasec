@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs"
-import { readdir, readFile } from "node:fs/promises"
 import path from "node:path"
 import { Effect } from "effect"
 import z from "zod"
@@ -7,7 +5,7 @@ import * as Tool from "./tool"
 import DESCRIPTION from "./report.txt"
 import { Cyber } from "@/core/cyber"
 import { Deliverable } from "@/core/deliverable"
-import { Operation } from "@/core/operation"
+import * as OperationSnapshot from "@/core/operation/snapshot"
 import { Instance } from "@/project/instance"
 
 const REPORT_BUILD_TIMEOUT = "20 seconds"
@@ -19,25 +17,6 @@ const parameters = z.object({
 
 type Params = z.infer<typeof parameters>
 type Metadata = Record<string, unknown>
-
-async function latestDeliverable(workspace: string, slug: string) {
-  const dir = path.join(Operation.opDir(workspace, slug), "deliverable")
-  if (!existsSync(dir)) return undefined
-  const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
-  const bundles = entries
-    .filter((entry) => entry.isDirectory() && entry.name.startsWith("bundle-"))
-    .map((entry) => entry.name)
-    .sort()
-  const latest = bundles.at(-1)
-  if (!latest) return undefined
-  const bundleDir = path.join(dir, latest)
-  const manifestPath = path.join(bundleDir, "manifest.json")
-  const reportPath = path.join(bundleDir, "report.md")
-  const manifest = existsSync(manifestPath)
-    ? JSON.parse(await readFile(manifestPath, "utf8").catch(() => "{}"))
-    : undefined
-  return { bundleDir, manifestPath, reportPath, manifest }
-}
 
 function formatCounts(counts?: {
   plan?: number
@@ -130,58 +109,52 @@ export const ReportTool = Tool.define<typeof parameters, Metadata, never>(
       execute: (params: Params, ctx: Tool.Context) =>
         Effect.gen(function* () {
           const workspace = Instance.directory
-          const slug = yield* Effect.promise(() => Operation.activeSlug(workspace).catch(() => undefined))
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
           if (!slug) {
             return {
               title: "report · no active operation",
               output: "No active operation.",
-              metadata: { action: params.action, active: false },
+              metadata: { action: params.action, active: false, side_effects: Tool.sideEffects("read_only") },
             }
           }
 
           if (params.action === "status") {
-            const facts = yield* Cyber.listFacts({ operation_slug: slug, limit: 200 }).pipe(
-              Effect.catch(() => Effect.succeed([])),
-            )
-            const latestFromKernel = Cyber.latestDeliverableFromFacts(facts)
-            if (latestFromKernel) {
-              return {
-                title: `report · ${path.basename(latestFromKernel.bundle_dir ?? "unknown")}`,
-                output: [
-                  `Bundle: ${latestFromKernel.bundle_dir}`,
-                  `Manifest: ${latestFromKernel.manifest_path}`,
-                  `Report: ${latestFromKernel.report_path}`,
-                  latestFromKernel.counts ? `Counts: ${formatCounts(latestFromKernel.counts as any)}` : undefined,
-                ]
-                  .filter(Boolean)
-                  .join("\n"),
-                metadata: {
-                  action: "status",
-                  slug,
-                  available: true,
-                  bundle_dir: latestFromKernel.bundle_dir,
-                  report_path: latestFromKernel.report_path,
-                  manifest_path: latestFromKernel.manifest_path,
-                  counts: latestFromKernel.counts,
-                  source: "kernel",
-                },
-              }
-            }
-            const latest = yield* Effect.promise(() => latestDeliverable(workspace, slug))
+            const snapshot = yield* Effect.promise(() => OperationSnapshot.build(workspace, { slug, includeDoctor: false }))
+            const latest = snapshot.deliverables.latest
             if (!latest) {
               return {
                 title: "report · none",
-                output: "No report bundle generated yet.",
-                metadata: { action: "status", slug, available: false },
+                output: [
+                  "No report bundle generated yet.",
+                  `Snapshot: ${snapshot.generated_at}`,
+                  `Counts: findings=${snapshot.counts.findings} reportable=${snapshot.counts.reportable_findings} evidence=${snapshot.counts.evidence} relations=${snapshot.counts.relations}`,
+                  ...(snapshot.warnings.length ? ["Warnings:", ...snapshot.warnings.map((item) => `- ${item}`)] : []),
+                ].join("\n"),
+                metadata: {
+                  action: "status",
+                  slug,
+                  available: false,
+                  counts: snapshot.counts,
+                  warnings: snapshot.warnings,
+                  source_latest: snapshot.source_latest,
+                  source_semantic_latest: snapshot.source_semantic_latest,
+                  source_audit_latest: snapshot.source_audit_latest,
+                  audit_after_context: snapshot.audit_after_context,
+                  stale_context: snapshot.stale_context,
+                  stale_capability_readiness: snapshot.stale_capability_readiness,
+                  side_effects: Tool.sideEffects("read_only"),
+                },
               }
             }
             return {
-              title: `report · ${path.basename(latest.bundleDir)}`,
+              title: `report · ${path.basename(latest.bundle_dir ?? latest.report_path ?? latest.key)}`,
               output: [
-                `Bundle: ${latest.bundleDir}`,
-                `Manifest: ${latest.manifestPath}`,
-                `Report: ${latest.reportPath}`,
-                latest.manifest?.counts ? `Counts: ${formatCounts(latest.manifest.counts)}` : undefined,
+                `Bundle: ${latest.bundle_dir ?? "-"}`,
+                `Manifest: ${latest.manifest_path ?? "-"}`,
+                `Report: ${latest.report_path ?? "-"}`,
+                `Snapshot: ${snapshot.generated_at}`,
+                `Counts: findings=${snapshot.counts.findings} reportable=${snapshot.counts.reportable_findings} evidence=${snapshot.counts.evidence} relations=${snapshot.counts.relations}`,
+                ...(snapshot.warnings.length ? ["Warnings:", ...snapshot.warnings.map((item) => `- ${item}`)] : []),
               ]
                 .filter(Boolean)
                 .join("\n"),
@@ -189,11 +162,19 @@ export const ReportTool = Tool.define<typeof parameters, Metadata, never>(
                 action: "status",
                 slug,
                 available: true,
-                bundle_dir: latest.bundleDir,
-                report_path: latest.reportPath,
-                manifest_path: latest.manifestPath,
-                counts: latest.manifest?.counts,
-                source: "filesystem",
+                bundle_dir: latest.bundle_dir,
+                report_path: latest.report_path,
+                manifest_path: latest.manifest_path,
+                counts: snapshot.counts,
+                warnings: snapshot.warnings,
+                source_latest: snapshot.source_latest,
+                source_semantic_latest: snapshot.source_semantic_latest,
+                source_audit_latest: snapshot.source_audit_latest,
+                audit_after_context: snapshot.audit_after_context,
+                stale_context: snapshot.stale_context,
+                stale_capability_readiness: snapshot.stale_capability_readiness,
+                source: "snapshot",
+                side_effects: Tool.sideEffects("read_only"),
               },
             }
           }
@@ -201,7 +182,7 @@ export const ReportTool = Tool.define<typeof parameters, Metadata, never>(
           let currentPhase: Deliverable.BuildPhase | "starting" = "starting"
           yield* ctx.metadata({
             title: "report · building",
-            metadata: { action: "build", slug, phase: currentPhase },
+            metadata: { action: "build", slug, phase: currentPhase, side_effects: Tool.sideEffects("writes_ledger", "writes_facts", "mutates_workspace") },
           }).pipe(Effect.catch(() => Effect.void))
           const build = yield* Effect.tryPromise({
             try: () =>
@@ -247,6 +228,7 @@ export const ReportTool = Tool.define<typeof parameters, Metadata, never>(
                 phase: currentPhase,
                 available: false,
                 error: message,
+                side_effects: Tool.sideEffects("writes_ledger", "mutates_workspace"),
               },
             }
           }
@@ -315,6 +297,7 @@ export const ReportTool = Tool.define<typeof parameters, Metadata, never>(
               report_path: built.reportPath,
               manifest_path: built.manifestPath,
               counts: built.manifest.counts,
+              side_effects: Tool.sideEffects("writes_ledger", "writes_facts", "mutates_workspace"),
             },
           }
         }),

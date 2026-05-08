@@ -28,7 +28,9 @@ function View(props: { api: TuiPluginApi }) {
     }
     inflight = true
     try {
-      const next = await loadOperationConsoleSnapshot(props.api.state.path.directory)
+      const current = props.api.route.current
+      const sessionID = current.name === "session" ? (current.params as { sessionID?: string } | undefined)?.sessionID : undefined
+      const next = await loadOperationConsoleSnapshot(props.api.state.path.directory, { sessionID })
       stableSnapshot = stabilizeOperationConsoleSnapshot(stableSnapshot, next)
       return stableSnapshot
     } finally {

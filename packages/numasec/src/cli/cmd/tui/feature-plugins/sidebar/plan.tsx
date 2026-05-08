@@ -2,7 +2,7 @@ import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@numasec/plugin/t
 import { createMemo, createResource, createSignal, For, Show, onCleanup } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { Plan } from "@/core/plan"
-import { Operation } from "@/core/operation"
+import * as OperationResolver from "@/core/operation/resolver"
 
 const id = "internal:sidebar-plan"
 
@@ -76,7 +76,8 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
     try {
       const dir = props.api.state.path.directory
       if (!dir) return { nodes: [] as Plan.Node[] }
-      const slug = await Operation.activeSlug(dir).catch(() => undefined)
+      const resolved = await OperationResolver.resolveOperation({ workspace: dir, sessionID: props.session_id }).catch(() => undefined)
+      const slug = resolved?.slug
       if (!slug) return { nodes: [] as Plan.Node[] }
       const nodes = await Plan.list(dir, slug).catch(() => [] as Plan.Node[])
       return { nodes }

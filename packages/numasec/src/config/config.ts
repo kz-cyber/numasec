@@ -829,12 +829,27 @@ export const Provider = z
             "Timeout in milliseconds for requests to this provider. Default is 300000 (5 minutes). Set to false to disable timeout.",
           ),
         chunkTimeout: z
-          .number()
-          .int()
-          .positive()
+          .union([
+            z.number().int().positive(),
+            z.literal(false).describe("Disable SSE chunk timeout for this provider entirely."),
+          ])
           .optional()
           .describe(
-            "Timeout in milliseconds between streamed SSE chunks for this provider. If no chunk arrives within this window, the request is aborted.",
+            "Timeout in milliseconds between streamed SSE chunks for this provider. Default is 90000. If no chunk arrives within this window, the request is aborted. Set to false to disable.",
+          ),
+        semanticTimeout: z
+          .union([
+            z
+              .object({
+                initial: z.number().int().positive().optional(),
+                idle: z.number().int().positive().optional(),
+              })
+              .strict(),
+            z.literal(false).describe("Disable semantic stream watchdog for this provider entirely."),
+          ])
+          .optional()
+          .describe(
+            "Timeouts in milliseconds for semantic model output. initial bounds time to first text/reasoning/tool/finish event; idle bounds silence after semantic output starts.",
           ),
       })
       .catchall(z.any())

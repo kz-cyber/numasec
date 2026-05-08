@@ -6,6 +6,7 @@ import { InstallationVersion } from "@/installation/version"
 import { TuiPluginRuntime } from "../../plugin"
 import { BRAND } from "../../component/glyph"
 import { Operation } from "@/core/operation"
+import * as OperationResolver from "@/core/operation/resolver"
 import { useEvent } from "@tui/context/event"
 
 import { getScrollAcceleration } from "../../util/scroll"
@@ -22,7 +23,9 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
   const [activeOperation] = createResource(tick, async () => {
     const directory = sync.path.directory
     if (!directory) return undefined
-    return Operation.active(directory).catch(() => undefined)
+    const resolved = await OperationResolver.resolveOperation({ workspace: directory, sessionID: props.sessionID }).catch(() => undefined)
+    if (!resolved?.slug) return undefined
+    return Operation.read(directory, resolved.slug).catch(() => undefined)
   })
   const offIdle = event.on("session.idle", () => refresh())
   const offStatus = event.on("session.status", () => refresh())

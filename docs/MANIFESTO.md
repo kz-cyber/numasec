@@ -13,7 +13,7 @@ on a terminal.
 
 ### 2. Public brain.
 Every kind prompt, glyph, default tool list and TUI string is in this repository, in plain
-files, under MIT. If you cannot read a system prompt before trusting it, it is not yours.
+files, under AGPLv3-or-later. If you cannot read a system prompt before trusting it, it is not yours.
 We will be the first AI security tool whose entire reasoning surface is auditable from
 the same `git clone`.
 

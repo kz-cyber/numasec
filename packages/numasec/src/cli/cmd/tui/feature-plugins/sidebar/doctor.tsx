@@ -3,6 +3,7 @@ import { createMemo, createResource, createSignal, onCleanup, Show } from "solid
 import { Doctor } from "@/core/doctor"
 import type { DoctorReport } from "@/core/doctor"
 import { Operation } from "@/core/operation"
+import * as OperationResolver from "@/core/operation/resolver"
 import { shouldRefreshOperationConsoleSnapshotForPart } from "./operation-console"
 
 const id = "internal:sidebar-doctor"
@@ -30,7 +31,12 @@ function View(props: { api: TuiPluginApi }) {
     try {
       const directory = props.api.state.path.directory
       const report = await Doctor.probePromise(directory)
-      const active = directory ? await Operation.active(directory).catch(() => undefined) : undefined
+      const current = props.api.route.current
+      const sessionID = current.name === "session" ? (current.params as { sessionID?: string } | undefined)?.sessionID : undefined
+      const resolved = directory
+        ? await OperationResolver.resolveOperation({ workspace: directory, sessionID }).catch(() => undefined)
+        : undefined
+      const active = directory && resolved?.slug ? await Operation.read(directory, resolved.slug).catch(() => undefined) : undefined
       stableSnapshot = { report, opsec: active?.opsec ?? "normal" }
       return stableSnapshot
     } catch {

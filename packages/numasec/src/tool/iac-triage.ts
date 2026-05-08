@@ -8,7 +8,6 @@ import DESCRIPTION from "./iac-triage.txt"
 import { runProcess } from "./process"
 import { Cyber } from "@/core/cyber"
 import { Evidence } from "@/core/evidence"
-import { Operation } from "@/core/operation"
 
 const parameters = z.object({
   path: z
@@ -133,7 +132,7 @@ export const IacTriageTool = Tool.define<typeof parameters, Metadata, never>(
           }
 
           const workspace = ins.directory
-          const slug = yield* Effect.promise(() => Operation.activeSlug(workspace).catch(() => undefined))
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
           const evidence =
             !slug
               ? undefined
@@ -148,6 +147,7 @@ export const IacTriageTool = Tool.define<typeof parameters, Metadata, never>(
           const evidenceRefs = evidence ? [evidence.sha256] : undefined
           const summary = summarize(toolResult.output)
           const eventID = yield* Cyber.appendLedger({
+            operation_slug: slug,
             kind: "fact.observed",
             source: "iac_triage",
             summary: `iac triage ${params.path}`,
@@ -163,6 +163,7 @@ export const IacTriageTool = Tool.define<typeof parameters, Metadata, never>(
             },
           }).pipe(Effect.catch(() => Effect.succeed("")))
           yield* Cyber.upsertFact({
+            operation_slug: slug,
             entity_kind: "iac_target",
             entity_key: params.path,
             fact_name: "checkov_summary",
@@ -176,6 +177,7 @@ export const IacTriageTool = Tool.define<typeof parameters, Metadata, never>(
           for (const item of summary?.failed_checks.slice(0, 100) ?? []) {
             if (!item.check_id) continue
             yield* Cyber.upsertFact({
+              operation_slug: slug,
               entity_kind: "finding_candidate",
               entity_key: `${params.path}:${item.check_id}`,
               fact_name: "iac_misconfig",

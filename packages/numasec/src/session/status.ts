@@ -6,6 +6,14 @@ import { Effect, Layer, Context } from "effect"
 import z from "zod"
 
 export namespace SessionStatus {
+  export const BusyPhase = z.enum([
+    "preparing",
+    "connecting",
+    "waiting_for_model",
+    "streaming",
+    "tool",
+    "finalizing",
+  ])
   export const Info = z
     .union([
       z.object({
@@ -19,6 +27,18 @@ export namespace SessionStatus {
       }),
       z.object({
         type: z.literal("busy"),
+        phase: BusyPhase.optional(),
+        providerID: z.string().optional(),
+        modelID: z.string().optional(),
+        variant: z.string().optional(),
+        startedAt: z.number().optional(),
+        lastEventAt: z.number().optional(),
+        firstSemanticAt: z.number().optional(),
+        detail: z.string().optional(),
+      }),
+      z.object({
+        type: z.literal("aborting"),
+        startedAt: z.number().optional(),
       }),
     ])
     .meta({

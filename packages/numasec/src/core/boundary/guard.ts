@@ -67,8 +67,9 @@ export class ScopeDeniedError extends Error {
 
 export async function resolveActiveBoundary(
   workspace: string,
+  operationSlug?: string,
 ): Promise<{ slug: string; boundary: unknown; opsec: Operation.Opsec } | undefined> {
-  const slug = await Operation.activeSlug(workspace).catch(() => undefined)
+  const slug = operationSlug ?? (await Operation.activeSlug(workspace).catch(() => undefined))
   if (!slug) return undefined
   const [boundary, info] = await Promise.all([
     Operation.readBoundary(workspace, slug).catch(() => undefined),
@@ -83,8 +84,8 @@ export async function opsec(workspace: string): Promise<Operation.Opsec> {
   return info?.opsec ?? "normal"
 }
 
-export async function check(workspace: string, request: Request): Promise<Decision> {
-  const ctx = await resolveActiveBoundary(workspace)
+export async function check(workspace: string, request: Request, operationSlug?: string): Promise<Decision> {
+  const ctx = await resolveActiveBoundary(workspace, operationSlug)
   if (!ctx) return { mode: "allow", reason: "no active operation" }
 
   if (ctx.opsec === "strict") {
@@ -116,14 +117,14 @@ export async function check(workspace: string, request: Request): Promise<Decisi
   return decision
 }
 
-export async function checkUrl(workspace: string, url: string): Promise<Decision> {
-  return check(workspace, { kind: "url", value: url })
+export async function checkUrl(workspace: string, url: string, operationSlug?: string): Promise<Decision> {
+  return check(workspace, { kind: "url", value: url }, operationSlug)
 }
 
-export async function checkHost(workspace: string, host: string): Promise<Decision> {
-  return check(workspace, { kind: "host", value: host })
+export async function checkHost(workspace: string, host: string, operationSlug?: string): Promise<Decision> {
+  return check(workspace, { kind: "host", value: host }, operationSlug)
 }
 
-export async function checkPath(workspace: string, path: string): Promise<Decision> {
-  return check(workspace, { kind: "path", value: path })
+export async function checkPath(workspace: string, path: string, operationSlug?: string): Promise<Decision> {
+  return check(workspace, { kind: "path", value: path }, operationSlug)
 }

@@ -66,6 +66,7 @@ export function fromRow(row: SessionRow): Info {
     slug: row.slug,
     projectID: row.project_id,
     workspaceID: row.workspace_id ?? undefined,
+    operationSlug: row.operation_slug ?? undefined,
     directory: row.directory,
     parentID: row.parent_id ?? undefined,
     title: row.title,
@@ -88,6 +89,7 @@ export function toRow(info: Info) {
     id: info.id,
     project_id: info.projectID,
     workspace_id: info.workspaceID,
+    operation_slug: info.operationSlug,
     parent_id: info.parentID,
     slug: info.slug,
     directory: info.directory,
@@ -131,6 +133,7 @@ export const Info = z
     slug: z.string(),
     projectID: ProjectID.zod,
     workspaceID: z.string().optional(),
+    operationSlug: z.string().optional(),
     directory: z.string(),
     parentID: SessionID.zod.optional(),
     summary: z
@@ -193,6 +196,7 @@ export const CreateInput = z
     title: z.string().optional(),
     permission: Info.shape.permission,
     workspaceID: z.string().optional(),
+    operationSlug: z.string().optional(),
   })
   .optional()
 export type CreateInput = z.output<typeof CreateInput>
@@ -344,6 +348,7 @@ export interface Interface {
     title?: string
     permission?: Permission.Ruleset
     workspaceID?: string
+    operationSlug?: string
   }) => Effect.Effect<Info>
   readonly fork: (input: { sessionID: SessionID; messageID?: MessageID }) => Effect.Effect<Info>
   readonly touch: (sessionID: SessionID) => Effect.Effect<void>
@@ -351,6 +356,9 @@ export interface Interface {
   readonly setTitle: (input: { sessionID: SessionID; title: string }) => Effect.Effect<void>
   readonly setArchived: (input: { sessionID: SessionID; time?: number }) => Effect.Effect<void>
   readonly setPermission: (input: { sessionID: SessionID; permission: Permission.Ruleset }) => Effect.Effect<void>
+  readonly attachOperation: (input: { sessionID: SessionID; operationSlug: string }) => Effect.Effect<void>
+  readonly detachOperation: (input: { sessionID: SessionID }) => Effect.Effect<void>
+  readonly operationSlug: (sessionID: SessionID) => Effect.Effect<string | undefined>
   readonly setRevert: (input: {
     sessionID: SessionID
     revert: Info["revert"]
@@ -398,15 +406,47 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service> =
     const bus = yield* Bus.Service
     const storage = yield* Storage.Service
 
+    const findExistingOperationSlug = Effect.fn("Session.findExistingOperationSlug")(function* (
+      directory: string,
+      operationSlug?: string,
+    ) {
+      const slug = operationSlug?.trim()
+      if (!slug) return undefined
+      const info = yield* Effect.promise(() => Operation.read(directory, slug))
+      return info?.slug
+    })
+
+    const requireOperationSlug = Effect.fn("Session.requireOperationSlug")(function* (
+      directory: string,
+      operationSlug: string,
+    ) {
+      const slug = yield* findExistingOperationSlug(directory, operationSlug)
+      if (!slug) {
+        throw new NotFoundError({ message: `Operation not found: ${operationSlug}` })
+      }
+      return slug
+    })
+
+    const workspaceDefaultOperationSlug = Effect.fn("Session.workspaceDefaultOperationSlug")(function* (
+      directory: string,
+    ) {
+      const active = yield* Effect.promise(() => Operation.activeSlug(directory).catch(() => undefined))
+      return yield* findExistingOperationSlug(directory, active)
+    })
+
     const createNext = Effect.fn("Session.createNext")(function* (input: {
       id?: SessionID
       title?: string
       parentID?: SessionID
       workspaceID?: string
+      operationSlug?: string
       directory: string
       permission?: Permission.Ruleset
     }) {
       const ctx = yield* InstanceState.context
+      const operationSlug = input.operationSlug
+        ? yield* requireOperationSlug(input.directory, input.operationSlug)
+        : undefined
       const result: Info = {
         id: SessionID.descending(input.id),
         slug: Slug.create(),
@@ -414,6 +454,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service> =
         projectID: ctx.project.id,
         directory: input.directory,
         workspaceID: input.workspaceID,
+        operationSlug,
         parentID: input.parentID,
         title: input.title ?? createDefaultTitle(!!input.parentID),
         permission: input.permission,
@@ -426,7 +467,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service> =
 
       yield* Effect.sync(() => SyncEvent.run(Event.Created, { sessionID: result.id, info: result }))
 
-      const slug = yield* Effect.promise(() => Operation.activeSlug(input.directory).catch(() => undefined))
+      const slug = operationSlug ?? (yield* workspaceDefaultOperationSlug(input.directory))
       if (slug) {
         yield* Effect.promise(() => Operation.attachSession(input.directory, slug, result.id)).pipe(Effect.ignore)
         yield* Cyber.attachSession({
@@ -552,6 +593,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service> =
       title?: string
       permission?: Permission.Ruleset
       workspaceID?: string
+      operationSlug?: string
     }) {
       const directory = yield* InstanceState.directory
       return yield* createNext({
@@ -560,6 +602,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service> =
         title: input?.title,
         permission: input?.permission,
         workspaceID: input?.workspaceID,
+        operationSlug: input?.operationSlug,
       })
     })
 
@@ -567,9 +610,11 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service> =
       const directory = yield* InstanceState.directory
       const original = yield* get(input.sessionID)
       const title = getForkedTitle(original.title)
+      const inheritedOperationSlug = yield* findExistingOperationSlug(directory, original.operationSlug)
       const session = yield* createNext({
         directory,
         workspaceID: original.workspaceID,
+        operationSlug: inheritedOperationSlug,
         title,
       })
       const msgs = yield* messages({ sessionID: input.sessionID })
@@ -621,7 +666,10 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service> =
     }) {
       yield* patch(input.sessionID, { permission: input.permission, time: { updated: Date.now() } })
       const info = yield* get(input.sessionID)
-      const slug = yield* Effect.promise(() => Operation.activeSlug(info.directory).catch(() => undefined))
+      const slug =
+        (yield* findExistingOperationSlug(info.directory, info.operationSlug)) ??
+        (yield* Effect.promise(() => Operation.findSessionOperation(info.directory, input.sessionID).catch(() => undefined))) ??
+        (yield* workspaceDefaultOperationSlug(info.directory))
       if (!slug) return
       yield* Cyber.upsertFact({
         operation_slug: slug,
@@ -637,6 +685,40 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service> =
         status: "observed",
         confidence: 1000,
       }).pipe(Effect.catch(() => Effect.succeed("")))
+    })
+
+    const attachOperation = Effect.fn("Session.attachOperation")(function* (input: {
+      sessionID: SessionID
+      operationSlug: string
+    }) {
+      const info = yield* get(input.sessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      if (!info) return
+      const operationSlug = yield* requireOperationSlug(info.directory, input.operationSlug)
+      yield* patch(input.sessionID, {
+        operationSlug,
+        time: { updated: Date.now() },
+      })
+      yield* Effect.promise(() => Operation.attachSession(info.directory, operationSlug, input.sessionID)).pipe(Effect.ignore)
+      yield* Cyber.attachSession({
+        project_id: info.projectID,
+        operation_slug: operationSlug,
+        session_id: input.sessionID,
+      }).pipe(Effect.catch(() => Effect.succeed("")))
+    })
+
+    const detachOperation = Effect.fn("Session.detachOperation")(function* (input: { sessionID: SessionID }) {
+      yield* patch(input.sessionID, {
+        operationSlug: null,
+        time: { updated: Date.now() },
+      })
+    })
+
+    const operationSlug = Effect.fn("Session.operationSlug")(function* (sessionID: SessionID) {
+      const info = yield* get(sessionID).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      if (!info) return undefined
+      const sessionSlug = yield* findExistingOperationSlug(info.directory, info.operationSlug)
+      if (sessionSlug) return sessionSlug
+      return yield* Effect.promise(() => Operation.findSessionOperation(info.directory, sessionID).catch(() => undefined))
     })
 
     const setRevert = Effect.fn("Session.setRevert")(function* (input: {
@@ -728,6 +810,9 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service> =
       setTitle,
       setArchived,
       setPermission,
+      attachOperation,
+      detachOperation,
+      operationSlug,
       setRevert,
       clearRevert,
       setSummary,

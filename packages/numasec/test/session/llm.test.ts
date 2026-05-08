@@ -410,6 +410,97 @@ describe("session.llm.stream", () => {
     })
   })
 
+  test("sends DeepSeek V4 thinking and effort options for openai-compatible models", async () => {
+    const providerID = "deepseek-v4-test"
+    const modelID = "deepseek-v4-pro"
+
+    const request = waitRequest(
+      "/chat/completions",
+      new Response(createChatStream("Hello"), {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      }),
+    )
+
+    await using tmp = await tmpdir({
+      init: async (dir) => {
+        await Bun.write(
+          path.join(dir, "numasec.json"),
+          JSON.stringify({
+            $schema: "https://numasec.ai/config.json",
+            enabled_providers: [providerID],
+            provider: {
+              [providerID]: {
+                name: "DeepSeek V4 Test",
+                env: [],
+                npm: "@ai-sdk/openai-compatible",
+                api: "https://api.deepseek.com",
+                models: {
+                  [modelID]: {
+                    name: "DeepSeek V4 Pro",
+                    family: "deepseek",
+                    reasoning: true,
+                    tool_call: true,
+                    temperature: true,
+                    limit: { context: 128000, output: 64000 },
+                    modalities: { input: ["text"], output: ["text"] },
+                  },
+                },
+                options: {
+                  apiKey: "test-deepseek-key",
+                  baseURL: `${server.url.origin}/v1`,
+                },
+              },
+            },
+          }),
+        )
+      },
+    })
+
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const resolved = await getModel(ProviderID.make(providerID), ModelID.make(modelID))
+        const sessionID = SessionID.make("session-test-deepseek-v4")
+        const agent = {
+          name: "test",
+          mode: "primary",
+          options: {},
+          permission: [{ permission: "*", pattern: "*", action: "allow" }],
+        } satisfies Agent.Info
+
+        const user = {
+          id: MessageID.make("user-deepseek-v4"),
+          sessionID,
+          role: "user",
+          time: { created: Date.now() },
+          agent: agent.name,
+          model: { providerID: ProviderID.make(providerID), modelID: resolved.id, variant: "high" },
+        } satisfies MessageV2.User
+
+        await drain({
+          user,
+          sessionID,
+          model: resolved,
+          agent,
+          system: ["You are a helpful assistant."],
+          messages: [{ role: "user", content: "Hello" }],
+          tools: {},
+        })
+
+        const capture = await request
+        const body = capture.body
+
+        expect(capture.url.pathname.endsWith("/chat/completions")).toBe(true)
+        expect(body.model).toBe(resolved.api.id)
+        expect((body.thinking as { type?: string } | undefined)?.type).toBe("enabled")
+
+        const reasoning = (body.reasoningEffort as string | undefined) ?? (body.reasoning_effort as string | undefined)
+        expect(reasoning).toBe("high")
+      },
+    })
+  })
+
   test("service stream cancellation cancels provider response body promptly", async () => {
     const providerID = "alibaba"
     const modelID = "qwen-plus"

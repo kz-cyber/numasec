@@ -6,7 +6,7 @@ import { fileURLToPath } from "url"
 import { Filesystem } from "@/util"
 import { useLocal } from "@tui/context/local"
 import { useTheme } from "@tui/context/theme"
-import { EmptyBorder, SplitBorder } from "@tui/component/border"
+import { EmptyBorder } from "@tui/component/border"
 import { useSDK } from "@tui/context/sdk"
 import { useRoute } from "@tui/context/route"
 import { useSync } from "@tui/context/sync"
@@ -28,6 +28,7 @@ import type { AssistantMessage, FilePart, UserMessage } from "@numasec/sdk/v2"
 import { TuiEvent } from "../../event"
 import { iife } from "@/util/iife"
 import { Locale } from "@/util"
+import { errorMessage } from "@/util/error"
 import { formatDuration } from "@/util/format"
 import { createColors, createFrames } from "../../ui/spinner.ts"
 import { useDialog } from "@tui/ui/dialog"
@@ -39,6 +40,9 @@ import { useTextareaKeybindings } from "../textarea-keybindings"
 import { DialogSkill } from "../dialog-skill"
 import { useArgs } from "@tui/context/args"
 import { Kind } from "@/core/kind"
+import { Operation, type OperationInfo, type OperationKind } from "@/core/operation"
+import { DialogSelect } from "@tui/ui/dialog-select"
+import { DialogPrompt } from "@tui/ui/dialog-prompt"
 
 export type PromptProps = {
   sessionID?: string
@@ -72,6 +76,7 @@ const money = new Intl.NumberFormat("en-US", {
 })
 
 const CTRL_C_EXIT_WINDOW = 1_500
+const OPERATION_START_KINDS: OperationKind[] = ["pentest", "appsec", "osint", "hacking", "bughunt", "ctf", "research"]
 
 function randomIndex(count: number) {
   if (count <= 0) return 0
@@ -105,8 +110,91 @@ export function Prompt(props: PromptProps) {
   const list = createMemo(() => props.placeholders?.normal ?? [])
   const shell = createMemo(() => props.placeholders?.shell ?? [])
   const [auto, setAuto] = createSignal<AutocompleteRef>()
+  const [pendingOperationSlug, setPendingOperationSlug] = createSignal<string | undefined>()
   const currentProviderLabel = createMemo(() => local.model.parsed().provider)
   const hasRightContent = createMemo(() => Boolean(props.right))
+
+  async function promptSessionOperationStart(operations: OperationInfo[]): Promise<boolean> {
+    if (props.sessionID) return false
+    if (pendingOperationSlug()) return false
+    const dir = sync.path.directory
+    if (!dir) return false
+    if (operations.length === 0) return false
+    const NEW_OPERATION = "__numasec_new_operation__"
+    const sortedOperations = [...operations].sort((a, b) => {
+      if (a.active !== b.active) return a.active ? -1 : 1
+      return b.updated_at - a.updated_at
+    })
+    const createNewOperation = () => {
+      dialog.replace(() => (
+        <DialogPrompt
+          title="New operation for this session"
+          placeholder="e.g. Target bug bounty"
+          onCancel={() => dialog.clear()}
+          onConfirm={(rawLabel) => {
+            const label = rawLabel.trim()
+            if (!label) return dialog.clear()
+            dialog.replace(() => (
+              <DialogSelect
+                title={`Kind for "${label}"`}
+                options={OPERATION_START_KINDS.map((kind) => ({
+                  value: kind,
+                  title: kind,
+                  description: kind === "bughunt" ? "bug bounty / responsible disclosure" : kind,
+                }))}
+                onSelect={async (option) => {
+                  const op = await Operation.create({
+                    workspace: dir,
+                    label,
+                    kind: option.value as OperationKind,
+                  }).catch(() => undefined)
+                  if (op) {
+                    setPendingOperationSlug(op.slug)
+                    dialog.clear()
+                    queueMicrotask(() => void submit())
+                    return
+                  }
+                  toast.show({ message: "Creating operation failed.", variant: "error" })
+                  dialog.clear()
+                }}
+              />
+            ))
+          }}
+        />
+      ))
+    }
+    dialog.replace(() => (
+      <DialogSelect
+        title={
+          sortedOperations.length === 1
+            ? "Found an operation in this workspace"
+            : `Found ${sortedOperations.length} operations in this workspace`
+        }
+        placeholder="Choose the operation for this session"
+        options={[
+          ...sortedOperations.map((operation) => ({
+            value: operation.slug,
+            title: operation.label,
+            description: `${operation.kind} · ${operation.slug}${operation.target ? ` · ${operation.target}` : ""}`,
+            category: operation.active ? "Workspace default" : "Existing operations",
+          })),
+          {
+            value: NEW_OPERATION,
+            title: "New Operation for This Session",
+            description: "Create a separate operation for this terminal session.",
+            category: "New",
+          },
+        ]}
+        onSelect={(option) => {
+          if (option.value === NEW_OPERATION) return createNewOperation()
+          setPendingOperationSlug(option.value)
+          dialog.clear()
+          queueMicrotask(() => void submit())
+        }}
+      />
+    ))
+    return true
+  }
 
   function promptModelWarning() {
     toast.show({
@@ -268,7 +356,7 @@ export function Prompt(props: PromptProps) {
         keybind: "session_interrupt",
         category: "Session",
         hidden: true,
-        enabled: status().type !== "idle",
+        enabled: status().type !== "idle" && (status().type as string) !== "aborting",
         onSelect: (dialog) => {
           if (autocomplete.visible) return
           if (!input.focused) return
@@ -623,9 +711,16 @@ export function Prompt(props: PromptProps) {
 
     let sessionID = props.sessionID
     if (sessionID == null) {
-      const res = await sdk.client.session.create({
+      if (!pendingOperationSlug() && sync.path.directory) {
+        const operations = await Operation.list(sync.path.directory).catch(() => [])
+        if (await promptSessionOperationStart(operations)) return
+      }
+      const createInput = {
         workspaceID: props.workspaceID,
-      })
+        operationSlug: pendingOperationSlug(),
+      }
+      const res = await sdk.client.session.create(createInput as Parameters<typeof sdk.client.session.create>[0])
+      setPendingOperationSlug(undefined)
 
       if (res.error) {
         console.log("Creating a run failed:", res.error)
@@ -666,6 +761,18 @@ export function Prompt(props: PromptProps) {
     // Capture mode before it gets reset
     const currentMode = store.mode
     const variant = local.model.variant.current()
+    const submittedPrompt = {
+      input: store.prompt.input,
+      parts: store.prompt.parts,
+    }
+    const restoreSubmittedPrompt = () => {
+      if (!input || input.isDestroyed) return
+      if (input.plainText.trim().length > 0) return
+      input.setText(submittedPrompt.input)
+      setStore("prompt", { input: submittedPrompt.input, parts: submittedPrompt.parts })
+      restoreExtmarksFromParts(submittedPrompt.parts)
+      input.gotoBufferEnd()
+    }
 
     if (store.mode === "shell") {
       void sdk.client.session.shell({
@@ -747,7 +854,24 @@ export function Prompt(props: PromptProps) {
             ...nonTextParts.map(assign),
           ],
         })
-        .catch(() => {})
+        .then((res: unknown) => {
+          if (!res || typeof res !== "object" || !("error" in res) || !res.error) return
+          const err = res.error
+          if (typeof err === "object" && err !== null && "message" in err && typeof err.message === "string") {
+            throw new Error(err.message)
+          }
+          throw new Error("Prompt failed")
+        })
+        .catch((error) => {
+          const message = errorMessage(error)
+          const busy = message.toLowerCase().includes("busy")
+          toast.show({
+            message: busy ? "Session is busy. Press esc twice to interrupt, then retry." : `Prompt failed: ${message}`,
+            variant: "error",
+            duration: 6000,
+          })
+          restoreSubmittedPrompt()
+        })
     }
     history.append({
       ...store.prompt,
@@ -864,12 +988,8 @@ export function Prompt(props: PromptProps) {
     return local.agent.color(agent.name)
   })
 
-  const showVariant = createMemo(() => {
-    const variants = local.model.variant.list()
-    if (variants.length === 0) return false
-    const current = local.model.variant.current()
-    return !!current
-  })
+  const hasVariants = createMemo(() => local.model.variant.list().length > 0)
+  const variantLabel = createMemo(() => local.model.variant.current() ?? "default")
 
   const placeholderText = createMemo(() => {
     if (props.showPlaceholder === false) return undefined
@@ -919,6 +1039,27 @@ export function Prompt(props: PromptProps) {
   const thinkingLabel = createMemo(() => {
     const phrases = thinkingPhrases()
     return phrases[thinkingTick() % phrases.length]
+  })
+  const runStatusLabel = createMemo(() => {
+    const current = status()
+    if ((current.type as string) === "aborting") return "Interrupting"
+    if (current.type !== "busy") return thinkingLabel()
+    const busy = current as typeof current & { phase?: string; detail?: string }
+    switch (busy.phase) {
+      case "connecting":
+        return `Connecting to ${currentProviderLabel()} ${local.model.parsed().model}`
+      case "waiting_for_model":
+        return "Provider connected, waiting for model output"
+      case "streaming":
+        return thinkingLabel()
+      case "tool":
+        return busy.detail ? `Running ${busy.detail}` : "Running tool"
+      case "finalizing":
+        return "Finalizing"
+      case "preparing":
+      default:
+        return "Preparing"
+    }
   })
 
   return (
@@ -1222,11 +1363,15 @@ export function Prompt(props: PromptProps) {
                         {local.model.parsed().model}
                       </text>
                       <text fg={theme.textMuted}>{currentProviderLabel()}</text>
-                      <Show when={showVariant()}>
+                      <Show when={hasVariants()}>
                         <text fg={theme.textMuted}>·</text>
+                        <text fg={theme.textMuted}>thinking</text>
                         <text>
-                          <span style={{ fg: theme.warning, bold: true }}>{local.model.variant.current()}</span>
+                          <span style={{ fg: local.model.variant.current() ? theme.warning : theme.textMuted, bold: true }}>
+                            {variantLabel()}
+                          </span>
                         </text>
+                        <text fg={theme.textMuted}>{keybind.print("variant_cycle")}</text>
                       </Show>
                     </box>
                   </Show>
@@ -1255,7 +1400,7 @@ export function Prompt(props: PromptProps) {
                   </Show>
                 </box>
                 <Show when={status().type !== "retry"}>
-                  <text fg={theme.textMuted}>{thinkingLabel()}…</text>
+                  <text fg={theme.textMuted}>{runStatusLabel()}…</text>
                 </Show>
                 <box flexDirection="row" gap={1} flexShrink={0}>
                   {(() => {

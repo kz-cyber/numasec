@@ -28,7 +28,7 @@
     },
     "packages/numasec": {
       "name": "numasec",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "bin": {
         "numasec": "./bin/numasec",
       },
@@ -178,7 +178,7 @@
     },
     "packages/plugin": {
       "name": "@numasec/plugin",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "dependencies": {
         "@numasec/sdk": "workspace:*",
         "effect": "catalog:",
@@ -213,7 +213,7 @@
     },
     "packages/sdk": {
       "name": "@numasec/sdk",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "dependencies": {
         "cross-spawn": "catalog:",
       },
@@ -228,7 +228,7 @@
     },
     "packages/shared": {
       "name": "@numasec/shared",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "bin": {
         "numasec": "./bin/numasec",
       },

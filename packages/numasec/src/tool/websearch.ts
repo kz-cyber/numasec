@@ -6,7 +6,6 @@ import * as McpExa from "./mcp-exa"
 import DESCRIPTION from "./websearch.txt"
 import { Cyber } from "@/core/cyber"
 import { Evidence } from "@/core/evidence"
-import { Operation } from "@/core/operation"
 import { Instance } from "@/project/instance"
 
 const Parameters = z.object({
@@ -68,7 +67,7 @@ export const WebSearchTool = Tool.define(
           )
 
           const workspace = Instance.directory
-          const slug = yield* Effect.promise(() => Operation.activeSlug(workspace).catch(() => undefined))
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
           const output = result ?? "No search results found. Please try a different query."
           const evidence =
             !slug

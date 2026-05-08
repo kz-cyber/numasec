@@ -32,6 +32,65 @@ export namespace SessionCompaction {
   export const PRUNE_MINIMUM = 20_000
   export const PRUNE_PROTECT = 40_000
   const PRUNE_PROTECTED_TOOLS = ["skill"]
+  const CYBER_PROVENANCE_EFFECTS = new Set([
+    "writes_facts",
+    "writes_evidence",
+    "mutates_target",
+    "mutates_workspace",
+  ])
+
+  function hasMetadataValue(metadata: Record<string, unknown>, keys: string[]) {
+    return keys.some((key) => {
+      const value = metadata[key]
+      if (Array.isArray(value)) return value.length > 0
+      if (typeof value === "string") return value.length > 0
+      return value !== undefined && value !== null && value !== false
+    })
+  }
+
+  function isCanonicalWorkspaceContext(part: MessageV2.ToolPart, metadata: Record<string, unknown>) {
+    if (part.tool !== "workspace") return false
+    const action =
+      typeof metadata["action"] === "string"
+        ? metadata["action"]
+        : part.state.status === "completed" &&
+            part.state.input &&
+            typeof part.state.input === "object" &&
+            !Array.isArray(part.state.input) &&
+            typeof (part.state.input as Record<string, unknown>)["action"] === "string"
+          ? String((part.state.input as Record<string, unknown>)["action"])
+          : "status"
+    return ["status", "snapshot", "capabilities"].includes(action)
+  }
+
+  function isCyberCriticalToolPart(part: MessageV2.ToolPart) {
+    if (part.state.status !== "completed") return false
+    const metadata = part.state.metadata ?? {}
+    if (metadata["preserve_for_context"] === true) return true
+    if (isCanonicalWorkspaceContext(part, metadata)) return true
+    const effects = Array.isArray(metadata.side_effects) ? metadata.side_effects : []
+    if (effects.some((effect) => CYBER_PROVENANCE_EFFECTS.has(String(effect)))) return true
+    return hasMetadataValue(metadata, [
+      "evidence_refs",
+      "evidence",
+      "sha256",
+      "linked_finding_keys",
+      "finding_key",
+      "finding_keys",
+      "finding",
+      "route_key",
+      "route_keys",
+      "linked_routes",
+      "service_key",
+      "service_keys",
+      "component_key",
+      "component_keys",
+      "replay_ref",
+      "replay_refs",
+      "replay_labels",
+      "oracle_verdict",
+    ])
+  }
 
   export interface Interface {
     readonly isOverflow: (input: {
@@ -111,7 +170,7 @@ export namespace SessionCompaction {
             const part = msg.parts[partIndex]
             if (part.type === "tool")
               if (part.state.status === "completed") {
-                if (PRUNE_PROTECTED_TOOLS.includes(part.tool)) continue
+                if (PRUNE_PROTECTED_TOOLS.includes(part.tool) || isCyberCriticalToolPart(part)) continue
                 if (part.state.time.compacted) break loop
                 const estimate = Token.estimate(part.state.output)
                 total += estimate
@@ -207,6 +266,10 @@ When constructing the summary, try to stick to this template:
 ## Accomplished
 
 [What work has been completed, what work is still in progress, and what work is left?]
+
+## Cyber state
+
+[If this is numasec/cyber work, preserve active operation slug, target, scope, opsec, autonomy, identity, findings buckets, open observations, evidence/replay gaps, routes/services/components, failed or rejected paths, workflow/runbook status, and next recommended action. If not applicable, write "not applicable".]
 
 ## Relevant files / directories
 

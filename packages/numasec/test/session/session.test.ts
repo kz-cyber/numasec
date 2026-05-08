@@ -8,6 +8,7 @@ import { MessageV2 } from "../../src/session/message-v2"
 import { MessageID, PartID, type SessionID } from "../../src/session/schema"
 import { AppRuntime } from "../../src/effect/app-runtime"
 import { Operation } from "../../src/core/operation"
+import * as OperationResolver from "../../src/core/operation/resolver"
 import { Cyber } from "../../src/core/cyber"
 import { tmpdir } from "../fixture/fixture"
 
@@ -211,6 +212,121 @@ describe("Session", () => {
         expect(relations.some((item) => item.summary?.includes(String(info.id)))).toBe(true)
 
         await remove(info.id)
+      },
+    })
+  })
+
+  test("session operation binding survives workspace active operation changes", async () => {
+    await using tmp = await tmpdir({ git: true })
+
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const opA = await Operation.create({ workspace: tmp.path, label: "Terminal A", kind: "pentest" })
+        const sessionA = await create({ title: "terminal-a", operationSlug: opA.slug })
+        const opB = await Operation.create({ workspace: tmp.path, label: "Terminal B", kind: "ctf" })
+        const sessionB = await create({ title: "terminal-b", operationSlug: opB.slug })
+
+        expect((await get(sessionA.id)).operationSlug).toBe(opA.slug)
+        expect((await get(sessionB.id)).operationSlug).toBe(opB.slug)
+        expect(await Operation.activeSlug(tmp.path)).toBe(opB.slug)
+
+        const resolvedA = await OperationResolver.resolveOperation({ workspace: tmp.path, sessionID: sessionA.id })
+        const resolvedB = await OperationResolver.resolveOperation({ workspace: tmp.path, sessionID: sessionB.id })
+        expect(resolvedA).toMatchObject({ slug: opA.slug, source: "session" })
+        expect(resolvedB).toMatchObject({ slug: opB.slug, source: "session" })
+
+        const sessionFileA = path.join(tmp.path, ".numasec", "operation", opA.slug, "sessions", `${sessionA.id}.json`)
+        const sessionFileB = path.join(tmp.path, ".numasec", "operation", opB.slug, "sessions", `${sessionB.id}.json`)
+        expect(await Bun.file(sessionFileA).exists()).toBe(true)
+        expect(await Bun.file(sessionFileB).exists()).toBe(true)
+
+        await remove(sessionA.id)
+        await remove(sessionB.id)
+      },
+    })
+  })
+
+  test("creating a session rejects unknown operation slugs", async () => {
+    await using tmp = await tmpdir({ git: true })
+
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const error = await create({ title: "bad-operation", operationSlug: "missing-operation" }).catch((err) => err)
+
+        expect(error?.name).toBe("NotFoundError")
+        expect(error?.data?.message).toBe("Operation not found: missing-operation")
+      },
+    })
+  })
+
+  test("attaching a session rejects unknown operation slugs without persisting them", async () => {
+    await using tmp = await tmpdir({ git: true })
+
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const info = await create({ title: "unbound" })
+
+        const error = await AppRuntime.runPromise(
+          SessionNs.Service.use((svc) =>
+            svc.attachOperation({ sessionID: info.id, operationSlug: "missing-operation" }),
+          ),
+        ).catch((err) => err)
+
+        expect(error?.name).toBe("NotFoundError")
+        expect(error?.data?.message).toBe("Operation not found: missing-operation")
+
+        expect((await get(info.id)).operationSlug).toBeUndefined()
+        expect(await Operation.findSessionOperation(tmp.path, info.id)).toBeUndefined()
+
+        await remove(info.id)
+      },
+    })
+  })
+
+  test("session-bound autonomy writes stay in the session operation", async () => {
+    await using tmp = await tmpdir({ git: true })
+
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const opA = await Operation.create({ workspace: tmp.path, label: "Bound", kind: "pentest" })
+        const sessionA = await create({ title: "bound", operationSlug: opA.slug })
+        const opB = await Operation.create({ workspace: tmp.path, label: "Workspace Default", kind: "appsec" })
+
+        await AppRuntime.runPromise(
+          SessionNs.Service.use((svc) =>
+            svc.setPermission({
+              sessionID: sessionA.id,
+              permission: [{ permission: "*", pattern: "*", action: "allow" }],
+            }),
+          ),
+        )
+
+        const factsA = await AppRuntime.runPromise(Cyber.listFacts({ operation_slug: opA.slug, limit: 100 }))
+        const factsB = await AppRuntime.runPromise(Cyber.listFacts({ operation_slug: opB.slug, limit: 100 }))
+        expect(
+          factsA.some(
+            (item) =>
+              item.entity_kind === "operation" &&
+              item.entity_key === opA.slug &&
+              item.fact_name === "autonomy_policy" &&
+              JSON.stringify(item.value_json).includes("\"mode\":\"auto\""),
+          ),
+        ).toBe(true)
+        expect(
+          factsB.some(
+            (item) =>
+              item.entity_kind === "operation" &&
+              item.entity_key === opB.slug &&
+              item.fact_name === "autonomy_policy" &&
+              JSON.stringify(item.value_json).includes("\"mode\":\"auto\""),
+          ),
+        ).toBe(false)
+
+        await remove(sessionA.id)
       },
     })
   })

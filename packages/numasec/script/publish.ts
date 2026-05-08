@@ -19,6 +19,7 @@ await $`mkdir -p ./dist/${pkg.name}`
 await $`cp -r ./bin ./dist/${pkg.name}/bin`
 await $`cp ./script/postinstall.mjs ./dist/${pkg.name}/postinstall.mjs`
 await Bun.file(`./dist/${pkg.name}/LICENSE`).write(await Bun.file("../../LICENSE").text())
+await Bun.file(`./dist/${pkg.name}/NOTICE`).write(await Bun.file("../../NOTICE").text())
 await Bun.file(`./dist/${pkg.name}/README.md`).write(await Bun.file("../../README.md").text())
 
 await Bun.file(`./dist/${pkg.name}/package.json`).write(
@@ -91,7 +92,7 @@ if (!Script.preview) {
     "pkgdesc='Terminal-native AI cyber operator harness.'",
     "url='https://github.com/FrancescoStabile/numasec'",
     "arch=('aarch64' 'x86_64')",
-    "license=('MIT')",
+    "license=('AGPL-3.0-or-later')",
     "provides=('numasec')",
     "conflicts=('numasec')",
     "depends=('ripgrep')",

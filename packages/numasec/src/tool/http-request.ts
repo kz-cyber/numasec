@@ -6,7 +6,6 @@ import DESCRIPTION from "./http-request.txt"
 import { Guard, ScopeDeniedError } from "@/core/boundary"
 import { Cyber } from "@/core/cyber"
 import { Evidence } from "@/core/evidence"
-import { Operation } from "@/core/operation"
 import { activeIdentity } from "@/core/vault"
 import { Instance } from "@/project/instance"
 
@@ -69,8 +68,10 @@ export const HttpRequestTool = Tool.define(
             throw new Error("URL must start with http:// or https://")
           }
 
+          const workspace = Instance.directory
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
           const scope = yield* Effect.tryPromise({
-            try: () => Guard.checkUrl(Instance.directory, params.url),
+            try: () => Guard.checkUrl(workspace, params.url, slug),
             catch: (e) => (e instanceof ScopeDeniedError ? e : new Error(String(e))),
           })
           const identity = yield* Effect.promise(() => activeIdentity().catch(() => undefined))
@@ -148,7 +149,6 @@ export const HttpRequestTool = Tool.define(
             .filter(Boolean)
             .join("\n")
 
-          const workspace = Instance.directory
           const target = new URL(params.url)
           const hostKey = target.hostname
           const port = target.port || (target.protocol === "https:" ? "443" : "80")
@@ -156,7 +156,6 @@ export const HttpRequestTool = Tool.define(
           const routeKey = `${target.origin}${target.pathname || "/"}`
           const responseContentType =
             Object.entries(headers).find(([name]) => name.toLowerCase() === "content-type")?.[1] ?? null
-          const slug = yield* Effect.promise(() => Operation.activeSlug(workspace).catch(() => undefined))
           const evidence =
             !slug
               ? undefined
@@ -197,6 +196,7 @@ export const HttpRequestTool = Tool.define(
                 )
           const evidenceRefs = evidence ? [evidence.sha256] : undefined
           const eventID = yield* Cyber.appendLedger({
+            operation_slug: slug,
             kind: "fact.observed",
             source: "http_request",
             status: `${status}`,
@@ -216,6 +216,7 @@ export const HttpRequestTool = Tool.define(
             },
           }).pipe(Effect.catch(() => Effect.succeed("")))
           yield* Cyber.upsertFact({
+            operation_slug: slug,
             entity_kind: "host",
             entity_key: hostKey,
             fact_name: "last_seen_url",
@@ -227,6 +228,7 @@ export const HttpRequestTool = Tool.define(
             evidence_refs: evidenceRefs,
           }).pipe(Effect.catch(() => Effect.succeed("")))
           yield* Cyber.upsertFact({
+            operation_slug: slug,
             entity_kind: "service",
             entity_key: serviceKey,
             fact_name: "transport",
@@ -238,6 +240,7 @@ export const HttpRequestTool = Tool.define(
             evidence_refs: evidenceRefs,
           }).pipe(Effect.catch(() => Effect.succeed("")))
           yield* Cyber.upsertFact({
+            operation_slug: slug,
             entity_kind: "http_route",
             entity_key: routeKey,
             fact_name: "last_response",
@@ -254,6 +257,7 @@ export const HttpRequestTool = Tool.define(
             evidence_refs: evidenceRefs,
           }).pipe(Effect.catch(() => Effect.succeed("")))
           yield* Cyber.upsertRelation({
+            operation_slug: slug,
             src_kind: "host",
             src_key: hostKey,
             relation: "exposes",
@@ -266,6 +270,7 @@ export const HttpRequestTool = Tool.define(
             evidence_refs: evidenceRefs,
           }).pipe(Effect.catch(() => Effect.succeed("")))
           yield* Cyber.upsertRelation({
+            operation_slug: slug,
             src_kind: "service",
             src_key: serviceKey,
             relation: "serves",
@@ -279,6 +284,7 @@ export const HttpRequestTool = Tool.define(
           }).pipe(Effect.catch(() => Effect.succeed("")))
           if (identity?.key) {
             yield* Cyber.upsertRelation({
+              operation_slug: slug,
               src_kind: "identity",
               src_key: identity.key,
               relation: "used_on",

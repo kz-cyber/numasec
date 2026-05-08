@@ -1901,6 +1901,7 @@ export namespace Cyber {
             (typeof value?.line === "string" && value.line) ||
             undefined,
           severity: typeof value?.severity === "string" ? value.severity : undefined,
+          evidence_refs: fact.evidence_refs,
         })
         continue
       }

@@ -36,7 +36,7 @@ function relativeAge(ms: number): string {
   return `${Math.floor(d / 86_400_000)}d ago`
 }
 
-export function OperationBanner() {
+export function OperationBanner(props: { sessionID?: string } = {}) {
   const project = useProject()
   const event = useEvent()
   const { theme } = useTheme()
@@ -57,7 +57,7 @@ export function OperationBanner() {
     try {
       const dir = project.instance.directory()
       if (!dir) return undefined
-      const next = await loadOperationConsoleSnapshot(dir)
+      const next = await loadOperationConsoleSnapshot(dir, { sessionID: props.sessionID })
       stableSnapshot = stabilizeOperationConsoleSnapshot(stableSnapshot, next)
       return stableSnapshot
     } finally {

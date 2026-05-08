@@ -1,22 +1,25 @@
 import z from "zod"
 import { Effect, Exit } from "effect"
-import { readdir } from "node:fs/promises"
-import path from "path"
 import * as Tool from "./tool"
 import { inferMode } from "./autonomy"
 import { Operation, KINDS } from "@/core/operation"
 import { Cyber } from "@/core/cyber"
+import * as OperationSnapshot from "@/core/operation/snapshot"
 import { activeIdentity } from "@/core/vault"
-import type { OperationKind } from "@/core/operation"
 import { Instance } from "@/project/instance"
 import { Session } from "@/session"
 
+const workspaceQueries = ["routes", "route", "findings_by_route", "evidence_by_finding", "components", "open_observations", "workflow", "next_workflow_step"] as const
+
 const parameters = z.object({
-  action: z.enum(["status", "list", "start", "rename", "graph_digest", "timeline"]).default("status"),
+  action: z.enum(["status", "list", "start", "rename", "graph_digest", "timeline", "snapshot", "capabilities", "query"]).default("status"),
   label: z.string().optional().describe("Required when action = start or rename"),
-  slug: z.string().optional().describe("Optional operation slug when action = rename; defaults to active operation"),
-  kind: z.enum(KINDS as [string, ...string[]]).optional().describe("Required when action = start"),
+  slug: z.string().optional().describe("Optional operation slug for rename, snapshot, capabilities, or query; defaults to active operation"),
+  kind: z.enum(KINDS).optional().describe("Required when action = start"),
   target: z.string().optional().describe("Optional target when action = start"),
+  query: z.enum(workspaceQueries).optional().describe("Required when action = query"),
+  key: z.string().optional().describe("Route, finding, or component key for query actions that need one"),
+  limit: z.coerce.number().int().min(1).max(100).optional().describe("Maximum rows for action = query"),
 })
 
 type Params = z.infer<typeof parameters>
@@ -28,7 +31,7 @@ export const WorkspaceTool = Tool.define<typeof parameters, Metadata, Session.Se
     const session = yield* Session.Service
     return {
       description:
-        "Manage the active security workspace. Use this to inspect the active operation, list operations, start a new one, inspect graph digest, or view the recent cyber timeline.",
+        "Manage and inspect the active security workspace. At operation start, prefer action=snapshot for agent orientation; use capabilities for domain readiness, query for routes/findings/evidence/components, status for compatibility, and timeline/graph_digest for raw kernel views.",
       parameters,
       execute: (params: Params, ctx: Tool.Context) =>
         Effect.gen(function* () {
@@ -39,11 +42,11 @@ export const WorkspaceTool = Tool.define<typeof parameters, Metadata, Session.Se
               return {
                 title: "workspace start",
                 output: "Provide both label and kind when action = start.",
-                metadata: { action: "start" },
+                metadata: { action: "start", side_effects: Tool.sideEffects("mutates_workspace") },
               }
             }
             const label = params.label
-            const kind = params.kind as OperationKind
+            const kind = params.kind
             yield* ctx.ask({
               permission: "workspace",
               patterns: [label],
@@ -88,10 +91,11 @@ export const WorkspaceTool = Tool.define<typeof parameters, Metadata, Session.Se
               source: "workspace",
               summary: `scope policy ${info.slug}`,
             }).pipe(Effect.catch(() => Effect.succeed("")))
+            yield* Effect.exit(session.attachOperation({ sessionID: ctx.sessionID, operationSlug: info.slug }))
             return {
               title: `workspace · ${info.slug}`,
               output: `Started operation ${info.label} (${info.slug}) of kind ${info.kind}.`,
-              metadata: { action: "start", slug: info.slug },
+              metadata: { action: "start", slug: info.slug, side_effects: Tool.sideEffects("mutates_workspace", "writes_ledger", "writes_facts") },
             }
           }
 
@@ -101,16 +105,15 @@ export const WorkspaceTool = Tool.define<typeof parameters, Metadata, Session.Se
               return {
                 title: "workspace rename",
                 output: "Provide label when action = rename.",
-                metadata: { action: "rename" },
+                metadata: { action: "rename", side_effects: Tool.sideEffects("mutates_workspace") },
               }
             }
-            const active = yield* Effect.promise(() => Operation.activeSlug(workspace).catch(() => undefined))
-            const slug = params.slug ?? active
+            const slug = yield* Tool.resolveOperationSlug(ctx, workspace, params.slug)
             if (!slug) {
               return {
                 title: "workspace rename",
                 output: "No active operation. Provide slug when action = rename.",
-                metadata: { action: "rename", active: false },
+                metadata: { action: "rename", active: false, side_effects: Tool.sideEffects("mutates_workspace") },
               }
             }
             yield* ctx.ask({
@@ -123,7 +126,7 @@ export const WorkspaceTool = Tool.define<typeof parameters, Metadata, Session.Se
             return {
               title: `workspace · ${renamed.slug}`,
               output: `Renamed operation ${renamed.slug} to ${renamed.label}.`,
-              metadata: { action: "rename", slug: renamed.slug, label: renamed.label },
+              metadata: { action: "rename", slug: renamed.slug, label: renamed.label, side_effects: Tool.sideEffects("mutates_workspace", "writes_ledger", "writes_facts") },
             }
           }
 
@@ -139,7 +142,125 @@ export const WorkspaceTool = Tool.define<typeof parameters, Metadata, Session.Se
             return {
               title: "workspace · operations",
               output,
-              metadata: { action: "list", count: ops.length },
+              metadata: { action: "list", count: ops.length, side_effects: Tool.sideEffects("read_only") },
+            }
+          }
+
+          if (params.action === "snapshot") {
+            const slug = yield* Tool.resolveOperationSlug(ctx, workspace, params.slug)
+            const snapshot = yield* Effect.promise(() => OperationSnapshot.build(workspace, { slug, includeDoctor: false }))
+            return {
+              title: snapshot.operation ? `workspace · snapshot · ${snapshot.operation.slug}` : "workspace · snapshot",
+              output: OperationSnapshot.renderSnapshot(snapshot),
+              metadata: {
+                action: "snapshot",
+                active: Boolean(snapshot.operation),
+                slug: snapshot.operation?.slug,
+                warnings: snapshot.warnings,
+                context_file_stale: snapshot.context_file_stale,
+                stale_context: snapshot.stale_context,
+                stale_capability_readiness: snapshot.stale_capability_readiness,
+                source_latest: snapshot.source_latest,
+                source_semantic_latest: snapshot.source_semantic_latest,
+                source_audit_latest: snapshot.source_audit_latest,
+                source_ledger_latest: snapshot.source_ledger_latest,
+                source_fact_latest: snapshot.source_fact_latest,
+                source_evidence_latest: snapshot.source_evidence_latest,
+                source_context_mtime: snapshot.source_context_mtime,
+                capability_source_latest: snapshot.capability_source_latest,
+                audit_after_context: snapshot.audit_after_context,
+                projection_lag_ms: snapshot.projection_lag_ms,
+                counts: snapshot.counts,
+                facts: snapshot.counts.facts,
+                relations: snapshot.counts.relations,
+                ledger: snapshot.counts.ledger,
+                routes: snapshot.counts.routes,
+                route_facts: snapshot.counts.route_facts,
+                evidence: snapshot.counts.evidence,
+                observations: snapshot.counts.observations,
+                open_observations: snapshot.counts.open_observations,
+                reportable_findings: snapshot.counts.reportable_findings,
+                suspected_findings: snapshot.counts.suspected_findings,
+                rejected_findings: snapshot.counts.rejected_findings,
+                deliverables: snapshot.counts.deliverables,
+                share_bundles: snapshot.counts.share_bundles,
+                side_effects: Tool.sideEffects("read_only"),
+              },
+            }
+          }
+
+          if (params.action === "capabilities") {
+            const slug = yield* Tool.resolveOperationSlug(ctx, workspace, params.slug)
+            const snapshot = yield* Effect.promise(() => OperationSnapshot.build(workspace, { slug, includeDoctor: false }))
+            return {
+              title: "workspace · capabilities",
+              output: OperationSnapshot.renderCapabilities(snapshot),
+              metadata: {
+                action: "capabilities",
+                active: Boolean(snapshot.operation),
+                slug: snapshot.operation?.slug,
+                tools_present: snapshot.capabilities.tools_present,
+                tools_total: snapshot.capabilities.tools_total,
+                missing_binaries: snapshot.capabilities.missing_binaries,
+                browser_present: snapshot.capabilities.browser_present,
+                stale_capability_readiness: snapshot.stale_capability_readiness,
+                capability_source_latest: snapshot.capability_source_latest,
+                domains: snapshot.capabilities.domains,
+                side_effects: Tool.sideEffects("read_only"),
+              },
+            }
+          }
+
+          if (params.action === "query") {
+            if (!params.query) {
+              return {
+                title: "workspace · query",
+                output: `Provide query when action = query. Valid queries: ${workspaceQueries.join(", ")}.`,
+                metadata: { action: "query", side_effects: Tool.sideEffects("read_only") },
+              }
+            }
+            if (["route", "findings_by_route", "evidence_by_finding"].includes(params.query) && !params.key) {
+              return {
+                title: `workspace · query · ${params.query}`,
+                output: `Provide key for query=${params.query}.`,
+                metadata: { action: "query", query: params.query, side_effects: Tool.sideEffects("read_only") },
+              }
+            }
+            const slug = yield* Tool.resolveOperationSlug(ctx, workspace, params.slug)
+            const snapshot = yield* Effect.promise(() =>
+              OperationSnapshot.build(workspace, {
+                slug,
+                includeDoctor: false,
+                maxFindings: 10_000,
+                maxObservations: 10_000,
+                maxEvidence: 10_000,
+                maxRoutes: 10_000,
+                maxComponents: 10_000,
+              }),
+            )
+            const result = OperationSnapshot.query(snapshot, { query: params.query, key: params.key, limit: params.limit })
+            return {
+              title: `workspace · query · ${params.query}`,
+              output: JSON.stringify(
+                {
+                  query: params.query,
+                  key: params.key,
+                  count: result.count,
+                  rows: result.rows,
+                },
+                null,
+                2,
+              ),
+              metadata: {
+                action: "query",
+                query: params.query,
+                key: params.key,
+                count: result.count,
+                source_semantic_latest: snapshot.source_semantic_latest,
+                source_audit_latest: snapshot.source_audit_latest,
+                audit_after_context: snapshot.audit_after_context,
+                side_effects: Tool.sideEffects("read_only"),
+              },
             }
           }
 
@@ -150,10 +271,11 @@ export const WorkspaceTool = Tool.define<typeof parameters, Metadata, Session.Se
             const identity = yield* Effect.promise(() => activeIdentity().catch(() => undefined)).pipe(
               Effect.catch(() => Effect.succeed(undefined)),
             )
+            const slug = yield* Tool.resolveOperationSlug(ctx, workspace, params.slug)
             const [output, facts, relations] = yield* Effect.all([
-              Cyber.contextPack(),
-              Cyber.listFacts({ limit: 100 }).pipe(Effect.catch(() => Effect.succeed([]))),
-              Cyber.listRelations({ limit: 100 }).pipe(Effect.catch(() => Effect.succeed([]))),
+              Cyber.contextPack({ operation_slug: slug }),
+              Cyber.listFacts({ operation_slug: slug, limit: 100 }).pipe(Effect.catch(() => Effect.succeed([]))),
+              Cyber.listRelations({ operation_slug: slug, limit: 100 }).pipe(Effect.catch(() => Effect.succeed([]))),
             ])
             const summary = Cyber.summarizeFacts(facts)
             return {
@@ -166,12 +288,14 @@ export const WorkspaceTool = Tool.define<typeof parameters, Metadata, Session.Se
                 ...summary,
                 autonomy_mode: autonomyMode,
                 active_identity: identity?.key,
+                side_effects: Tool.sideEffects("read_only"),
               },
             }
           }
 
           if (params.action === "timeline") {
-            const events = yield* Cyber.listLedger({ limit: 30 })
+            const slug = yield* Tool.resolveOperationSlug(ctx, workspace, params.slug)
+            const events = yield* Cyber.listLedger({ operation_slug: slug, limit: 30 })
             const output =
               events.length === 0
                 ? "No cyber ledger events for the active operation."
@@ -186,125 +310,118 @@ export const WorkspaceTool = Tool.define<typeof parameters, Metadata, Session.Se
             return {
               title: "workspace · timeline",
               output,
-              metadata: { action: "timeline", count: events.length },
+              metadata: { action: "timeline", count: events.length, side_effects: Tool.sideEffects("read_only") },
             }
           }
 
-          const active = yield* Effect.promise(() => Operation.active(workspace).catch(() => undefined))
-          if (!active) {
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace, params.slug)
+          const snapshot = yield* Effect.promise(() => OperationSnapshot.build(workspace, { slug, includeDoctor: false }))
+          if (!snapshot.operation) {
             return {
               title: "workspace · no active operation",
               output: "No active operation.",
-              metadata: { action: "status", active: false },
+              metadata: { action: "status", active: false, side_effects: Tool.sideEffects("read_only") },
             }
           }
-          const activeWorkflow = yield* Effect.promise(() =>
-            Operation.activeWorkflow(workspace, active.slug).catch(() => undefined),
+          const summary = snapshot.projected?.summary
+          const workflowSteps = snapshot.active_workflow
+            ? snapshot.projected?.workflow_steps
+                .filter((item) => item.workflow === `${snapshot.active_workflow?.kind}:${snapshot.active_workflow?.id}`)
+                .sort((a, b) => a.index - b.index)
+                .slice(0, 12) ?? []
+            : []
+          const displayWorkflowSteps = workflowSteps.filter(
+            (step) => step.outcome !== "pending" || (snapshot.active_workflow?.pending_steps ?? 0) > 0,
           )
-          const sessionExit = yield* Effect.exit(session.get(ctx.sessionID))
-          const sessionInfo = Exit.isFailure(sessionExit) ? undefined : sessionExit.value
-          const autonomyMode = inferMode(sessionInfo?.permission)
-          const identity = yield* Effect.promise(() => activeIdentity().catch(() => undefined)).pipe(
-            Effect.catch(() => Effect.succeed(undefined)),
-          )
-          const workflow =
-            !activeWorkflow
-              ? undefined
-              : yield* Effect.promise(() =>
-                  Operation.readWorkflow(workspace, active.slug, activeWorkflow).catch(() => undefined),
-                )
-          const [digest, facts, relations, ledger, workflowFiles] = yield* Effect.all([
-            Cyber.contextPack({ max_events: 8, max_facts: 12 }),
-            Cyber.listFacts({ operation_slug: active.slug, limit: 200 }).pipe(Effect.catch(() => Effect.succeed([]))),
-            Cyber.listRelations({ operation_slug: active.slug, limit: 200 }).pipe(Effect.catch(() => Effect.succeed([]))),
-            Cyber.listLedger({ operation_slug: active.slug, limit: 200 }).pipe(Effect.catch(() => Effect.succeed([]))),
-            Effect.promise(() =>
-              readdir(path.join(workspace, ".numasec", "operation", active.slug, "workflow"), {
-                withFileTypes: true,
-              })
-                .then((entries) => entries.filter((entry) => entry.isFile() && entry.name.endsWith(".json")).length)
-                .catch(() => 0),
-            ).pipe(Effect.catch(() => Effect.succeed(0))),
-          ])
-          const workflowStepFacts = facts
-            .filter(
-              (fact) =>
-                fact.entity_kind === "workflow_step" &&
-                fact.fact_name === "step_status" &&
-                activeWorkflow &&
-                fact.entity_key.startsWith(`${activeWorkflow.kind}:${activeWorkflow.id}:planned:`),
-            )
-            .sort((a, b) => {
-              const ai = Number((a.value_json as { index?: number } | null)?.index ?? 0)
-              const bi = Number((b.value_json as { index?: number } | null)?.index ?? 0)
-              return ai - bi
-            })
-          const workflowStepLines = workflowStepFacts.slice(0, 12).map((fact) => {
-            const value = (fact.value_json ?? {}) as {
-              index?: number
-              tool?: string
-              label?: string
-              outcome?: string
-              outcome_title?: string
-              outcome_error?: string
-            }
-            const descriptor = [value.label, value.tool ? `tool=${value.tool}` : undefined].filter(Boolean).join(" · ")
-            const detail = value.outcome_title ?? value.outcome_error
-            return `step ${Number(value.index ?? 0)} · ${value.outcome ?? "pending"}${descriptor ? ` · ${descriptor}` : ""}${detail ? ` · ${detail}` : ""}`
-          })
-          const summary = Cyber.summarizeFacts(facts)
-          const identityCount = Math.max(summary.identities, identity ? 1 : 0)
-          const activeIdentityCount = Math.max(summary.active_identities, identity ? 1 : 0)
-          const latestDeliverable = Cyber.latestDeliverableFromFacts(facts)
-          const latestShareBundle = Cyber.latestShareBundleFromFacts(facts)
+          const hiddenPendingWorkflowDefinitions = workflowSteps.length - displayWorkflowSteps.length
+          const workflowCount = Math.max(snapshot.projected?.workflows.length ?? 0, snapshot.active_workflow ? 1 : 0)
+          const compatibilityLines = [
+            `Facts: ${snapshot.counts.facts} · Relations: ${snapshot.counts.relations} · Ledger: ${snapshot.counts.ledger} · Workflows: ${workflowCount}`,
+            summary
+              ? `Surface entities: hosts=${summary.hosts} services=${summary.services} web_pages=${summary.web_pages} routes=${snapshot.counts.routes} route_facts=${summary.route_facts} identities=${Math.max(summary.identities, snapshot.active_identity ? 1 : 0)} active_identities=${Math.max(summary.active_identities, snapshot.active_identity ? 1 : 0)}`
+              : undefined,
+            summary ? `Projected observations: ${summary.observations_projected}` : undefined,
+            summary ? `Tool adapters: present=${summary.tool_adapters_present} missing=${summary.tool_adapters_missing}` : undefined,
+            summary ? `Knowledge queries: ${summary.knowledge_queries}` : undefined,
+            summary
+              ? `Capsules: ready=${summary.ready_capsules} degraded=${summary.degraded_capsules} unavailable=${summary.unavailable_capsules} recommended=${summary.recommended_capsules} executed=${summary.executed_capsules}`
+              : undefined,
+            summary ? `Verticals: ready=${summary.ready_verticals} degraded=${summary.degraded_verticals} unavailable=${summary.unavailable_verticals}` : undefined,
+            `Workflows: ${workflowCount}`,
+            `Autonomy: ${snapshot.autonomy?.mode ?? "custom"}`,
+            `Identity: ${snapshot.active_identity?.key ?? "none"}`,
+            `Deliverables: ${snapshot.counts.deliverables}`,
+            `Share bundles: ${snapshot.counts.share_bundles}`,
+            snapshot.deliverables.latest ? `Latest deliverable: ${snapshot.deliverables.latest.report_path ?? snapshot.deliverables.latest.bundle_dir ?? snapshot.deliverables.latest.key}` : undefined,
+            snapshot.sharing.latest ? `Latest share bundle: ${snapshot.sharing.latest.path ?? snapshot.sharing.latest.key}` : undefined,
+            `Candidate findings: ${snapshot.counts.candidate_findings}`,
+            `Reportable: ${snapshot.counts.reportable_findings}`,
+            `Suspected: ${snapshot.counts.suspected_findings}`,
+            `Rejected: ${snapshot.counts.rejected_findings}`,
+            summary ? `Replay-backed: ${summary.replay_backed_findings}` : undefined,
+            summary ? `Evidence-backed: ${summary.evidence_backed_findings}` : undefined,
+            snapshot.active_workflow
+              ? `Progress: done=${snapshot.active_workflow.completed_steps} failed=${snapshot.active_workflow.failed_steps} skipped=${snapshot.active_workflow.skipped} pending=${snapshot.active_workflow.pending_steps}`
+              : undefined,
+            hiddenPendingWorkflowDefinitions
+              ? `Workflow planned pending definitions: ${hiddenPendingWorkflowDefinitions} (not counted as active pending)`
+              : undefined,
+            displayWorkflowSteps.length ? "Workflow steps:" : undefined,
+            ...displayWorkflowSteps.map((step) => {
+              const detail = step.outcome_title ?? step.outcome_error
+              return `step ${step.index} · ${step.outcome}${step.label ? ` · ${step.label}` : ""}${detail ? ` · ${detail}` : ""}`
+            }),
+          ].filter(Boolean)
           return {
-            title: `workspace · ${active.slug}`,
-            output: [
-              `Active operation: ${active.label} (${active.slug})`,
-              `Kind: ${active.kind}`,
-              `Autonomy: ${autonomyMode}`,
-              `Identity: ${identity?.key ?? "none"}`,
-              `Facts: ${facts.length} · Relations: ${relations.length} · Ledger: ${ledger.length} · Workflows: ${workflowFiles}`,
-              `Surface entities: hosts=${summary.hosts} services=${summary.services} web_pages=${summary.web_pages} routes=${summary.route_facts} identities=${identityCount} active_identities=${activeIdentityCount}`,
-              `Plan nodes: ${summary.plan_nodes} · running=${summary.running_plan_nodes} done=${summary.done_plan_nodes}`,
-              `Projected observations: ${summary.observations_projected}`,
-              `Tool adapters: present=${summary.tool_adapters_present} missing=${summary.tool_adapters_missing}`,
-              `Knowledge queries: ${summary.knowledge_queries}`,
-              `Capsules: ready=${summary.ready_capsules} degraded=${summary.degraded_capsules} unavailable=${summary.unavailable_capsules} recommended=${summary.recommended_capsules} executed=${summary.executed_capsules}`,
-              `Verticals: ready=${summary.ready_verticals} degraded=${summary.degraded_verticals} unavailable=${summary.unavailable_verticals}`,
-              `Candidate findings: ${summary.candidate_findings} · Findings: ${summary.findings} · Reportable: ${summary.reportable_findings} · Suspected: ${summary.suspected_findings} · Rejected: ${summary.rejected_findings} · Deliverables: ${summary.deliverables} · Share bundles: ${summary.share_bundles} · Evidence-backed: ${summary.evidence_backed_findings} · Replay-backed: ${summary.replay_backed_findings} · Replay-exempt: ${summary.replay_exempt_findings}`,
-              ...(latestDeliverable ? [`Latest deliverable: ${latestDeliverable.report_path ?? latestDeliverable.bundle_dir ?? latestDeliverable.key}`] : []),
-              ...(latestShareBundle ? [`Latest share bundle: ${latestShareBundle.path ?? latestShareBundle.key}`] : []),
-              ...(activeWorkflow
-                ? [
-                    `Active workflow: ${activeWorkflow.kind} ${activeWorkflow.id}`,
-                    `Progress: done=${Number(workflow?.completed_steps ?? 0)} failed=${Number(workflow?.failed_steps ?? 0)} skipped=${Number(workflow?.skipped ?? 0)} pending=${Number(workflow?.pending_steps ?? 0)}`,
-                    ...(workflowStepLines.length > 0 ? ["Workflow steps:", ...workflowStepLines] : []),
-                  ]
-                : []),
-              "",
-              digest ?? "_no cyber context yet_",
-            ].join("\n"),
+            title: `workspace · ${snapshot.operation.slug}`,
+            output: [OperationSnapshot.renderSnapshot(snapshot), "", ...compatibilityLines].join("\n"),
             metadata: {
               action: "status",
-              slug: active.slug,
-              kind: active.kind,
+              slug: snapshot.operation.slug,
+              kind: snapshot.operation.kind,
               active: true,
-              facts: facts.length,
-              relations: relations.length,
-              ledger: ledger.length,
-              workflows: workflowFiles,
-              active_workflow: activeWorkflow?.id,
-              completed_steps: Number(workflow?.completed_steps ?? 0),
-              failed_steps: Number(workflow?.failed_steps ?? 0),
-              pending_steps: Number(workflow?.pending_steps ?? 0),
+              counts: snapshot.counts,
+              warnings: snapshot.warnings,
+              facts: snapshot.counts.facts,
+              relations: snapshot.counts.relations,
+              ledger: snapshot.counts.ledger,
+              routes: snapshot.counts.routes,
+              route_facts: snapshot.counts.route_facts,
+              evidence: snapshot.counts.evidence,
+              observations: snapshot.counts.observations,
+              open_observations: snapshot.counts.open_observations,
+              deliverables: snapshot.counts.deliverables,
+              share_bundles: snapshot.counts.share_bundles,
+              active_workflow: snapshot.active_workflow?.id,
+              completed_steps: snapshot.active_workflow?.completed_steps ?? 0,
+              failed_steps: snapshot.active_workflow?.failed_steps ?? 0,
+              pending_steps: snapshot.active_workflow?.pending_steps ?? 0,
+              autonomy_mode: snapshot.autonomy?.mode ?? "custom",
+              active_identity: snapshot.active_identity?.key,
+              latest_deliverable_path: snapshot.deliverables.latest?.report_path ?? snapshot.deliverables.latest?.bundle_dir,
+              latest_share_bundle_path: snapshot.sharing.latest?.path,
+              workflows: workflowCount,
+              workflow_step_statuses: snapshot.projected?.workflow_steps.length ?? 0,
               ...summary,
-              identities: identityCount,
-              active_identities: activeIdentityCount,
-              autonomy_mode: autonomyMode,
-              active_identity: identity?.key,
-              latest_deliverable_path: latestDeliverable?.report_path ?? latestDeliverable?.bundle_dir,
-              latest_share_bundle_path: latestShareBundle?.path,
+              candidate_findings: snapshot.counts.candidate_findings,
+              reportable_findings: snapshot.counts.reportable_findings,
+              suspected_findings: snapshot.counts.suspected_findings,
+              rejected_findings: snapshot.counts.rejected_findings,
+              identities: Math.max(summary?.identities ?? 0, snapshot.active_identity ? 1 : 0),
+              active_identities: Math.max(summary?.active_identities ?? 0, snapshot.active_identity ? 1 : 0),
+              stale_context: snapshot.stale_context,
+              stale_capability_readiness: snapshot.stale_capability_readiness,
+              source_latest: snapshot.source_latest,
+              source_semantic_latest: snapshot.source_semantic_latest,
+              source_audit_latest: snapshot.source_audit_latest,
+              source_ledger_latest: snapshot.source_ledger_latest,
+              source_fact_latest: snapshot.source_fact_latest,
+              source_evidence_latest: snapshot.source_evidence_latest,
+              source_context_mtime: snapshot.source_context_mtime,
+              capability_source_latest: snapshot.capability_source_latest,
+              audit_after_context: snapshot.audit_after_context,
+              projection_lag_ms: snapshot.projection_lag_ms,
+              side_effects: Tool.sideEffects("read_only"),
             },
           }
         }),

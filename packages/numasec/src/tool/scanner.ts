@@ -14,7 +14,6 @@ import { Cyber } from "@/core/cyber"
 import { Evidence } from "@/core/evidence"
 import { autoEnrichKnowledge } from "@/core/knowledge"
 import { Observation } from "@/core/observation"
-import { Operation } from "@/core/operation"
 import { Instance } from "@/project/instance"
 
 const TIMEOUTS = {
@@ -238,13 +237,14 @@ function scannerKnowledgeItems(mode: Params["mode"], target: string, result: unk
   return []
 }
 
-function writeCrawlFacts(input: { target: string; result: CrawlResult; eventID?: string; evidenceRefs?: string[] }) {
+function writeCrawlFacts(input: { operationSlug?: string; target: string; result: CrawlResult; eventID?: string; evidenceRefs?: string[] }) {
   const origin = new URL(input.target).origin
   const hostKey = new URL(input.target).hostname
   const port = new URL(input.target).port || (input.target.startsWith("https://") ? "443" : "80")
   const serviceKey = `${hostKey}:${port}`
   return Effect.all([
     Cyber.upsertRelation({
+      operation_slug: input.operationSlug,
       src_kind: "host",
       src_key: hostKey,
       relation: "exposes",
@@ -259,6 +259,7 @@ function writeCrawlFacts(input: { target: string; result: CrawlResult; eventID?:
     ...input.result.urls.map((url) =>
       Effect.all([
         Cyber.upsertFact({
+          operation_slug: input.operationSlug,
           entity_kind: "http_route",
           entity_key: url,
           fact_name: "discovered_by:crawl",
@@ -270,6 +271,7 @@ function writeCrawlFacts(input: { target: string; result: CrawlResult; eventID?:
           evidence_refs: input.evidenceRefs,
         }).pipe(Effect.catch(() => Effect.succeed(""))),
         Cyber.upsertRelation({
+          operation_slug: input.operationSlug,
           src_kind: "service",
           src_key: serviceKey,
           relation: "serves",
@@ -285,6 +287,7 @@ function writeCrawlFacts(input: { target: string; result: CrawlResult; eventID?:
     ),
     ...input.result.forms.map((form) =>
       Cyber.upsertFact({
+        operation_slug: input.operationSlug,
         entity_kind: "http_form",
         entity_key: `${form.method}:${form.action}`,
         fact_name: "shape",
@@ -298,6 +301,7 @@ function writeCrawlFacts(input: { target: string; result: CrawlResult; eventID?:
     ),
     ...input.result.technologies.map((technology) =>
       Cyber.upsertFact({
+        operation_slug: input.operationSlug,
         entity_kind: "host",
         entity_key: hostKey,
         fact_name: factName("technology", technology),
@@ -312,6 +316,7 @@ function writeCrawlFacts(input: { target: string; result: CrawlResult; eventID?:
     ...(input.result.openapi
       ? [
           Cyber.upsertFact({
+            operation_slug: input.operationSlug,
             entity_kind: "service",
             entity_key: serviceKey,
             fact_name: "openapi_spec",
@@ -326,6 +331,7 @@ function writeCrawlFacts(input: { target: string; result: CrawlResult; eventID?:
       : []),
     ...input.result.sitemap.map((url) =>
       Cyber.upsertFact({
+        operation_slug: input.operationSlug,
         entity_kind: "http_route",
         entity_key: url,
         fact_name: "listed_in:sitemap",
@@ -339,6 +345,7 @@ function writeCrawlFacts(input: { target: string; result: CrawlResult; eventID?:
     ),
     ...input.result.robotsDisallowed.map((route) =>
       Cyber.upsertFact({
+        operation_slug: input.operationSlug,
         entity_kind: "http_route",
         entity_key: normalizeRoute(origin, route) ?? `${origin}${route}`,
         fact_name: "listed_in:robots_disallow",
@@ -353,7 +360,7 @@ function writeCrawlFacts(input: { target: string; result: CrawlResult; eventID?:
   ])
 }
 
-function writeDirFuzzFacts(input: { target: string; result: DirFuzzResult; eventID?: string; evidenceRefs?: string[] }) {
+function writeDirFuzzFacts(input: { operationSlug?: string; target: string; result: DirFuzzResult; eventID?: string; evidenceRefs?: string[] }) {
   const origin = new URL(input.target).origin
   const hostKey = new URL(input.target).hostname
   const port = new URL(input.target).port || (input.target.startsWith("https://") ? "443" : "80")
@@ -361,6 +368,7 @@ function writeDirFuzzFacts(input: { target: string; result: DirFuzzResult; event
   return Effect.forEach(input.result.found, (item) =>
     Effect.all([
       Cyber.upsertFact({
+        operation_slug: input.operationSlug,
         entity_kind: "http_route",
         entity_key: normalizeRoute(origin, item.path) ?? `${origin}${item.path}`,
         fact_name: "dir_fuzz_observation",
@@ -372,6 +380,7 @@ function writeDirFuzzFacts(input: { target: string; result: DirFuzzResult; event
         evidence_refs: input.evidenceRefs,
       }).pipe(Effect.catch(() => Effect.succeed(""))),
       Cyber.upsertRelation({
+        operation_slug: input.operationSlug,
         src_kind: "service",
         src_key: serviceKey,
         relation: "serves",
@@ -387,7 +396,7 @@ function writeDirFuzzFacts(input: { target: string; result: DirFuzzResult; event
   )
 }
 
-function writeJsFacts(input: { target: string; result: JsAnalysisResult; eventID?: string; evidenceRefs?: string[] }) {
+function writeJsFacts(input: { operationSlug?: string; target: string; result: JsAnalysisResult; eventID?: string; evidenceRefs?: string[] }) {
   const hostKey = new URL(input.target).hostname
   return Effect.all([
     ...input.result.endpoints.flatMap((endpoint) => {
@@ -395,6 +404,7 @@ function writeJsFacts(input: { target: string; result: JsAnalysisResult; eventID
       if (!routeKey) return []
       return [
         Cyber.upsertFact({
+          operation_slug: input.operationSlug,
           entity_kind: "http_route",
           entity_key: routeKey,
           fact_name: "discovered_by:js_analysis",
@@ -412,6 +422,7 @@ function writeJsFacts(input: { target: string; result: JsAnalysisResult; eventID
       if (!routeKey) return []
       return [
         Cyber.upsertFact({
+          operation_slug: input.operationSlug,
           entity_kind: "http_route",
           entity_key: routeKey,
           fact_name: "spa_route",
@@ -426,6 +437,7 @@ function writeJsFacts(input: { target: string; result: JsAnalysisResult; eventID
     }),
     ...input.result.chatbotIndicators.map((indicator) =>
       Cyber.upsertFact({
+        operation_slug: input.operationSlug,
         entity_kind: "host",
         entity_key: hostKey,
         fact_name: factName("chatbot", indicator),
@@ -439,6 +451,7 @@ function writeJsFacts(input: { target: string; result: JsAnalysisResult; eventID
     ),
     ...input.result.jsFiles.map((file) =>
       Cyber.upsertFact({
+        operation_slug: input.operationSlug,
         entity_kind: "artifact",
         entity_key: file,
         fact_name: "javascript_resource",
@@ -452,6 +465,7 @@ function writeJsFacts(input: { target: string; result: JsAnalysisResult; eventID
     ),
     ...input.result.secrets.map((secret) =>
       Cyber.upsertFact({
+        operation_slug: input.operationSlug,
         entity_kind: "secret_candidate",
         entity_key: fingerprint(secret.value),
         fact_name: factName("detected", secret.type),
@@ -472,10 +486,11 @@ function writeJsFacts(input: { target: string; result: JsAnalysisResult; eventID
   ])
 }
 
-function writePortFacts(input: { target: string; result: PortScanResult; eventID?: string; evidenceRefs?: string[] }) {
+function writePortFacts(input: { operationSlug?: string; target: string; result: PortScanResult; eventID?: string; evidenceRefs?: string[] }) {
   return Effect.forEach(input.result.openPorts, (item) =>
     Effect.all([
       Cyber.upsertFact({
+        operation_slug: input.operationSlug,
         entity_kind: "service",
         entity_key: `${input.result.host}:${item.port}`,
         fact_name: "port_scan",
@@ -487,6 +502,7 @@ function writePortFacts(input: { target: string; result: PortScanResult; eventID
         evidence_refs: input.evidenceRefs,
       }).pipe(Effect.catch(() => Effect.succeed(""))),
       Cyber.upsertRelation({
+        operation_slug: input.operationSlug,
         src_kind: "host",
         src_key: input.result.host,
         relation: "exposes",
@@ -503,6 +519,7 @@ function writePortFacts(input: { target: string; result: PortScanResult; eventID
 }
 
 function writeServiceFacts(input: {
+  operationSlug?: string
   target: string
   result: ServiceProbeResult
   eventID?: string
@@ -511,6 +528,7 @@ function writeServiceFacts(input: {
   return Effect.forEach(input.result.services, (item) =>
     Effect.all([
       Cyber.upsertFact({
+        operation_slug: input.operationSlug,
         entity_kind: "service",
         entity_key: `${extractHost(input.target)}:${item.port}`,
         fact_name: "service_probe",
@@ -522,6 +540,7 @@ function writeServiceFacts(input: {
         evidence_refs: input.evidenceRefs,
       }).pipe(Effect.catch(() => Effect.succeed(""))),
       Cyber.upsertRelation({
+        operation_slug: input.operationSlug,
         src_kind: "host",
         src_key: extractHost(input.target),
         relation: "exposes",
@@ -553,8 +572,10 @@ export const ScannerTool = Tool.define<typeof parameters, Metadata, never>(
             ? { kind: "url" as const, value: params.target }
             : { kind: "host" as const, value: host }
 
+          const workspace = Instance.directory
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
           const scope = yield* Effect.tryPromise({
-            try: () => Guard.check(Instance.directory, scopeReq),
+            try: () => Guard.check(workspace, scopeReq, slug),
             catch: (e) =>
               e instanceof ScopeDeniedError
                 ? new Error(`out-of-scope: ${params.target} is not allowed by the active operation's scope`)
@@ -633,8 +654,6 @@ export const ScannerTool = Tool.define<typeof parameters, Metadata, never>(
           })
 
           const elapsed = (result as { elapsed?: number }).elapsed
-          const workspace = Instance.directory
-          const slug = yield* Effect.promise(() => Operation.activeSlug(workspace).catch(() => undefined))
           const evidence = yield* persistScanResult({
             workspace,
             slug,
@@ -645,6 +664,7 @@ export const ScannerTool = Tool.define<typeof parameters, Metadata, never>(
           const evidenceRefs = evidence ? [evidence.sha256] : undefined
           const eventID = yield* Cyber.appendLedger({
             kind: "fact.observed",
+            operation_slug: slug,
             source: "scanner",
             summary: summarize(params.mode, result) ?? `scanner ${params.mode} ${params.target}`,
             evidence_refs: evidenceRefs,
@@ -662,6 +682,7 @@ export const ScannerTool = Tool.define<typeof parameters, Metadata, never>(
             yield* writeCrawlFacts({
               target: params.target,
               result: result as CrawlResult,
+              operationSlug: slug,
               eventID: eventID || undefined,
               evidenceRefs,
             })
@@ -670,6 +691,7 @@ export const ScannerTool = Tool.define<typeof parameters, Metadata, never>(
             yield* writeDirFuzzFacts({
               target: params.target,
               result: result as DirFuzzResult,
+              operationSlug: slug,
               eventID: eventID || undefined,
               evidenceRefs,
             })
@@ -678,6 +700,7 @@ export const ScannerTool = Tool.define<typeof parameters, Metadata, never>(
             yield* writeJsFacts({
               target: params.target,
               result: result as JsAnalysisResult,
+              operationSlug: slug,
               eventID: eventID || undefined,
               evidenceRefs,
             })
@@ -686,6 +709,7 @@ export const ScannerTool = Tool.define<typeof parameters, Metadata, never>(
             yield* writePortFacts({
               target: params.target,
               result: result as PortScanResult,
+              operationSlug: slug,
               eventID: eventID || undefined,
               evidenceRefs,
             })
@@ -694,6 +718,7 @@ export const ScannerTool = Tool.define<typeof parameters, Metadata, never>(
             yield* writeServiceFacts({
               target: params.target,
               result: result as ServiceProbeResult,
+              operationSlug: slug,
               eventID: eventID || undefined,
               evidenceRefs,
             })

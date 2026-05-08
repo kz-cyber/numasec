@@ -86,10 +86,6 @@ function formatListBucket(title: string, records: FindingRecord[]) {
   ].join("\n")
 }
 
-async function readActiveSlug(workspace: string) {
-  return Operation.activeSlug(workspace).catch(() => undefined)
-}
-
 export const FindingTool = Tool.define<typeof parameters, Metadata, never>(
   "finding",
   Effect.gen(function* () {
@@ -99,7 +95,7 @@ export const FindingTool = Tool.define<typeof parameters, Metadata, never>(
       execute: (params: Params, ctx: Tool.Context) =>
         Effect.gen(function* () {
           const workspace = Instance.directory
-          const slug = yield* Effect.promise(() => readActiveSlug(workspace))
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
           if (!slug) {
             return {
               title: "finding · no active operation",
@@ -107,7 +103,7 @@ export const FindingTool = Tool.define<typeof parameters, Metadata, never>(
               metadata: { action: params.action, active: false },
             }
           }
-          const active = yield* Effect.promise(() => Operation.active(workspace).catch(() => undefined))
+          const active = yield* Effect.promise(() => Operation.read(workspace, slug).catch(() => undefined))
 
           const facts = yield* Cyber.listFacts({ operation_slug: slug, limit: 500 }).pipe(
             Effect.catch(() => Effect.succeed([])),

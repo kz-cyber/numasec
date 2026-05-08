@@ -356,6 +356,7 @@ export interface Manifest {
   kind: string
   generated_at: number
   files: Array<{ path: string; sha256: string; size: number }>
+  warnings?: string[]
   counts: {
     plan: number
     observations: number
@@ -430,6 +431,7 @@ export async function build(
 
   const op = await phase("load_operation", () => Operation.get(workspace, slug))
   if (!op) throw new Error(`operation not found: ${slug}`)
+  const warnings: string[] = []
   const [plan, planProjected, observations, observationsProjected, evidence, cyber] = await Promise.all([
     phase("load_plan", () => Plan.list(workspace, slug)),
     phase("load_plan", () => Plan.listProjected(workspace, slug).catch(() => [])),
@@ -444,7 +446,10 @@ export async function build(
           Operation.readProjectedAutonomyPolicy(workspace, slug).catch(() => undefined),
           Cyber.readProjectedFacts(workspace, slug).catch(() => []),
           Cyber.readProjectedLedger(workspace, slug).catch(() => []),
-          Promise.resolve([] as Awaited<ReturnType<typeof Cyber.readProjectedRelations>>),
+          Cyber.readProjectedRelations(workspace, slug).catch((error) => {
+            warnings.push(`relations_load_error: ${error instanceof Error ? error.message : String(error)}`)
+            return [] as Awaited<ReturnType<typeof Cyber.readProjectedRelations>>
+          }),
         ])
       return Cyber.projectStateFromParts({
         operation_state: operationState,
@@ -567,6 +572,7 @@ export async function build(
     kind: op.kind,
     generated_at: Date.now(),
     files: files.map((f) => ({ path: f.path, sha256: sha256(f.bytes), size: f.bytes.length })),
+    warnings,
     counts: manifestCounts,
   }
 

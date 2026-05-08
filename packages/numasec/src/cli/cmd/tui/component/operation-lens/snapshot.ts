@@ -1,10 +1,8 @@
 import path from "path"
 import { evaluate, type Decision, type Request } from "@/core/boundary"
-import { Cyber } from "@/core/cyber"
 import type {
   ProjectedDeliverableState,
   ProjectedFinding,
-  ProjectedRelationState,
   ProjectedState,
   ProjectedTimelineEvent,
   ProjectedWorkflowStatus,
@@ -17,12 +15,15 @@ import {
   isSuspectedFinding,
   replayState,
 } from "@/core/cyber/finding"
-import { Evidence, type EvidenceEntry } from "@/core/evidence"
-import { Operation, type OperationInfo } from "@/core/operation"
+import type { EvidenceEntry } from "@/core/evidence"
+import type { OperationInfo } from "@/core/operation"
+import * as OperationResolver from "@/core/operation/resolver"
+import * as OperationSnapshot from "@/core/operation/snapshot"
 
 export type OperationConsoleSnapshot = {
   directory: string
   active?: OperationInfo
+  operationSnapshot?: OperationSnapshot.OperationSnapshot
   projected?: ProjectedState
   evidenceCount: number
   evidenceEntries: EvidenceEntry[]
@@ -58,6 +59,7 @@ export function stabilizeOperationConsoleSnapshot(
 
   return {
     ...next,
+    operationSnapshot: next.operationSnapshot ?? previous.operationSnapshot,
     projected: previous.projected,
     evidenceCount: next.evidenceEntries.length > 0 ? next.evidenceCount : previous.evidenceCount,
     evidenceEntries: next.evidenceEntries.length > 0 ? next.evidenceEntries : previous.evidenceEntries,
@@ -663,13 +665,31 @@ export function numericCount(counts: Record<string, unknown> | undefined, key: s
   return typeof value === "number" ? value : 0
 }
 
-export async function loadOperationConsoleSnapshot(directory?: string): Promise<OperationConsoleSnapshot | undefined> {
+export async function loadOperationConsoleSnapshot(
+  directory?: string,
+  options?: { sessionID?: string; slug?: string },
+): Promise<OperationConsoleSnapshot | undefined> {
   if (!directory) return undefined
-  const active = await Operation.active(directory).catch(() => undefined)
-  if (!active) {
+  const operation: OperationResolver.OperationResolution = await OperationResolver.resolveOperation({
+    workspace: directory,
+    explicitSlug: options?.slug,
+    sessionID: options?.sessionID,
+  }).catch(() => ({ source: "none" as const }))
+  const operationSnapshot = await OperationSnapshot.build(directory, {
+    slug: operation.slug,
+    includeDoctor: false,
+    maxEvidence: 200,
+    maxFindings: 200,
+    maxObservations: 200,
+    maxRoutes: 200,
+    maxComponents: 200,
+  }).catch(() => undefined)
+  const active = operationSnapshot?.operation
+  if (!operationSnapshot || !active) {
     return {
       directory,
       active: undefined,
+      operationSnapshot,
       projected: undefined,
       evidenceCount: 0,
       evidenceEntries: [],
@@ -680,11 +700,11 @@ export async function loadOperationConsoleSnapshot(directory?: string): Promise<
     }
   }
 
-  const [projected, evidenceEntries, activeWorkflow] = await Promise.all([
-    Cyber.readProjectedState(directory, active.slug).catch(() => undefined),
-    Evidence.list(directory, active.slug).catch(() => []),
-    Operation.activeWorkflow(directory, active.slug).catch(() => undefined),
-  ])
+  const projected = operationSnapshot.projected
+  const evidenceEntries = operationSnapshot.evidence.entries
+  const activeWorkflow = operationSnapshot.active_workflow
+    ? { kind: operationSnapshot.active_workflow.kind, id: operationSnapshot.active_workflow.id }
+    : undefined
 
   const workflow =
     activeWorkflow && projected
@@ -694,8 +714,9 @@ export async function loadOperationConsoleSnapshot(directory?: string): Promise<
   return {
     directory,
     active,
+    operationSnapshot,
     projected,
-    evidenceCount: evidenceEntries.length,
+    evidenceCount: operationSnapshot.evidence.count,
     evidenceEntries,
     activeWorkflow,
     workflow,

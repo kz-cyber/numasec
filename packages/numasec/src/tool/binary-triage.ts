@@ -7,7 +7,6 @@ import DESCRIPTION from "./binary-triage.txt"
 import { runProcess } from "./process"
 import { Cyber } from "@/core/cyber"
 import { Evidence } from "@/core/evidence"
-import { Operation } from "@/core/operation"
 import { Instance } from "@/project/instance"
 
 const parameters = z.object({
@@ -123,7 +122,7 @@ export const BinaryTriageTool = Tool.define<typeof parameters, Metadata, never>(
             } satisfies Metadata,
           }
           const workspace = Instance.directory
-          const slug = yield* Effect.promise(() => Operation.activeSlug(workspace).catch(() => undefined))
+          const slug = yield* Tool.resolveOperationSlug(ctx, workspace)
           const evidence =
             !slug
               ? undefined
@@ -138,6 +137,7 @@ export const BinaryTriageTool = Tool.define<typeof parameters, Metadata, never>(
           const evidenceRefs = evidence ? [evidence.sha256] : undefined
           const summary = summarize(toolResult.output)
           const eventID = yield* Cyber.appendLedger({
+            operation_slug: slug,
             kind: "fact.observed",
             source: "binary_triage",
             summary: `binary triage ${params.path}`,
@@ -151,6 +151,7 @@ export const BinaryTriageTool = Tool.define<typeof parameters, Metadata, never>(
             },
           }).pipe(Effect.catch(() => Effect.succeed("")))
           yield* Cyber.upsertFact({
+            operation_slug: slug,
             entity_kind: "binary_artifact",
             entity_key: params.path,
             fact_name: "checksec_summary",
@@ -164,6 +165,7 @@ export const BinaryTriageTool = Tool.define<typeof parameters, Metadata, never>(
           for (const item of summary?.findings ?? []) {
             const entityKey = `${params.path}:${item.key}`
             yield* Cyber.upsertFact({
+              operation_slug: slug,
               entity_kind: "finding_candidate",
               entity_key: entityKey,
               fact_name: "binary_hardening_gap",
@@ -175,6 +177,7 @@ export const BinaryTriageTool = Tool.define<typeof parameters, Metadata, never>(
               evidence_refs: evidenceRefs,
             }).pipe(Effect.catch(() => Effect.succeed("")))
             yield* Cyber.upsertRelation({
+              operation_slug: slug,
               src_kind: "binary_artifact",
               src_key: params.path,
               relation: "has_candidate",

@@ -1,7 +1,7 @@
 # numasec Public Prompts
 
 > **Principle 2 (Manifesto)** — *Public brain.* Every kind prompt that drives the agent
-> lives in this repository, in plain text, under MIT. You can read it, diff it, fork it,
+> lives in this repository, in plain text, under AGPLv3-or-later. You can read it, diff it, fork it,
 > and patch it before you trust it.
 
 This page is the contract. It tells you exactly what numasec tells the model, for each

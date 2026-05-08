@@ -5,6 +5,10 @@ import { useDialog } from "@tui/ui/dialog"
 import { useProject } from "@tui/context/project"
 import { useKeybind } from "@tui/context/keybind"
 import { Operation, type OperationKind } from "@/core/operation"
+import * as OperationResolver from "@/core/operation/resolver"
+import { AppRuntime } from "@/effect/app-runtime"
+import { Session } from "@/session"
+import type { SessionID } from "@/session/schema"
 import { DialogOperationRename } from "./dialog-operation-rename"
 
 const KIND_GLYPHS: Record<OperationKind, string> = {
@@ -21,7 +25,7 @@ const KINDS: OperationKind[] = ["pentest", "appsec", "osint", "hacking", "bughun
 
 // Empty-state → 2-step create wizard (label → kind).
 // Populated → select/activate/deactivate existing ops + "+ new" entry.
-export function DialogOperation() {
+export function DialogOperation(props: { sessionID?: string } = {}) {
   const dialog = useDialog()
   const project = useProject()
   const keybind = useKeybind()
@@ -39,11 +43,11 @@ export function DialogOperation() {
     try {
       const dir = project.instance.directory()
       if (!dir) return { ops: [], active: undefined as string | undefined, dir: undefined as string | undefined }
-      const [ops, activeSlug] = await Promise.all([
+      const [ops, operation] = await Promise.all([
         Operation.list(dir).catch(() => []),
-        Operation.activeSlug(dir).catch(() => undefined),
+        OperationResolver.resolveOperation({ workspace: dir, sessionID: props.sessionID }).catch(() => undefined),
       ])
-      return { ops, active: activeSlug, dir }
+      return { ops, active: operation?.slug, dir }
     } finally {
       inflight = false
     }
@@ -83,11 +87,18 @@ export function DialogOperation() {
           onSelect={async (option) => {
             const dir = data()?.dir
             if (!dir) return dialog.clear()
-            await Operation.create({
+            const op = await Operation.create({
               workspace: dir,
               label: pendingLabel(),
               kind: option.value as OperationKind,
             }).catch(() => undefined)
+            if (op && props.sessionID) {
+              await AppRuntime.runPromise(
+                Session.Service.use((session) =>
+                  session.attachOperation({ sessionID: props.sessionID as SessionID, operationSlug: op.slug }),
+                ),
+              ).catch(() => undefined)
+            }
             dialog.clear()
           }}
         />
@@ -123,7 +134,15 @@ export function DialogOperation() {
                   }
                   const dir = d().dir
                   if (!dir) return dialog.clear()
-                  await Operation.activate(dir, option.value)
+                  if (props.sessionID) {
+                    await AppRuntime.runPromise(
+                      Session.Service.use((session) =>
+                        session.attachOperation({ sessionID: props.sessionID as SessionID, operationSlug: option.value }),
+                      ),
+                    ).catch(() => undefined)
+                  } else {
+                    await Operation.activate(dir, option.value)
+                  }
                   refresh()
                   dialog.clear()
                 }}
